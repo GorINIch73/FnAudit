@@ -4,9 +4,11 @@
 #include <ctime>
 #include <iomanip>
 #include <sstream>
+#include <cstring> // Для strcasestr и memset
 
 PaymentsView::PaymentsView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedPaymentIndex(-1), isAdding(false) {
+    memset(filterText, 0, sizeof(filterText)); // Инициализация filterText
 }
 
 void PaymentsView::SetDatabaseManager(DatabaseManager* manager) {
@@ -110,9 +112,12 @@ void PaymentsView::Render() {
     
     ImGui::Separator();
 
-    ImGui::Columns(2, "PaymentsLayout", true);
+    ImGui::InputText("Фильтр по назначению", filterText, sizeof(filterText)); // Поле ввода фильтра
     
-    ImGui::BeginChild("PaymentsList");
+    const float editorHeight = ImGui::GetTextLineHeightWithSpacing() * 15; // Примерная высота редактора
+
+    // --- Список платежей ---
+    ImGui::BeginChild("PaymentsList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
     if (ImGui::BeginTable("payments_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("Дата");
         ImGui::TableSetupColumn("Номер");
@@ -121,11 +126,17 @@ void PaymentsView::Render() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < payments.size(); ++i) {
+            if (filterText[0] != '\0' && strcasestr(payments[i].description.c_str(), filterText) == nullptr) {
+                continue; 
+            }
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             
             bool is_selected = (selectedPaymentIndex == i);
-            if (ImGui::Selectable(payments[i].date.c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+            char label[128];
+            sprintf(label, "%s##%d", payments[i].date.c_str(), payments[i].id);
+            if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedPaymentIndex = i;
                 selectedPayment = payments[i];
                 isAdding = false;
@@ -145,9 +156,10 @@ void PaymentsView::Render() {
     }
     ImGui::EndChild();
 
-    ImGui::NextColumn();
+    ImGui::Separator();
 
-    ImGui::BeginChild("PaymentEditor");
+    // --- Редактор платежей ---
+    ImGui::BeginChild("PaymentEditor", ImVec2(0, 0), true);
     if (selectedPaymentIndex != -1 || isAdding) {
         if (isAdding) {
             ImGui::Text("Добавление нового платежа");
@@ -169,8 +181,28 @@ void PaymentsView::Render() {
 
         char typeBuf[32];
         snprintf(typeBuf, sizeof(typeBuf), "%s", selectedPayment.type.c_str());
-        if (ImGui::InputText("Тип", typeBuf, sizeof(typeBuf))) {
-            selectedPayment.type = typeBuf;
+        
+        const char* paymentTypes[] = {"income", "expense"};
+        int currentTypeIndex = -1;
+        for (int i = 0; i < IM_ARRAYSIZE(paymentTypes); i++) {
+            if (strcmp(selectedPayment.type.c_str(), paymentTypes[i]) == 0) {
+                currentTypeIndex = i;
+                break;
+            }
+        }
+
+        if (ImGui::BeginCombo("Тип", currentTypeIndex >= 0 ? paymentTypes[currentTypeIndex] : "")) {
+            for (int i = 0; i < IM_ARRAYSIZE(paymentTypes); i++) {
+                const bool is_selected = (currentTypeIndex == i);
+                if (ImGui::Selectable(paymentTypes[i], is_selected)) {
+                    selectedPayment.type = paymentTypes[i];
+                    currentTypeIndex = i;
+                }
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
         }
 
         if (ImGui::InputDouble("Сумма", &selectedPayment.amount)) {}
@@ -245,8 +277,6 @@ void PaymentsView::Render() {
         ImGui::Text("Выберите платеж для редактирования или добавьте новый.");
     }
     ImGui::EndChild();
-
-    ImGui::Columns(1);
     
     ImGui::End();
 }

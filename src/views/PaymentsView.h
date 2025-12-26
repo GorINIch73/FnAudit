@@ -27,4 +27,5 @@ private:
 
     std::vector<Counterparty> counterpartiesForDropdown;
     std::vector<Kosgu> kosguForDropdown;
+    char filterText[256];
 };
