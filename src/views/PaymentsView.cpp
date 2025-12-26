@@ -6,6 +6,7 @@
 #include <sstream>
 #include <cstring> // Для strcasestr и memset
 #include "../IconsFontAwesome6.h"
+#include <algorithm> // для std::sort
 
 PaymentsView::PaymentsView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedPaymentIndex(-1), isAdding(false) {
@@ -32,6 +33,27 @@ void PaymentsView::RefreshDropdownData() {
         counterpartiesForDropdown = dbManager->getCounterparties();
         kosguForDropdown = dbManager->getKosguEntries();
     }
+}
+
+// Вспомогательная функция для сортировки
+static void SortPayments(std::vector<Payment>& payments, const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(payments.begin(), payments.end(), [&](const Payment& a, const Payment& b) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+            int delta = 0;
+            switch (column_spec->ColumnIndex) {
+                case 0: delta = a.date.compare(b.date); break;
+                case 1: delta = a.doc_number.compare(b.doc_number); break;
+                case 2: delta = (a.amount < b.amount) ? -1 : (a.amount > b.amount) ? 1 : 0; break;
+                case 3: delta = a.description.compare(b.description); break;
+                default: break;
+            }
+            if (delta != 0) {
+                return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+            }
+        }
+        return false;
+    });
 }
 
 void PaymentsView::Render() {
@@ -119,12 +141,20 @@ void PaymentsView::Render() {
 
     // --- Список платежей ---
     ImGui::BeginChild("PaymentsList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
-    if (ImGui::BeginTable("payments_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
-        ImGui::TableSetupColumn("Дата");
-        ImGui::TableSetupColumn("Номер");
-        ImGui::TableSetupColumn("Сумма");
-        ImGui::TableSetupColumn("Назначение");
+    if (ImGui::BeginTable("payments_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
+        ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_PreferSortDescending, 0.0f, 0);
+        ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
+        ImGui::TableSetupColumn("Сумма", 0, 0.0f, 2);
+        ImGui::TableSetupColumn("Назначение", 0, 0.0f, 3);
         ImGui::TableHeadersRow();
+
+        // Сортировка
+        if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+            if (sort_specs->SpecsDirty) {
+                SortPayments(payments, sort_specs);
+                sort_specs->SpecsDirty = false;
+            }
+        }
 
         for (int i = 0; i < payments.size(); ++i) {
             if (filterText[0] != '\0' && strcasestr(payments[i].description.c_str(), filterText) == nullptr) {

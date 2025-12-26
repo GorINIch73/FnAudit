@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include "../IconsFontAwesome6.h"
+#include <algorithm>
 
 InvoicesView::InvoicesView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedInvoiceIndex(-1), showEditModal(false), isAdding(false) {
@@ -27,6 +28,27 @@ void InvoicesView::RefreshDropdownData() {
     if (dbManager) {
         contractsForDropdown = dbManager->getContracts();
     }
+}
+
+// Вспомогательная функция для сортировки
+static void SortInvoices(std::vector<Invoice>& invoices, const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(invoices.begin(), invoices.end(), [&](const Invoice& a, const Invoice& b) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+            int delta = 0;
+            switch (column_spec->ColumnIndex) {
+                case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                case 1: delta = a.number.compare(b.number); break;
+                case 2: delta = a.date.compare(b.date); break;
+                case 3: delta = (a.contract_id < b.contract_id) ? -1 : (a.contract_id > b.contract_id) ? 1 : 0; break;
+                default: break;
+            }
+            if (delta != 0) {
+                return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+            }
+        }
+        return false;
+    });
 }
 
 void InvoicesView::Render() {
@@ -97,12 +119,20 @@ void InvoicesView::Render() {
 
     // Таблица со списком
     ImGui::BeginChild("InvoicesList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
-    if (ImGui::BeginTable("invoices_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
-        ImGui::TableSetupColumn("ID");
-        ImGui::TableSetupColumn("Номер");
-        ImGui::TableSetupColumn("Дата");
-        ImGui::TableSetupColumn("Контракт");
+    if (ImGui::BeginTable("invoices_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
+        ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
+        ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
+        ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort, 0.0f, 2);
+        ImGui::TableSetupColumn("Контракт", 0, 0.0f, 3);
         ImGui::TableHeadersRow();
+
+        // Сортировка
+        if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+            if (sort_specs->SpecsDirty) {
+                SortInvoices(invoices, sort_specs);
+                sort_specs->SpecsDirty = false;
+            }
+        }
 
         auto getContractNumber = [&](int id) -> const char* {
             for (const auto& c : contractsForDropdown) {

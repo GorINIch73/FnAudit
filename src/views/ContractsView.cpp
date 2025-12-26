@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include "../IconsFontAwesome6.h"
+#include <algorithm>
 
 ContractsView::ContractsView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedContractIndex(-1), showEditModal(false), isAdding(false) {
@@ -27,6 +28,27 @@ void ContractsView::RefreshDropdownData() {
     if (dbManager) {
         counterpartiesForDropdown = dbManager->getCounterparties();
     }
+}
+
+// Вспомогательная функция для сортировки
+static void SortContracts(std::vector<Contract>& contracts, const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(contracts.begin(), contracts.end(), [&](const Contract& a, const Contract& b) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+            int delta = 0;
+            switch (column_spec->ColumnIndex) {
+                case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                case 1: delta = a.number.compare(b.number); break;
+                case 2: delta = a.date.compare(b.date); break;
+                case 3: delta = (a.counterparty_id < b.counterparty_id) ? -1 : (a.counterparty_id > b.counterparty_id) ? 1 : 0; break;
+                default: break;
+            }
+            if (delta != 0) {
+                return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+            }
+        }
+        return false;
+    });
 }
 
 void ContractsView::Render() {
@@ -97,12 +119,20 @@ void ContractsView::Render() {
 
     // Таблица со списком
     ImGui::BeginChild("ContractsList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
-    if (ImGui::BeginTable("contracts_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
-        ImGui::TableSetupColumn("ID");
-        ImGui::TableSetupColumn("Номер");
-        ImGui::TableSetupColumn("Дата");
-        ImGui::TableSetupColumn("Контрагент");
+    if (ImGui::BeginTable("contracts_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
+        ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
+        ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
+        ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort, 0.0f, 2);
+        ImGui::TableSetupColumn("Контрагент", 0, 0.0f, 3);
         ImGui::TableHeadersRow();
+
+        // Сортировка
+        if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+            if (sort_specs->SpecsDirty) {
+                SortContracts(contracts, sort_specs);
+                sort_specs->SpecsDirty = false;
+            }
+        }
 
         auto getCounterpartyName = [&](int id) -> const char* {
             for (const auto& cp : counterpartiesForDropdown) {

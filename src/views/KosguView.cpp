@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include "../IconsFontAwesome6.h"
+#include <algorithm>
 
 KosguView::KosguView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedKosguIndex(-1), showEditModal(false), isAdding(false) {
@@ -22,6 +23,27 @@ void KosguView::RefreshData() {
         selectedKosguIndex = -1;
     }
 }
+
+// Вспомогательная функция для сортировки
+static void SortKosgu(std::vector<Kosgu>& kosguEntries, const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(kosguEntries.begin(), kosguEntries.end(), [&](const Kosgu& a, const Kosgu& b) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+            int delta = 0;
+            switch (column_spec->ColumnIndex) {
+                case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                case 1: delta = a.code.compare(b.code); break;
+                case 2: delta = a.name.compare(b.name); break;
+                default: break;
+            }
+            if (delta != 0) {
+                return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+            }
+        }
+        return false;
+    });
+}
+
 
 void KosguView::Render() {
     if (!IsVisible) {
@@ -88,11 +110,19 @@ void KosguView::Render() {
     const float editorHeight = ImGui::GetTextLineHeightWithSpacing() * 8;
     
     ImGui::BeginChild("KosguList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
-    if (ImGui::BeginTable("kosgu_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
-        ImGui::TableSetupColumn("ID");
-        ImGui::TableSetupColumn("Код");
-        ImGui::TableSetupColumn("Наименование");
+    if (ImGui::BeginTable("kosgu_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
+        ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
+        ImGui::TableSetupColumn("Код", ImGuiTableColumnFlags_DefaultSort, 0.0f, 1);
+        ImGui::TableSetupColumn("Наименование", 0, 0.0f, 2);
         ImGui::TableHeadersRow();
+
+        // Сортировка
+        if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+            if (sort_specs->SpecsDirty) {
+                SortKosgu(kosguEntries, sort_specs);
+                sort_specs->SpecsDirty = false;
+            }
+        }
 
         for (int i = 0; i < kosguEntries.size(); ++i) {
             if (filterText[0] != '\0' && strcasestr(kosguEntries[i].name.c_str(), filterText) == nullptr) {

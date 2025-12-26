@@ -2,6 +2,7 @@
 #include <iostream>
 #include <cstring>
 #include "../IconsFontAwesome6.h"
+#include <algorithm>
 
 CounterpartiesView::CounterpartiesView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedCounterpartyIndex(-1), showEditModal(false), isAdding(false) {
@@ -22,6 +23,27 @@ void CounterpartiesView::RefreshData() {
         selectedCounterpartyIndex = -1;
     }
 }
+
+// Вспомогательная функция для сортировки
+static void SortCounterparties(std::vector<Counterparty>& counterparties, const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(counterparties.begin(), counterparties.end(), [&](const Counterparty& a, const Counterparty& b) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+            int delta = 0;
+            switch (column_spec->ColumnIndex) {
+                case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                case 1: delta = a.name.compare(b.name); break;
+                case 2: delta = a.inn.compare(b.inn); break;
+                default: break;
+            }
+            if (delta != 0) {
+                return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+            }
+        }
+        return false;
+    });
+}
+
 
 void CounterpartiesView::Render() {
     if (!IsVisible) {
@@ -76,11 +98,19 @@ void CounterpartiesView::Render() {
 
     // Таблица со списком
     ImGui::BeginChild("CounterpartiesList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
-    if (ImGui::BeginTable("counterparties_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
-        ImGui::TableSetupColumn("ID");
-        ImGui::TableSetupColumn("Наименование");
-        ImGui::TableSetupColumn("ИНН");
+    if (ImGui::BeginTable("counterparties_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable | ImGuiTableFlags_Sortable)) {
+        ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
+        ImGui::TableSetupColumn("Наименование", ImGuiTableColumnFlags_DefaultSort, 0.0f, 1);
+        ImGui::TableSetupColumn("ИНН", 0, 0.0f, 2);
         ImGui::TableHeadersRow();
+
+        // Сортировка
+        if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+            if (sort_specs->SpecsDirty) {
+                SortCounterparties(counterparties, sort_specs);
+                sort_specs->SpecsDirty = false;
+            }
+        }
 
         for (int i = 0; i < counterparties.size(); ++i) {
             if (filterText[0] != '\0' && strcasestr(counterparties[i].name.c_str(), filterText) == nullptr) {
