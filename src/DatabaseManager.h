@@ -40,6 +40,9 @@ public:
 
     bool addInvoice(Invoice& invoice); // Pass by reference to get the id back
     int getInvoiceIdByNumberDate(const std::string& number, const std::string& date);
+    std::vector<Invoice> getInvoices();
+    bool updateInvoice(const Invoice& invoice);
+    bool deleteInvoice(int id);
 
 
     std::vector<Payment> getPayments();
