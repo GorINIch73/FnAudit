@@ -18,6 +18,7 @@ public:
     bool ShowPaymentsWindow;
     bool ShowCounterpartiesWindow;
     bool ShowContractsWindow;
+    bool ShowInvoicesWindow;
 
 private:
     void RenderKosguWindow();
@@ -29,6 +30,8 @@ private:
     void RefreshCounterpartiesData();
     void RenderContractsWindow();
     void RefreshContractsData();
+    void RenderInvoicesWindow();
+    void RefreshInvoicesData();
 
     DatabaseManager* dbManager;
     std::vector<Kosgu> kosguEntries;
@@ -54,6 +57,13 @@ private:
     int selectedContractIndex;
     bool showEditContractModal;
     bool isAddingContract;
+
+    // Invoices window
+    std::vector<Invoice> invoices;
+    Invoice selectedInvoice;
+    int selectedInvoiceIndex;
+    bool showEditInvoiceModal;
+    bool isAddingInvoice;
 
     bool showEditKosguModal;
     bool isAddingKosgu;

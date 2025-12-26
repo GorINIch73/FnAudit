@@ -7,11 +7,12 @@
 #include <sstream>
 
 UIManager::UIManager()
-    : ShowKosguWindow(false), ShowSqlQueryWindow(false), ShowPaymentsWindow(false), ShowCounterpartiesWindow(false), ShowContractsWindow(false),
+    : ShowKosguWindow(false), ShowSqlQueryWindow(false), ShowPaymentsWindow(false), ShowCounterpartiesWindow(false), ShowContractsWindow(false), ShowInvoicesWindow(false),
       dbManager(nullptr), selectedKosguIndex(-1), showEditKosguModal(false), isAddingKosgu(false),
       selectedPaymentIndex(-1), isAddingPayment(false),
       selectedCounterpartyIndex(-1), showEditCounterpartyModal(false), isAddingCounterparty(false),
-      selectedContractIndex(-1), showEditContractModal(false), isAddingContract(false) {
+      selectedContractIndex(-1), showEditContractModal(false), isAddingContract(false),
+      selectedInvoiceIndex(-1), showEditInvoiceModal(false), isAddingInvoice(false) {
     // Конструктор
     memset(queryInputBuffer, 0, sizeof(queryInputBuffer));
 }
@@ -47,15 +48,25 @@ void UIManager::Render() {
         }
         RenderCounterpartiesWindow();
     }
-    if (ShowContractsWindow) { // Added this call
+    if (ShowContractsWindow) {
         if (dbManager && contracts.empty()) {
             RefreshContractsData();
         }
         RenderContractsWindow();
     }
+    if (ShowInvoicesWindow) {
+        if (dbManager && invoices.empty()) {
+            RefreshInvoicesData();
+        }
+        RenderInvoicesWindow();
+    }
+    if (ShowInvoicesWindow) { // Added this call
+        if (dbManager && invoices.empty()) {
+            RefreshInvoicesData();
+        }
+        RenderInvoicesWindow();
+    }
 }
-
-// ... existing KOSGU methods ...
 
 void UIManager::RefreshPaymentsData() {
     if (dbManager) {
@@ -643,6 +654,131 @@ void UIManager::RenderContractsWindow() {
         ImGui::SameLine();
         if (ImGui::Button("Отмена")) {
             showEditContractModal = false;
+        }
+
+        ImGui::EndPopup();
+    }
+
+    ImGui::End();
+}
+
+void UIManager::RefreshInvoicesData() {
+    if (dbManager) {
+        invoices = dbManager->getInvoices();
+        selectedInvoiceIndex = -1;
+    }
+}
+
+void UIManager::RenderInvoicesWindow() {
+    if (!ImGui::Begin("Справочник 'Накладные'", &ShowInvoicesWindow)) {
+        ImGui::End();
+        return;
+    }
+
+    // Панель управления
+    if (ImGui::Button("Добавить")) {
+        isAddingInvoice = true;
+        selectedInvoice = Invoice{-1, "", "", -1}; // Clear for new record
+        showEditInvoiceModal = true;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Изменить")) {
+        if (selectedInvoiceIndex != -1) {
+            isAddingInvoice = false;
+            selectedInvoice = invoices[selectedInvoiceIndex];
+            showEditInvoiceModal = true;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Удалить")) {
+        if (selectedInvoiceIndex != -1 && dbManager) {
+            dbManager->deleteInvoice(invoices[selectedInvoiceIndex].id);
+            RefreshInvoicesData();
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Обновить")) {
+        RefreshInvoicesData();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Экспорт в PDF")) {
+        if (pdfReporter && dbManager && dbManager->is_open()) {
+            std::vector<std::string> columns = {"ID", "Номер", "Дата", "Контракт ID"};
+            std::vector<std::vector<std::string>> rows;
+            for (const auto& entry : invoices) {
+                rows.push_back({std::to_string(entry.id), entry.number, entry.date, std::to_string(entry.contract_id)});
+            }
+            pdfReporter->generatePdfFromTable("invoices_report.pdf", "Справочник 'Накладные'", columns, rows);
+        } else {
+            std::cerr << "Cannot export to PDF: No database open or PdfReporter not set." << std::endl;
+        }
+    }
+
+    // Таблица со списком
+    if (ImGui::BeginTable("invoices_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
+        ImGui::TableSetupColumn("ID");
+        ImGui::TableSetupColumn("Номер");
+        ImGui::TableSetupColumn("Дата");
+        ImGui::TableSetupColumn("Контракт ID"); // Placeholder, will show name later
+        ImGui::TableHeadersRow();
+
+        for (int i = 0; i < invoices.size(); ++i) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+
+            bool is_selected = (selectedInvoiceIndex == i);
+            if (ImGui::Selectable(std::to_string(invoices[i].id).c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+                selectedInvoiceIndex = i;
+            }
+            if (is_selected) {
+                 ImGui::SetItemDefaultFocus();
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", invoices[i].number.c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", invoices[i].date.c_str());
+            ImGui::TableNextColumn();
+            ImGui::Text("%d", invoices[i].contract_id);
+        }
+        ImGui::EndTable();
+    }
+
+    // Модальное окно для редактирования/добавления
+    if (showEditInvoiceModal) {
+        ImGui::OpenPopup("EditInvoice");
+    }
+
+    if (ImGui::BeginPopupModal("EditInvoice", &showEditInvoiceModal)) {
+        char numberBuf[256];
+        char dateBuf[12];
+        
+        // Initialize buffers from selectedInvoice
+        snprintf(numberBuf, sizeof(numberBuf), "%s", selectedInvoice.number.c_str());
+        snprintf(dateBuf, sizeof(dateBuf), "%s", selectedInvoice.date.c_str());
+
+        if (ImGui::InputText("Номер", numberBuf, sizeof(numberBuf))) {
+            selectedInvoice.number = numberBuf;
+        }
+        if (ImGui::InputText("Дата", dateBuf, sizeof(dateBuf))) {
+            selectedInvoice.date = dateBuf;
+        }
+        // TODO: Add dropdown for contract_id
+
+        if (ImGui::Button("Сохранить")) {
+            if (dbManager) {
+                if (isAddingInvoice) {
+                    dbManager->addInvoice(selectedInvoice);
+                } else {
+                    dbManager->updateInvoice(selectedInvoice);
+                }
+                RefreshInvoicesData();
+            }
+            showEditInvoiceModal = false;
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Отмена")) {
+            showEditInvoiceModal = false;
         }
 
         ImGui::EndPopup();

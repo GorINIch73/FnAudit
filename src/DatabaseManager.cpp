@@ -332,6 +332,222 @@ int DatabaseManager::getContractIdByNumberDate(const std::string& number, const 
     return id;
 }
 
+// Callback функция для getContracts
+static int contract_select_callback(void* data, int argc, char** argv, char** azColName) {
+    std::vector<Contract>* contract_list = static_cast<std::vector<Contract>*>(data);
+    Contract entry;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "id") {
+            entry.id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "number") {
+            entry.number = argv[i] ? argv[i] : "";
+        } else if (colName == "date") {
+            entry.date = argv[i] ? argv[i] : "";
+        } else if (colName == "counterparty_id") {
+            entry.counterparty_id = argv[i] ? std::stoi(argv[i]) : -1;
+        }
+    }
+    contract_list->push_back(entry);
+    return 0;
+}
+
+std::vector<Contract> DatabaseManager::getContracts() {
+    std::vector<Contract> entries;
+    if (!db) return entries;
+
+    std::string sql = "SELECT id, number, date, counterparty_id FROM Contracts;";
+    char* errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(), contract_select_callback, &entries, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select Contract entries: " << errmsg << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return entries;
+}
+
+bool DatabaseManager::updateContract(const Contract& contract) {
+    if (!db) return false;
+    std::string sql = "UPDATE Contracts SET number = ?, date = ?, counterparty_id = ? WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for contract update: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, contract.number.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, contract.date.c_str(), -1, SQLITE_STATIC);
+    if (contract.counterparty_id != -1) {
+        sqlite3_bind_int(stmt, 3, contract.counterparty_id);
+    } else {
+        sqlite3_bind_null(stmt, 3);
+    }
+    sqlite3_bind_int(stmt, 4, contract.id);
+
+    int rc_step = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc_step != SQLITE_DONE) {
+        std::cerr << "Failed to update Contract entry: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool DatabaseManager::deleteContract(int id) {
+    if (!db) return false;
+    std::string sql = "DELETE FROM Contracts WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, id);
+
+    int rc_step = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc_step != SQLITE_DONE) {
+        std::cerr << "Failed to delete Contract entry: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+// Invoice CRUD
+bool DatabaseManager::addInvoice(Invoice& invoice) {
+    if (!db) return false;
+    std::string sql = "INSERT INTO Invoices (number, date, contract_id) VALUES (?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, invoice.number.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, invoice.date.c_str(), -1, SQLITE_STATIC);
+    if (invoice.contract_id != -1) {
+        sqlite3_bind_int(stmt, 3, invoice.contract_id);
+    } else {
+        sqlite3_bind_null(stmt, 3);
+    }
+    
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to add invoice: " << sqlite3_errmsg(db) << std::endl;
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    invoice.id = sqlite3_last_insert_rowid(db);
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+int DatabaseManager::getInvoiceIdByNumberDate(const std::string& number, const std::string& date) {
+    if (!db) return -1;
+    std::string sql = "SELECT id FROM Invoices WHERE number = ? AND date = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for invoice lookup: " << sqlite3_errmsg(db) << std::endl;
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, number.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_STATIC);
+
+    int id = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        id = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    return id;
+}
+
+// Callback функция для getInvoices
+static int invoice_select_callback(void* data, int argc, char** argv, char** azColName) {
+    std::vector<Invoice>* invoice_list = static_cast<std::vector<Invoice>*>(data);
+    Invoice entry;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "id") {
+            entry.id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "number") {
+            entry.number = argv[i] ? argv[i] : "";
+        } else if (colName == "date") {
+            entry.date = argv[i] ? argv[i] : "";
+        } else if (colName == "contract_id") {
+            entry.contract_id = argv[i] ? std::stoi(argv[i]) : -1;
+        }
+    }
+    invoice_list->push_back(entry);
+    return 0;
+}
+
+std::vector<Invoice> DatabaseManager::getInvoices() {
+    std::vector<Invoice> entries;
+    if (!db) return entries;
+
+    std::string sql = "SELECT id, number, date, contract_id FROM Invoices;";
+    char* errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(), invoice_select_callback, &entries, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select Invoice entries: " << errmsg << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return entries;
+}
+
+bool DatabaseManager::updateInvoice(const Invoice& invoice) {
+    if (!db) return false;
+    std::string sql = "UPDATE Invoices SET number = ?, date = ?, contract_id = ? WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for invoice update: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, invoice.number.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, invoice.date.c_str(), -1, SQLITE_STATIC);
+    if (invoice.contract_id != -1) {
+        sqlite3_bind_int(stmt, 3, invoice.contract_id);
+    } else {
+        sqlite3_bind_null(stmt, 3);
+    }
+    sqlite3_bind_int(stmt, 4, invoice.id);
+
+    int rc_step = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc_step != SQLITE_DONE) {
+        std::cerr << "Failed to update Invoice entry: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool DatabaseManager::deleteInvoice(int id) {
+    if (!db) return false;
+    std::string sql = "DELETE FROM Invoices WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for invoice delete: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, id);
+
+    int rc_step = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc_step != SQLITE_DONE) {
+        std::cerr << "Failed to delete Invoice entry: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+
 // Payment CRUD
 bool DatabaseManager::addPayment(const Payment& payment) {
     if (!db) return false;
@@ -502,7 +718,6 @@ bool DatabaseManager::deletePayment(int id) {
     return true;
 }
 
-
 // Callback for generic SELECT queries
 static int callback_collect_data(void* data, int argc, char** argv, char** azColName) {
     auto* result_pair = static_cast<std::pair<std::vector<std::string>*, std::vector<std::vector<std::string>>*>*>(data);
@@ -623,138 +838,6 @@ bool DatabaseManager::deleteCounterparty(int id) {
 
     if (rc != SQLITE_DONE) {
         std::cerr << "Failed to delete Counterparty entry: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    return true;
-}
-
-// Invoice CRUD
-bool DatabaseManager::addInvoice(Invoice& invoice) {
-    if (!db) return false;
-    std::string sql = "INSERT INTO Invoices (number, date, contract_id) VALUES (?, ?, ?);";
-    sqlite3_stmt* stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for invoice: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    sqlite3_bind_text(stmt, 1, invoice.number.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, invoice.date.c_str(), -1, SQLITE_STATIC);
-    if (invoice.contract_id != -1) {
-        sqlite3_bind_int(stmt, 3, invoice.contract_id);
-    } else {
-        sqlite3_bind_null(stmt, 3);
-    }
-    
-    rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
-        std::cerr << "Failed to add invoice: " << sqlite3_errmsg(db) << std::endl;
-        sqlite3_finalize(stmt);
-        return false;
-    }
-    invoice.id = sqlite3_last_insert_rowid(db);
-    sqlite3_finalize(stmt);
-    return true;
-}
-
-int DatabaseManager::getInvoiceIdByNumberDate(const std::string& number, const std::string& date) {
-    if (!db) return -1;
-    std::string sql = "SELECT id FROM Invoices WHERE number = ? AND date = ?;";
-    sqlite3_stmt* stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for invoice lookup: " << sqlite3_errmsg(db) << std::endl;
-        return -1;
-    }
-    sqlite3_bind_text(stmt, 1, number.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_STATIC);
-
-    int id = -1;
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        id = sqlite3_column_int(stmt, 0);
-    }
-    sqlite3_finalize(stmt);
-    return id;
-}
-
-// Callback функция для getContracts
-static int contract_select_callback(void* data, int argc, char** argv, char** azColName) {
-    std::vector<Contract>* contract_list = static_cast<std::vector<Contract>*>(data);
-    Contract entry;
-    for (int i = 0; i < argc; i++) {
-        std::string colName = azColName[i];
-        if (colName == "id") {
-            entry.id = argv[i] ? std::stoi(argv[i]) : -1;
-        } else if (colName == "number") {
-            entry.number = argv[i] ? argv[i] : "";
-        } else if (colName == "date") {
-            entry.date = argv[i] ? argv[i] : "";
-        } else if (colName == "counterparty_id") {
-            entry.counterparty_id = argv[i] ? std::stoi(argv[i]) : -1;
-        }
-    }
-    contract_list->push_back(entry);
-    return 0;
-}
-
-std::vector<Contract> DatabaseManager::getContracts() {
-    std::vector<Contract> entries;
-    if (!db) return entries;
-
-    std::string sql = "SELECT id, number, date, counterparty_id FROM Contracts;";
-    char* errmsg = nullptr;
-    int rc = sqlite3_exec(db, sql.c_str(), contract_select_callback, &entries, &errmsg);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to select Contract entries: " << errmsg << std::endl;
-        sqlite3_free(errmsg);
-    }
-    return entries;
-}
-
-bool DatabaseManager::updateContract(const Contract& contract) {
-    if (!db) return false;
-    std::string sql = "UPDATE Contracts SET number = ?, date = ?, counterparty_id = ? WHERE id = ?;";
-    sqlite3_stmt* stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for contract update: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    sqlite3_bind_text(stmt, 1, contract.number.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 2, contract.date.c_str(), -1, SQLITE_STATIC);
-    if (contract.counterparty_id != -1) {
-        sqlite3_bind_int(stmt, 3, contract.counterparty_id);
-    } else {
-        sqlite3_bind_null(stmt, 3);
-    }
-    sqlite3_bind_int(stmt, 4, contract.id);
-
-    int rc_step = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc_step != SQLITE_DONE) {
-        std::cerr << "Failed to update Contract entry: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool DatabaseManager::deleteContract(int id) {
-    if (!db) return false;
-    std::string sql = "DELETE FROM Contracts WHERE id = ?;";
-    sqlite3_stmt* stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for contract delete: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    sqlite3_bind_int(stmt, 1, id);
-
-    int rc_step = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc_step != SQLITE_DONE) {
-        std::cerr << "Failed to delete Contract entry: " << sqlite3_errmsg(db) << std::endl;
         return false;
     }
     return true;

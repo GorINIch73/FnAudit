@@ -120,6 +120,9 @@ int main(int, char**) {
                 if (ImGui::MenuItem("Договоры")) {
                     uiManager.ShowContractsWindow = true;
                 }
+                if (ImGui::MenuItem("Накладные")) {
+                    uiManager.ShowInvoicesWindow = true;
+                }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("Импорт")) {
