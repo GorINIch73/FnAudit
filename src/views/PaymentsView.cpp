@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <sstream>
 #include <cstring> // Для strcasestr и memset
+#include "../IconsFontAwesome6.h"
 
 PaymentsView::PaymentsView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedPaymentIndex(-1), isAdding(false) {
@@ -49,7 +50,7 @@ void PaymentsView::Render() {
     }
 
     // --- Панель управления ---
-    if (ImGui::Button("Добавить")) {
+    if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
         isAdding = true;
         selectedPaymentIndex = -1;
         selectedPayment = Payment{};
@@ -62,7 +63,7 @@ void PaymentsView::Render() {
         selectedPayment.date = oss.str();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Удалить")) {
+    if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
         if (!isAdding && selectedPaymentIndex != -1 && dbManager) {
             dbManager->deletePayment(payments[selectedPaymentIndex].id);
             RefreshData();
@@ -70,7 +71,7 @@ void PaymentsView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Сохранить")) {
+    if (ImGui::Button(ICON_FA_FLOPPY_DISK " Сохранить")) {
         if (dbManager) {
             if (isAdding) {
                 if (dbManager->addPayment(selectedPayment)) {
@@ -84,12 +85,12 @@ void PaymentsView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Обновить")) {
+    if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
         RefreshDropdownData();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Экспорт в PDF")) {
+    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
         if (pdfReporter && dbManager && dbManager->is_open()) {
             std::vector<std::string> columns = {"Дата", "Номер", "Тип", "Сумма", "Плательщик", "Получатель", "Назначение"};
             std::vector<std::vector<std::string>> rows;

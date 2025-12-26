@@ -1,6 +1,7 @@
 #include "ContractsView.h"
 #include <iostream>
 #include <cstring>
+#include "../IconsFontAwesome6.h"
 
 ContractsView::ContractsView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedContractIndex(-1), showEditModal(false), isAdding(false) {
@@ -44,13 +45,13 @@ void ContractsView::Render() {
     }
 
     // Панель управления
-    if (ImGui::Button("Добавить")) {
+    if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
         isAdding = true;
         selectedContractIndex = -1;
         selectedContract = Contract{-1, "", "", -1};
     }
     ImGui::SameLine();
-    if (ImGui::Button("Удалить")) {
+    if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
         if (!isAdding && selectedContractIndex != -1 && dbManager) {
             dbManager->deleteContract(contracts[selectedContractIndex].id);
             RefreshData();
@@ -58,7 +59,7 @@ void ContractsView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Сохранить")) {
+    if (ImGui::Button(ICON_FA_FLOPPY_DISK " Сохранить")) {
         if (dbManager) {
             if (isAdding) {
                 dbManager->addContract(selectedContract);
@@ -70,12 +71,12 @@ void ContractsView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Обновить")) {
+    if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
         RefreshDropdownData();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Экспорт в PDF")) {
+    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
         if (pdfReporter && dbManager && dbManager->is_open()) {
             std::vector<std::string> columns = {"ID", "Номер", "Дата", "Контрагент ID"};
             std::vector<std::vector<std::string>> rows;

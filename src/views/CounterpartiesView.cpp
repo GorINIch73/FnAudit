@@ -1,6 +1,7 @@
 #include "CounterpartiesView.h"
 #include <iostream>
 #include <cstring>
+#include "../IconsFontAwesome6.h"
 
 CounterpartiesView::CounterpartiesView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedCounterpartyIndex(-1), showEditModal(false), isAdding(false) {
@@ -37,13 +38,13 @@ void CounterpartiesView::Render() {
     }
 
     // Панель управления
-    if (ImGui::Button("Добавить")) {
+    if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
         isAdding = true;
         selectedCounterpartyIndex = -1; // Сброс выделения
         selectedCounterparty = Counterparty{-1, "", ""};
     }
     ImGui::SameLine();
-    if (ImGui::Button("Удалить")) {
+    if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
         if (!isAdding && selectedCounterpartyIndex != -1 && dbManager) {
             dbManager->deleteCounterparty(counterparties[selectedCounterpartyIndex].id);
             RefreshData();
@@ -51,7 +52,7 @@ void CounterpartiesView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Сохранить")) {
+    if (ImGui::Button(ICON_FA_FLOPPY_DISK " Сохранить")) {
          if (dbManager) {
             if (isAdding) {
                 dbManager->addCounterparty(selectedCounterparty);
@@ -63,7 +64,7 @@ void CounterpartiesView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Обновить")) {
+    if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
     }
 

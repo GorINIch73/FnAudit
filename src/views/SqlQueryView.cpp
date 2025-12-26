@@ -1,5 +1,7 @@
 #include "SqlQueryView.h"
 #include <iostream>
+#include <cstring>
+#include "../IconsFontAwesome6.h"
 
 SqlQueryView::SqlQueryView()
     : dbManager(nullptr), pdfReporter(nullptr) {
@@ -27,7 +29,7 @@ void SqlQueryView::Render() {
     ImGui::Text("Введите SQL запрос:");
     ImGui::InputTextMultiline("##SQLQueryInput", queryInputBuffer, sizeof(queryInputBuffer), ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 8));
 
-    if (ImGui::Button("Выполнить")) {
+    if (ImGui::Button(ICON_FA_PLAY " Выполнить")) {
         if (dbManager && dbManager->is_open()) {
             dbManager->executeSelect(queryInputBuffer, queryResult.columns, queryResult.rows);
         } else {
@@ -37,7 +39,7 @@ void SqlQueryView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Экспорт в PDF")) {
+    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
         if (pdfReporter && dbManager && dbManager->is_open() && !queryResult.columns.empty()) {
             pdfReporter->generatePdfFromTable("sql_query_report.pdf", "Результаты SQL Запроса", queryResult.columns, queryResult.rows);
         } else {

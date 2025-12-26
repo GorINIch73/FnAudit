@@ -1,6 +1,7 @@
 #include "KosguView.h"
 #include <iostream>
 #include <cstring>
+#include "../IconsFontAwesome6.h"
 
 KosguView::KosguView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedKosguIndex(-1), showEditModal(false), isAdding(false) {
@@ -37,13 +38,13 @@ void KosguView::Render() {
     }
 
     // Панель управления
-    if (ImGui::Button("Добавить")) {
+    if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
         isAdding = true;
         selectedKosguIndex = -1;
         selectedKosgu = Kosgu{-1, "", ""};
     }
     ImGui::SameLine();
-    if (ImGui::Button("Удалить")) {
+    if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
         if (!isAdding && selectedKosguIndex != -1 && dbManager) {
             dbManager->deleteKosguEntry(kosguEntries[selectedKosguIndex].id);
             RefreshData();
@@ -51,7 +52,7 @@ void KosguView::Render() {
         }
     }
      ImGui::SameLine();
-    if (ImGui::Button("Сохранить")) {
+    if (ImGui::Button(ICON_FA_FLOPPY_DISK " Сохранить")) {
         if (dbManager) {
             if (isAdding) {
                 dbManager->addKosguEntry(selectedKosgu);
@@ -63,11 +64,11 @@ void KosguView::Render() {
         }
     }
     ImGui::SameLine();
-    if (ImGui::Button("Обновить")) {
+    if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Экспорт в PDF")) {
+    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
         if (pdfReporter && dbManager && dbManager->is_open()) {
             std::vector<std::string> columns = {"ID", "Код", "Наименование"};
             std::vector<std::vector<std::string>> rows;
