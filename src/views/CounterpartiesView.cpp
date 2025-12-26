@@ -1,8 +1,10 @@
 #include "CounterpartiesView.h"
 #include <iostream>
+#include <cstring>
 
 CounterpartiesView::CounterpartiesView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedCounterpartyIndex(-1), showEditModal(false), isAdding(false) {
+    memset(filterText, 0, sizeof(filterText));
 }
 
 void CounterpartiesView::SetDatabaseManager(DatabaseManager* manager) {
@@ -37,21 +39,26 @@ void CounterpartiesView::Render() {
     // Панель управления
     if (ImGui::Button("Добавить")) {
         isAdding = true;
+        selectedCounterpartyIndex = -1; // Сброс выделения
         selectedCounterparty = Counterparty{-1, "", ""};
-        showEditModal = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Изменить")) {
-        if (selectedCounterpartyIndex != -1) {
-            isAdding = false;
-            selectedCounterparty = counterparties[selectedCounterpartyIndex];
-            showEditModal = true;
-        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Удалить")) {
-        if (selectedCounterpartyIndex != -1 && dbManager) {
+        if (!isAdding && selectedCounterpartyIndex != -1 && dbManager) {
             dbManager->deleteCounterparty(counterparties[selectedCounterpartyIndex].id);
+            RefreshData();
+            selectedCounterparty = Counterparty{};
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Сохранить")) {
+         if (dbManager) {
+            if (isAdding) {
+                dbManager->addCounterparty(selectedCounterparty);
+                isAdding = false;
+            } else if(selectedCounterparty.id != -1) {
+                dbManager->updateCounterparty(selectedCounterparty);
+            }
             RefreshData();
         }
     }
@@ -60,7 +67,14 @@ void CounterpartiesView::Render() {
         RefreshData();
     }
 
+    ImGui::Separator();
+
+    ImGui::InputText("Фильтр по имени", filterText, sizeof(filterText));
+
+    const float editorHeight = ImGui::GetTextLineHeightWithSpacing() * 8;
+
     // Таблица со списком
+    ImGui::BeginChild("CounterpartiesList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
     if (ImGui::BeginTable("counterparties_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("ID");
         ImGui::TableSetupColumn("Наименование");
@@ -68,12 +82,20 @@ void CounterpartiesView::Render() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < counterparties.size(); ++i) {
+            if (filterText[0] != '\0' && strcasestr(counterparties[i].name.c_str(), filterText) == nullptr) {
+                continue;
+            }
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
 
             bool is_selected = (selectedCounterpartyIndex == i);
-            if (ImGui::Selectable(std::to_string(counterparties[i].id).c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+            char label[256];
+            sprintf(label, "%d##%d", counterparties[i].id, i);
+            if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedCounterpartyIndex = i;
+                selectedCounterparty = counterparties[i];
+                isAdding = false;
             }
             if (is_selected) {
                  ImGui::SetItemDefaultFocus();
@@ -86,13 +108,19 @@ void CounterpartiesView::Render() {
         }
         ImGui::EndTable();
     }
+    ImGui::EndChild();
 
-    // Модальное окно для редактирования/добавления
-    if (showEditModal) {
-        ImGui::OpenPopup("EditCounterparty");
-    }
+    ImGui::Separator();
 
-    if (ImGui::BeginPopupModal("EditCounterparty", &showEditModal)) {
+    // Редактор
+    ImGui::BeginChild("CounterpartyEditor");
+    if (selectedCounterpartyIndex != -1 || isAdding) {
+        if (isAdding) {
+            ImGui::Text("Добавление нового контрагента");
+        } else {
+            ImGui::Text("Редактирование контрагента ID: %d", selectedCounterparty.id);
+        }
+
         char nameBuf[256];
         char innBuf[256];
         
@@ -105,25 +133,10 @@ void CounterpartiesView::Render() {
         if (ImGui::InputText("ИНН", innBuf, sizeof(innBuf))) {
             selectedCounterparty.inn = innBuf;
         }
-
-        if (ImGui::Button("Сохранить")) {
-            if (dbManager) {
-                if (isAdding) {
-                    dbManager->addCounterparty(selectedCounterparty);
-                } else {
-                    dbManager->updateCounterparty(selectedCounterparty);
-                }
-                RefreshData();
-            }
-            showEditModal = false;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Отмена")) {
-            showEditModal = false;
-        }
-
-        ImGui::EndPopup();
+    } else {
+        ImGui::Text("Выберите контрагента для редактирования или добавьте нового.");
     }
+    ImGui::EndChild();
 
     ImGui::End();
 }

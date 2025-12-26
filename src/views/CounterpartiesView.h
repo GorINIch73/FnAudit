@@ -22,4 +22,5 @@ private:
     int selectedCounterpartyIndex;
     bool showEditModal;
     bool isAdding;
+    char filterText[256];
 };

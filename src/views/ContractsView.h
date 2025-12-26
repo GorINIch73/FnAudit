@@ -26,4 +26,5 @@ private:
     bool isAdding;
 
     std::vector<Counterparty> counterpartiesForDropdown;
+    char filterText[256];
 };

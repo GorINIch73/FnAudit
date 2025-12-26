@@ -26,4 +26,5 @@ private:
     bool isAdding;
 
     std::vector<Contract> contractsForDropdown;
+    char filterText[256];
 };

@@ -1,8 +1,10 @@
 #include "InvoicesView.h"
 #include <iostream>
+#include <cstring>
 
 InvoicesView::InvoicesView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedInvoiceIndex(-1), showEditModal(false), isAdding(false) {
+    memset(filterText, 0, sizeof(filterText));
 }
 
 void InvoicesView::SetDatabaseManager(DatabaseManager* manager) {
@@ -44,21 +46,26 @@ void InvoicesView::Render() {
     // Панель управления
     if (ImGui::Button("Добавить")) {
         isAdding = true;
+        selectedInvoiceIndex = -1;
         selectedInvoice = Invoice{-1, "", "", -1};
-        showEditModal = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Изменить")) {
-        if (selectedInvoiceIndex != -1) {
-            isAdding = false;
-            selectedInvoice = invoices[selectedInvoiceIndex];
-            showEditModal = true;
-        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Удалить")) {
-        if (selectedInvoiceIndex != -1 && dbManager) {
+        if (!isAdding && selectedInvoiceIndex != -1 && dbManager) {
             dbManager->deleteInvoice(invoices[selectedInvoiceIndex].id);
+            RefreshData();
+            selectedInvoice = Invoice{};
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Сохранить")) {
+        if (dbManager) {
+            if (isAdding) {
+                dbManager->addInvoice(selectedInvoice);
+                isAdding = false;
+            } else if (selectedInvoice.id != -1) {
+                dbManager->updateInvoice(selectedInvoice);
+            }
             RefreshData();
         }
     }
@@ -81,7 +88,14 @@ void InvoicesView::Render() {
         }
     }
 
+    ImGui::Separator();
+
+    ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText));
+    
+    const float editorHeight = ImGui::GetTextLineHeightWithSpacing() * 8;
+
     // Таблица со списком
+    ImGui::BeginChild("InvoicesList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
     if (ImGui::BeginTable("invoices_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("ID");
         ImGui::TableSetupColumn("Номер");
@@ -99,12 +113,20 @@ void InvoicesView::Render() {
         };
 
         for (int i = 0; i < invoices.size(); ++i) {
+            if (filterText[0] != '\0' && strcasestr(invoices[i].number.c_str(), filterText) == nullptr) {
+                continue;
+            }
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
 
             bool is_selected = (selectedInvoiceIndex == i);
-            if (ImGui::Selectable(std::to_string(invoices[i].id).c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+            char label[256];
+            sprintf(label, "%d##%d", invoices[i].id, i);
+            if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedInvoiceIndex = i;
+                selectedInvoice = invoices[i];
+                isAdding = false;
             }
             if (is_selected) {
                  ImGui::SetItemDefaultFocus();
@@ -119,13 +141,19 @@ void InvoicesView::Render() {
         }
         ImGui::EndTable();
     }
+    ImGui::EndChild();
 
-    // Модальное окно для редактирования/добавления
-    if (showEditModal) {
-        ImGui::OpenPopup("EditInvoice");
-    }
+    ImGui::Separator();
 
-    if (ImGui::BeginPopupModal("EditInvoice", &showEditModal)) {
+    // Редактор
+    ImGui::BeginChild("InvoiceEditor");
+    if (selectedInvoiceIndex != -1 || isAdding) {
+        if (isAdding) {
+            ImGui::Text("Добавление новой накладной");
+        } else {
+            ImGui::Text("Редактирование накладной ID: %d", selectedInvoice.id);
+        }
+        
         char numberBuf[256];
         char dateBuf[12];
         
@@ -163,25 +191,10 @@ void InvoicesView::Render() {
                 ImGui::EndCombo();
             }
         }
-
-        if (ImGui::Button("Сохранить")) {
-            if (dbManager) {
-                if (isAdding) {
-                    dbManager->addInvoice(selectedInvoice);
-                } else {
-                    dbManager->updateInvoice(selectedInvoice);
-                }
-                RefreshData();
-            }
-            showEditModal = false;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Отмена")) {
-            showEditModal = false;
-        }
-
-        ImGui::EndPopup();
+    } else {
+        ImGui::Text("Выберите накладную для редактирования или добавьте новую.");
     }
+    ImGui::EndChild();
 
     ImGui::End();
 }

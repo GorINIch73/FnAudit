@@ -1,8 +1,10 @@
 #include "ContractsView.h"
 #include <iostream>
+#include <cstring>
 
 ContractsView::ContractsView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedContractIndex(-1), showEditModal(false), isAdding(false) {
+    memset(filterText, 0, sizeof(filterText));
 }
 
 void ContractsView::SetDatabaseManager(DatabaseManager* manager) {
@@ -44,21 +46,26 @@ void ContractsView::Render() {
     // Панель управления
     if (ImGui::Button("Добавить")) {
         isAdding = true;
+        selectedContractIndex = -1;
         selectedContract = Contract{-1, "", "", -1};
-        showEditModal = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Изменить")) {
-        if (selectedContractIndex != -1) {
-            isAdding = false;
-            selectedContract = contracts[selectedContractIndex];
-            showEditModal = true;
-        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Удалить")) {
-        if (selectedContractIndex != -1 && dbManager) {
+        if (!isAdding && selectedContractIndex != -1 && dbManager) {
             dbManager->deleteContract(contracts[selectedContractIndex].id);
+            RefreshData();
+            selectedContract = Contract{};
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Сохранить")) {
+        if (dbManager) {
+            if (isAdding) {
+                dbManager->addContract(selectedContract);
+                isAdding = false;
+            } else if (selectedContract.id != -1) {
+                dbManager->updateContract(selectedContract);
+            }
             RefreshData();
         }
     }
@@ -81,7 +88,14 @@ void ContractsView::Render() {
         }
     }
 
+    ImGui::Separator();
+
+    ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText));
+
+    const float editorHeight = ImGui::GetTextLineHeightWithSpacing() * 8;
+
     // Таблица со списком
+    ImGui::BeginChild("ContractsList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
     if (ImGui::BeginTable("contracts_table", 4, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("ID");
         ImGui::TableSetupColumn("Номер");
@@ -99,12 +113,20 @@ void ContractsView::Render() {
         };
 
         for (int i = 0; i < contracts.size(); ++i) {
+             if (filterText[0] != '\0' && strcasestr(contracts[i].number.c_str(), filterText) == nullptr) {
+                continue;
+            }
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
 
             bool is_selected = (selectedContractIndex == i);
-            if (ImGui::Selectable(std::to_string(contracts[i].id).c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+            char label[256];
+            sprintf(label, "%d##%d", contracts[i].id, i);
+            if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedContractIndex = i;
+                selectedContract = contracts[i];
+                isAdding = false;
             }
             if (is_selected) {
                  ImGui::SetItemDefaultFocus();
@@ -119,13 +141,19 @@ void ContractsView::Render() {
         }
         ImGui::EndTable();
     }
+    ImGui::EndChild();
 
-    // Модальное окно для редактирования/добавления
-    if (showEditModal) {
-        ImGui::OpenPopup("EditContract");
-    }
-
-    if (ImGui::BeginPopupModal("EditContract", &showEditModal)) {
+    ImGui::Separator();
+    
+    // Редактор
+    ImGui::BeginChild("ContractEditor");
+    if (selectedContractIndex != -1 || isAdding) {
+        if (isAdding) {
+            ImGui::Text("Добавление нового договора");
+        } else {
+            ImGui::Text("Редактирование договора ID: %d", selectedContract.id);
+        }
+        
         char numberBuf[256];
         char dateBuf[12];
         
@@ -163,25 +191,10 @@ void ContractsView::Render() {
                 ImGui::EndCombo();
             }
         }
-
-        if (ImGui::Button("Сохранить")) {
-            if (dbManager) {
-                if (isAdding) {
-                    dbManager->addContract(selectedContract);
-                } else {
-                    dbManager->updateContract(selectedContract);
-                }
-                RefreshData();
-            }
-            showEditModal = false;
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Отмена")) {
-            showEditModal = false;
-        }
-
-        ImGui::EndPopup();
+    } else {
+        ImGui::Text("Выберите договор для редактирования или добавьте новый.");
     }
+    ImGui::EndChild();
 
     ImGui::End();
 }

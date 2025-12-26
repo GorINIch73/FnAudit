@@ -1,8 +1,10 @@
 #include "KosguView.h"
 #include <iostream>
+#include <cstring>
 
 KosguView::KosguView()
     : dbManager(nullptr), pdfReporter(nullptr), selectedKosguIndex(-1), showEditModal(false), isAdding(false) {
+    memset(filterText, 0, sizeof(filterText));
 }
 
 void KosguView::SetDatabaseManager(DatabaseManager* manager) {
@@ -37,21 +39,26 @@ void KosguView::Render() {
     // Панель управления
     if (ImGui::Button("Добавить")) {
         isAdding = true;
+        selectedKosguIndex = -1;
         selectedKosgu = Kosgu{-1, "", ""};
-        showEditModal = true;
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Изменить")) {
-        if (selectedKosguIndex != -1) {
-            isAdding = false;
-            selectedKosgu = kosguEntries[selectedKosguIndex];
-            showEditModal = true;
-        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Удалить")) {
-        if (selectedKosguIndex != -1 && dbManager) {
+        if (!isAdding && selectedKosguIndex != -1 && dbManager) {
             dbManager->deleteKosguEntry(kosguEntries[selectedKosguIndex].id);
+            RefreshData();
+            selectedKosgu = Kosgu{};
+        }
+    }
+     ImGui::SameLine();
+    if (ImGui::Button("Сохранить")) {
+        if (dbManager) {
+            if (isAdding) {
+                dbManager->addKosguEntry(selectedKosgu);
+                isAdding = false;
+            } else if (selectedKosgu.id != -1) {
+                dbManager->updateKosguEntry(selectedKosgu);
+            }
             RefreshData();
         }
     }
@@ -73,6 +80,13 @@ void KosguView::Render() {
         }
     }
 
+    ImGui::Separator();
+
+    ImGui::InputText("Фильтр по наименованию", filterText, sizeof(filterText));
+
+    const float editorHeight = ImGui::GetTextLineHeightWithSpacing() * 8;
+    
+    ImGui::BeginChild("KosguList", ImVec2(0, -editorHeight), true, ImGuiWindowFlags_HorizontalScrollbar);
     if (ImGui::BeginTable("kosgu_table", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn("ID");
         ImGui::TableSetupColumn("Код");
@@ -80,12 +94,20 @@ void KosguView::Render() {
         ImGui::TableHeadersRow();
 
         for (int i = 0; i < kosguEntries.size(); ++i) {
+            if (filterText[0] != '\0' && strcasestr(kosguEntries[i].name.c_str(), filterText) == nullptr) {
+                continue;
+            }
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
 
             bool is_selected = (selectedKosguIndex == i);
-            if (ImGui::Selectable(std::to_string(kosguEntries[i].id).c_str(), is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+            char label[256];
+            sprintf(label, "%d##%d", kosguEntries[i].id, i);
+            if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
                 selectedKosguIndex = i;
+                selectedKosgu = kosguEntries[i];
+                isAdding = false;
             }
             if (is_selected) {
                  ImGui::SetItemDefaultFocus();
@@ -98,45 +120,33 @@ void KosguView::Render() {
         }
         ImGui::EndTable();
     }
+    ImGui::EndChild();
 
-    if (showEditModal) {
-        ImGui::OpenPopup("EditKosgu");
-    }
+    ImGui::Separator();
 
-    if (ImGui::BeginPopupModal("EditKosgu", &showEditModal)) {
+    ImGui::BeginChild("KosguEditor");
+    if (selectedKosguIndex != -1 || isAdding) {
+        if (isAdding) {
+            ImGui::Text("Добавление новой записи КОСГУ");
+        } else {
+            ImGui::Text("Редактирование КОСГУ ID: %d", selectedKosgu.id);
+        }
         char codeBuf[256];
         char nameBuf[256];
-        if (isAdding) {
-            snprintf(codeBuf, sizeof(codeBuf), "%s", "");
-            snprintf(nameBuf, sizeof(nameBuf), "%s", "");
-        } else {
-            snprintf(codeBuf, sizeof(codeBuf), "%s", selectedKosgu.code.c_str());
-            snprintf(nameBuf, sizeof(nameBuf), "%s", selectedKosgu.name.c_str());
-        }
 
-        ImGui::InputText("Код", codeBuf, sizeof(codeBuf));
-        ImGui::InputText("Наименование", nameBuf, sizeof(nameBuf));
+        snprintf(codeBuf, sizeof(codeBuf), "%s", selectedKosgu.code.c_str());
+        snprintf(nameBuf, sizeof(nameBuf), "%s", selectedKosgu.name.c_str());
 
-        if (ImGui::Button("Сохранить")) {
-            if (dbManager) {
-                selectedKosgu.code = codeBuf;
-                selectedKosgu.name = nameBuf;
-                if (isAdding) {
-                    dbManager->addKosguEntry(selectedKosgu);
-                } else {
-                    dbManager->updateKosguEntry(selectedKosgu);
-                }
-                RefreshData();
-            }
-            showEditModal = false;
+        if (ImGui::InputText("Код", codeBuf, sizeof(codeBuf))) {
+            selectedKosgu.code = codeBuf;
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Отмена")) {
-            showEditModal = false;
+        if (ImGui::InputText("Наименование", nameBuf, sizeof(nameBuf))) {
+            selectedKosgu.name = nameBuf;
         }
-
-        ImGui::EndPopup();
+    } else {
+        ImGui::Text("Выберите запись для редактирования или добавьте новую.");
     }
+    ImGui::EndChild();
 
     ImGui::End();
 }
