@@ -35,6 +35,27 @@ void PaymentsView::RefreshDropdownData() {
     }
 }
 
+const char* PaymentsView::GetTitle() {
+    return "Справочник 'Банк' (Платежи)";
+}
+
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> PaymentsView::GetDataAsStrings() {
+    std::vector<std::string> headers = {"Дата", "Номер", "Тип", "Сумма", "Плательщик", "Получатель", "Назначение"};
+    std::vector<std::vector<std::string>> rows;
+    for (const auto& p : payments) {
+        rows.push_back({
+            p.date,
+            p.doc_number,
+            p.type,
+            std::to_string(p.amount),
+            p.payer,
+            p.recipient,
+            p.description
+        });
+    }
+    return {headers, rows};
+}
+
 // Вспомогательная функция для сортировки
 static void SortPayments(std::vector<Payment>& payments, const ImGuiTableSortSpecs* sort_specs) {
     std::sort(payments.begin(), payments.end(), [&](const Payment& a, const Payment& b) {
@@ -61,7 +82,7 @@ void PaymentsView::Render() {
         return;
     }
 
-    if (!ImGui::Begin("Справочник 'Банк' (Платежи)", &IsVisible)) {
+    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
         ImGui::End();
         return;
     }
@@ -110,27 +131,6 @@ void PaymentsView::Render() {
     if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
         RefreshDropdownData();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
-        if (pdfReporter && dbManager && dbManager->is_open()) {
-            std::vector<std::string> columns = {"Дата", "Номер", "Тип", "Сумма", "Плательщик", "Получатель", "Назначение"};
-            std::vector<std::vector<std::string>> rows;
-            for (const auto& p : payments) {
-                rows.push_back({
-                    p.date,
-                    p.doc_number,
-                    p.type,
-                    std::to_string(p.amount),
-                    p.payer,
-                    p.recipient,
-                    p.description
-                });
-            }
-            pdfReporter->generatePdfFromTable("payments_report.pdf", "Справочник 'Банк' (Платежи)", columns, rows);
-        } else {
-            std::cerr << "Cannot export to PDF: No database open or PdfReporter not set." << std::endl;
-        }
     }
     
     ImGui::Separator();
@@ -311,3 +311,4 @@ void PaymentsView::Render() {
     
     ImGui::End();
 }
+

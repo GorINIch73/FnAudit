@@ -24,6 +24,19 @@ void CounterpartiesView::RefreshData() {
     }
 }
 
+const char* CounterpartiesView::GetTitle() {
+    return "Справочник 'Контрагенты'";
+}
+
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> CounterpartiesView::GetDataAsStrings() {
+    std::vector<std::string> headers = {"ID", "Наименование", "ИНН"};
+    std::vector<std::vector<std::string>> rows;
+    for (const auto& entry : counterparties) {
+        rows.push_back({std::to_string(entry.id), entry.name, entry.inn});
+    }
+    return {headers, rows};
+}
+
 // Вспомогательная функция для сортировки
 static void SortCounterparties(std::vector<Counterparty>& counterparties, const ImGuiTableSortSpecs* sort_specs) {
     std::sort(counterparties.begin(), counterparties.end(), [&](const Counterparty& a, const Counterparty& b) {
@@ -50,7 +63,7 @@ void CounterpartiesView::Render() {
         return;
     }
 
-    if (!ImGui::Begin("Справочник 'Контрагенты'", &IsVisible)) {
+    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
         ImGui::End();
         return;
     }

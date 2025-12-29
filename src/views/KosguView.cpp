@@ -24,6 +24,19 @@ void KosguView::RefreshData() {
     }
 }
 
+const char* KosguView::GetTitle() {
+    return "Справочник КОСГУ";
+}
+
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> KosguView::GetDataAsStrings() {
+    std::vector<std::string> headers = {"ID", "Код", "Наименование"};
+    std::vector<std::vector<std::string>> rows;
+    for (const auto& entry : kosguEntries) {
+        rows.push_back({std::to_string(entry.id), entry.code, entry.name});
+    }
+    return {headers, rows};
+}
+
 // Вспомогательная функция для сортировки
 static void SortKosgu(std::vector<Kosgu>& kosguEntries, const ImGuiTableSortSpecs* sort_specs) {
     std::sort(kosguEntries.begin(), kosguEntries.end(), [&](const Kosgu& a, const Kosgu& b) {
@@ -50,7 +63,7 @@ void KosguView::Render() {
         return;
     }
 
-    if (!ImGui::Begin("Справочник КОСГУ", &IsVisible)) {
+    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
         ImGui::End();
         return;
     }
@@ -88,19 +101,6 @@ void KosguView::Render() {
     ImGui::SameLine();
     if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
-        if (pdfReporter && dbManager && dbManager->is_open()) {
-            std::vector<std::string> columns = {"ID", "Код", "Наименование"};
-            std::vector<std::vector<std::string>> rows;
-            for (const auto& entry : kosguEntries) {
-                rows.push_back({std::to_string(entry.id), entry.code, entry.name});
-            }
-            pdfReporter->generatePdfFromTable("kosgu_report.pdf", "Справочник КОСГУ", columns, rows);
-        } else {
-            std::cerr << "Cannot export to PDF: No database open or PdfReporter not set." << std::endl;
-        }
     }
 
     ImGui::Separator();
@@ -181,3 +181,4 @@ void KosguView::Render() {
 
     ImGui::End();
 }
+

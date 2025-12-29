@@ -16,12 +16,20 @@ void SqlQueryView::SetPdfReporter(PdfReporter* reporter) {
     pdfReporter = reporter;
 }
 
+const char* SqlQueryView::GetTitle() {
+    return "SQL Запрос";
+}
+
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> SqlQueryView::GetDataAsStrings() {
+    return {queryResult.columns, queryResult.rows};
+}
+
 void SqlQueryView::Render() {
     if (!IsVisible) {
         return;
     }
 
-    if (!ImGui::Begin("SQL Запрос", &IsVisible)) {
+    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
         ImGui::End();
         return;
     }
@@ -36,14 +44,6 @@ void SqlQueryView::Render() {
             queryResult.columns.clear();
             queryResult.rows.clear();
             std::cerr << "No database open to execute SQL query." << std::endl;
-        }
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
-        if (pdfReporter && dbManager && dbManager->is_open() && !queryResult.columns.empty()) {
-            pdfReporter->generatePdfFromTable("sql_query_report.pdf", "Результаты SQL Запроса", queryResult.columns, queryResult.rows);
-        } else {
-            std::cerr << "Cannot export to PDF: No database open, PdfReporter not set, or no query results." << std::endl;
         }
     }
 

@@ -30,6 +30,29 @@ void ContractsView::RefreshDropdownData() {
     }
 }
 
+const char* ContractsView::GetTitle() {
+    return "Справочник 'Договоры'";
+}
+
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> ContractsView::GetDataAsStrings() {
+    auto getCounterpartyName = [&](int id) -> std::string {
+        for (const auto& cp : counterpartiesForDropdown) {
+            if (cp.id == id) {
+                return cp.name;
+            }
+        }
+        return "N/A";
+    };
+
+    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контрагент"};
+    std::vector<std::vector<std::string>> rows;
+    for (const auto& entry : contracts) {
+        rows.push_back({std::to_string(entry.id), entry.number, entry.date, getCounterpartyName(entry.counterparty_id)});
+    }
+    return {headers, rows};
+}
+
+
 // Вспомогательная функция для сортировки
 static void SortContracts(std::vector<Contract>& contracts, const ImGuiTableSortSpecs* sort_specs) {
     std::sort(contracts.begin(), contracts.end(), [&](const Contract& a, const Contract& b) {
@@ -56,7 +79,7 @@ void ContractsView::Render() {
         return;
     }
 
-    if (!ImGui::Begin("Справочник 'Договоры'", &IsVisible)) {
+    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
         ImGui::End();
         return;
     }
@@ -96,19 +119,6 @@ void ContractsView::Render() {
     if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
         RefreshData();
         RefreshDropdownData();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button(ICON_FA_FILE_PDF " Экспорт в PDF")) {
-        if (pdfReporter && dbManager && dbManager->is_open()) {
-            std::vector<std::string> columns = {"ID", "Номер", "Дата", "Контрагент ID"};
-            std::vector<std::vector<std::string>> rows;
-            for (const auto& entry : contracts) {
-                rows.push_back({std::to_string(entry.id), entry.number, entry.date, std::to_string(entry.counterparty_id)});
-            }
-            pdfReporter->generatePdfFromTable("contracts_report.pdf", "Справочник 'Договоры'", columns, rows);
-        } else {
-            std::cerr << "Cannot export to PDF: No database open or PdfReporter not set." << std::endl;
-        }
     }
 
     ImGui::Separator();

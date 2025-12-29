@@ -1,19 +1,21 @@
 #include "UIManager.h"
 #include <iostream>
-#include <string> // Added for std::string functions
-#include "PdfReporter.h" // Add PdfReporter header
-#include <ctime>
-#include <iomanip>
-#include <sstream>
+#include <string>
 #include <fstream>
 #include <algorithm>
+#include <vector>
+
+#include <GLFW/glfw3.h>
+#include "ImGuiFileDialog.h"
+#include "ImportManager.h"
+#include "PdfReporter.h"
+#include "views/BaseView.h"
 
 const size_t MAX_RECENT_PATHS = 10;
 const std::string RECENT_PATHS_FILE = ".recent_dbs.txt";
 
 UIManager::UIManager()
-    : dbManager(nullptr) {
-    // Конструктор
+    : dbManager(nullptr), pdfReporter(nullptr), importManager(nullptr), window(nullptr), activeView(nullptr) {
     LoadRecentDbPaths();
 }
 
@@ -22,13 +24,8 @@ UIManager::~UIManager() {
 }
 
 void UIManager::AddRecentDbPath(const std::string& path) {
-    // Удаляем старую запись, если она есть
     recentDbPaths.erase(std::remove(recentDbPaths.begin(), recentDbPaths.end(), path), recentDbPaths.end());
-
-    // Добавляем новый путь в начало
     recentDbPaths.insert(recentDbPaths.begin(), path);
-
-    // Ограничиваем размер списка
     if (recentDbPaths.size() > MAX_RECENT_PATHS) {
         recentDbPaths.resize(MAX_RECENT_PATHS);
     }
@@ -36,9 +33,7 @@ void UIManager::AddRecentDbPath(const std::string& path) {
 
 void UIManager::LoadRecentDbPaths() {
     std::ifstream file(RECENT_PATHS_FILE);
-    if (!file.is_open()) {
-        return;
-    }
+    if (!file.is_open()) return;
     std::string path;
     while (std::getline(file, path)) {
         if (!path.empty()) {
@@ -49,9 +44,7 @@ void UIManager::LoadRecentDbPaths() {
 
 void UIManager::SaveRecentDbPaths() {
     std::ofstream file(RECENT_PATHS_FILE);
-    if (!file.is_open()) {
-        return;
-    }
+    if (!file.is_open()) return;
     for (const auto& path : recentDbPaths) {
         file << path << std::endl;
     }
@@ -77,7 +70,84 @@ void UIManager::SetPdfReporter(PdfReporter* reporter) {
     sqlQueryView.SetPdfReporter(reporter);
 }
 
+void UIManager::SetImportManager(ImportManager* manager) {
+    importManager = manager;
+}
+
+void UIManager::SetWindow(GLFWwindow* w) {
+    window = w;
+}
+
+void UIManager::SetActiveView(BaseView* view) {
+    activeView = view;
+}
+
+void UIManager::SetWindowTitle(const std::string& db_path) {
+    std::string title = "Financial Audit Application";
+    if (!db_path.empty()) {
+        title += " - [" + db_path + "]";
+    }
+    glfwSetWindowTitle(window, title.c_str());
+}
+
+void UIManager::HandleFileDialogs() {
+    if (ImGuiFileDialog::Instance()->Display("ChooseDbFileDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            if (dbManager->createDatabase(filePathName)) {
+                currentDbPath = filePathName;
+                SetWindowTitle(currentDbPath);
+                AddRecentDbPath(filePathName);
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("OpenDbFileDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            if (dbManager->open(filePathName)) {
+                currentDbPath = filePathName;
+                SetWindowTitle(currentDbPath);
+                AddRecentDbPath(filePathName);
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("ImportTsvFileDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            if (dbManager->is_open()) {
+                importManager->ImportPaymentsFromTsv(filePathName, dbManager);
+            } else {
+                // TODO: Show error message
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("SavePdfFileDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            if (activeView) {
+                auto data = activeView->GetDataAsStrings();
+                pdfReporter->generatePdfFromTable(filePathName, activeView->GetTitle(), data.first, data.second);
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+}
+
+
 void UIManager::Render() {
+    if(paymentsView.IsVisible) activeView = &paymentsView;
+    if(kosguView.IsVisible) activeView = &kosguView;
+    if(counterpartiesView.IsVisible) activeView = &counterpartiesView;
+    if(contractsView.IsVisible) activeView = &contractsView;
+    if(invoicesView.IsVisible) activeView = &invoicesView;
+    if(sqlQueryView.IsVisible) activeView = &sqlQueryView;
+
     paymentsView.Render();
     kosguView.Render();
     counterpartiesView.Render();

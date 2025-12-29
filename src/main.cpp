@@ -17,14 +17,6 @@ static void glfw_error_callback(int error, const char* description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
 }
 
-void SetWindowTitle(GLFWwindow* window, const std::string& db_path) {
-    std::string title = "Financial Audit Application";
-    if (!db_path.empty()) {
-        title += " - [" + db_path + "]";
-    }
-    glfwSetWindowTitle(window, title.c_str());
-}
-
 int main(int, char**) {
     // Установка обработчика ошибок GLFW
     glfwSetErrorCallback(glfw_error_callback);
@@ -81,9 +73,11 @@ int main(int, char**) {
     DatabaseManager dbManager;
     ImportManager importManager;
     PdfReporter pdfReporter;
+
     uiManager.SetDatabaseManager(&dbManager);
     uiManager.SetPdfReporter(&pdfReporter);
-    std::string currentDbPath;
+    uiManager.SetImportManager(&importManager);
+    uiManager.SetWindow(window);
 
 
     // Главный цикл приложения
@@ -112,8 +106,8 @@ int main(int, char**) {
                     for (const auto& path : uiManager.recentDbPaths) {
                         if (ImGui::MenuItem(path.c_str())) {
                             if (dbManager.open(path)) {
-                                currentDbPath = path;
-                                SetWindowTitle(window, currentDbPath);
+                                uiManager.currentDbPath = path;
+                                uiManager.SetWindowTitle(uiManager.currentDbPath);
                                 uiManager.AddRecentDbPath(path);
                             }
                         }
@@ -163,52 +157,7 @@ int main(int, char**) {
         }
 
         // --- Обработка диалогов выбора файлов ---
-        if (ImGuiFileDialog::Instance()->Display("ChooseDbFileDlgKey")) {
-            if (ImGuiFileDialog::Instance()->IsOk()) {
-                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                if (dbManager.createDatabase(filePathName)) {
-                    currentDbPath = filePathName;
-                    SetWindowTitle(window, currentDbPath);
-                    uiManager.AddRecentDbPath(filePathName);
-                }
-            }
-            ImGuiFileDialog::Instance()->Close();
-        }
-        if (ImGuiFileDialog::Instance()->Display("OpenDbFileDlgKey")) {
-            if (ImGuiFileDialog::Instance()->IsOk()) {
-                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                if (dbManager.open(filePathName)) {
-                    currentDbPath = filePathName;
-                    SetWindowTitle(window, currentDbPath);
-                    uiManager.AddRecentDbPath(filePathName);
-                }
-            }
-            ImGuiFileDialog::Instance()->Close();
-        }
-        if (ImGuiFileDialog::Instance()->Display("ImportTsvFileDlgKey")) {
-            if (ImGuiFileDialog::Instance()->IsOk()) {
-                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                // Check if a database is open before importing
-                if (dbManager.is_open()) { // Assuming dbManager has an is_open() method
-                    importManager.ImportPaymentsFromTsv(filePathName, &dbManager);
-                    // After import, refresh any relevant UI data
-                } else {
-                    // Show error message: No database open
-                    // ImGui::OpenPopup("NoDbOpenError"); // Example error handling
-                }
-            }
-            ImGuiFileDialog::Instance()->Close();
-        }
-        if (ImGuiFileDialog::Instance()->Display("SavePdfFileDlgKey")) {
-            if (ImGuiFileDialog::Instance()->IsOk()) {
-                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                // Placeholder for actual data, can be from current view or a specific report
-                std::vector<std::string> dummy_columns = {"Column1", "Column2"};
-                std::vector<std::vector<std::string>> dummy_rows = {{"Data1", "Data2"}, {"Data3", "Data4"}};
-                pdfReporter.generatePdfFromTable(filePathName, "Sample Report", dummy_columns, dummy_rows);
-            }
-            ImGuiFileDialog::Instance()->Close();
-        }
+        uiManager.HandleFileDialogs();
 
 
         // --- Рендеринг окон через UIManager ---
