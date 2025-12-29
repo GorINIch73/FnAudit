@@ -56,6 +56,7 @@ set(APP_SOURCES
     src/ImportManager.cpp
     src/PdfReporter.cpp
     src/pdfgen.c
+    src/CustomWidgets.cpp
     src/views/PaymentsView.cpp
     src/views/KosguView.cpp
     src/views/CounterpartiesView.cpp

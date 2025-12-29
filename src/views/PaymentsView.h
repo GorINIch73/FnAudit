@@ -2,12 +2,15 @@
 
 #include "BaseView.h"
 #include <vector>
+#include <string>
 #include "../Payment.h"
 #include "../Counterparty.h"
 #include "../Kosgu.h"
 #include "../PaymentDetail.h"
 #include "../Contract.h"
 #include "../Invoice.h"
+#include "imgui.h"
+#include "CustomWidgets.h"
 
 class PaymentsView : public BaseView {
 public:
@@ -29,6 +32,8 @@ private:
     Payment selectedPayment;
     int selectedPaymentIndex;
     bool isAdding;
+
+    std::string descriptionBuffer;
 
     std::vector<PaymentDetail> paymentDetails;
     PaymentDetail selectedDetail;
