@@ -9,6 +9,7 @@
 #include "Contract.h"
 #include "Payment.h"
 #include "Invoice.h"
+#include "PaymentDetail.h"
 
 class DatabaseManager {
 public:
@@ -24,6 +25,7 @@ public:
     bool addKosguEntry(const Kosgu& entry);
     bool updateKosguEntry(const Kosgu& entry);
     bool deleteKosguEntry(int id);
+    int getKosguIdByCode(const std::string& code);
 
     bool addCounterparty(Counterparty& counterparty); // Pass by reference to get the id back
     int getCounterpartyIdByNameInn(const std::string& name, const std::string& inn);
@@ -46,9 +48,14 @@ public:
 
 
     std::vector<Payment> getPayments();
-    bool addPayment(const Payment& payment);
+    bool addPayment(Payment& payment);
     bool updatePayment(const Payment& payment);
     bool deletePayment(int id);
+
+    bool addPaymentDetail(PaymentDetail& detail);
+    std::vector<PaymentDetail> getPaymentDetails(int payment_id);
+    bool updatePaymentDetail(const PaymentDetail& detail);
+    bool deletePaymentDetail(int id);
 
     // Generic SQL query execution for SELECT statements
     bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);

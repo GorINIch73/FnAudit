@@ -1,8 +1,1 @@
-# Исключить папку сборки
-/build/
-/dist/
-/out/
-/thirdparty/
-/.cache/
-*.json
-
+*.pdf

@@ -5,6 +5,9 @@
 #include "../Payment.h"
 #include "../Counterparty.h"
 #include "../Kosgu.h"
+#include "../PaymentDetail.h"
+#include "../Contract.h"
+#include "../Invoice.h"
 
 class PaymentsView : public BaseView {
 public:
@@ -27,7 +30,14 @@ private:
     int selectedPaymentIndex;
     bool isAdding;
 
+    std::vector<PaymentDetail> paymentDetails;
+    PaymentDetail selectedDetail;
+    int selectedDetailIndex;
+    bool isAddingDetail;
+
     std::vector<Counterparty> counterpartiesForDropdown;
     std::vector<Kosgu> kosguForDropdown;
+    std::vector<Contract> contractsForDropdown;
+    std::vector<Invoice> invoicesForDropdown;
     char filterText[256];
 };

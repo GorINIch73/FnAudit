@@ -132,154 +132,126 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
     std::string line;
     std::getline(file, line); // Skip header line
 
-    // Regex patterns for contract and invoice
+    // Regex patterns
     std::regex contract_regex("по контракту\\s*([^\\s]+)\\s*(\\d{2}\\.\\d{2}\\.\\d{4})");
     std::regex invoice_regex("(?:док\\.о пр-ке пост\\.товаров|акт об оказ\\.услуг|тов\\.накладная|счет на оплату|№)\\s*([^\\s]+)\\s*от\\s*(\\d{2}\\.\\d{2}\\.\\d{4})");
+    std::regex kosgu_regex("\\(000-0000-0000000000-(\\d+):\\s*([\\d=]+)\\s*ЛС\\s*\\d+\\)\\s*К(\\d+)");
 
     while (std::getline(file, line)) {
         Payment payment = parsePaymentLine(line);
-        if (payment.date.empty() || payment.amount == 0.0) { // Basic validation
+        if (payment.date.empty() || payment.amount == 0.0) {
             std::cerr << "Skipping invalid payment line: " << line << std::endl;
             continue;
         }
 
-        // --- Обработка контрагентов ---
-        Counterparty payer_counterparty = extractCounterparty(payment.payer, payment.payer_inn);
-        Counterparty recipient_counterparty = extractCounterparty(payment.recipient, payment.recipient_inn);
-
-        // Handle Payer Counterparty
+        // --- Counterparty Handling (as before) ---
+        Counterparty payer_counterparty = extractCounterparty(payment.payer, "");
+        Counterparty recipient_counterparty = extractCounterparty(payment.recipient, "");
         int payer_id = -1;
         if (!payer_counterparty.name.empty()) {
-            // 1. Try to find by name and INN if INN is available
-            if (!payer_counterparty.inn.empty()) {
-                payer_id = dbManager->getCounterpartyIdByNameInn(payer_counterparty.name, payer_counterparty.inn);
-            }
-            
-            // 2. If not found or INN was empty, try to find by name only (for NULL INN entries)
-            if (payer_id == -1) { // If still not found by Name+INN, or if INN was empty
-                payer_id = dbManager->getCounterpartyIdByName(payer_counterparty.name);
-            }
-
-            // 3. If still not found, add a new counterparty
+            payer_id = dbManager->getCounterpartyIdByName(payer_counterparty.name);
             if (payer_id == -1) {
                 if (dbManager->addCounterparty(payer_counterparty)) {
                     payer_id = payer_counterparty.id;
-                } else {
-                    std::cerr << "Failed to add new payer counterparty: " << payer_counterparty.name << std::endl;
                 }
             }
         }
-        
-        // Handle Recipient Counterparty
-        int recipient_id = -1; // Declare recipient_id here
+        int recipient_id = -1;
         if (!recipient_counterparty.name.empty()) {
-            // 1. Try to find by name and INN if INN is available
-            if (!recipient_counterparty.inn.empty()) {
-                recipient_id = dbManager->getCounterpartyIdByNameInn(recipient_counterparty.name, recipient_counterparty.inn);
-            }
-
-            // 2. If not found or INN was empty, try to find by name only (for NULL INN entries)
-            if (recipient_id == -1) { // If still not found by Name+INN, or if INN was empty
-                recipient_id = dbManager->getCounterpartyIdByName(recipient_counterparty.name);
-            }
-
-            // 3. If still not found, add a new counterparty
+            recipient_id = dbManager->getCounterpartyIdByName(recipient_counterparty.name);
             if (recipient_id == -1) {
                 if (dbManager->addCounterparty(recipient_counterparty)) {
                     recipient_id = recipient_counterparty.id;
-                } else {
-                    std::cerr << "Failed to add new recipient counterparty: " << recipient_counterparty.name << std::endl;
                 }
             }
         }
-
-        // Decide which counterparty to link to the payment itself
-        // Based on type: income payment links to payer, expense payment links to recipient
-        if (payment.type == "income") {
-            payment.counterparty_id = payer_id;
-        } else if (payment.type == "expense") {
-            payment.counterparty_id = recipient_id; 
-        } else {
-            // Default or unknown type handling
-            payment.counterparty_id = payer_id; 
-        }
-
-        int contract_counterparty_id = -1; // Determine counterparty for contract
-        if (payment.type == "income") {
-            contract_counterparty_id = payer_id;
-        } else if (payment.type == "expense") {
-            contract_counterparty_id = recipient_id;
-        }
+        payment.counterparty_id = (payment.type == "income") ? payer_id : recipient_id;
         
-        // --- Парсинг и обработка договоров ---
+        int contract_counterparty_id = (payment.type == "income") ? payer_id : recipient_id;
+
+        // --- Contract and Invoice Parsing (as before) ---
+        int current_contract_id = -1;
         std::smatch contract_matches;
-        int current_contract_id = -1; // To link invoice if found
         if (std::regex_search(payment.description, contract_matches, contract_regex)) {
-            if (contract_matches.size() == 3) { // Full match + 2 capture groups
+            if (contract_matches.size() == 3) {
                 std::string contract_number = contract_matches[1].str();
-                std::string contract_date_ddmmyyyy = contract_matches[2].str();
-                std::string contract_date_db_format = convertDateToDBFormat(contract_date_ddmmyyyy);
-
-                // int counterparty_for_contract = -1; // This variable is now redundant
-                // if (payment.type == "income") {
-                //     counterparty_for_contract = payer_id;
-                // } else if (payment.type == "expense") {
-                //     counterparty_for_contract = recipient_id_for_contract; // Old name
-                // }
-
-                int found_contract_id = dbManager->getContractIdByNumberDate(contract_number, contract_date_db_format);
-                if (found_contract_id == -1) {
-                    Contract contract_obj;
-                    contract_obj.number = contract_number;
-                    contract_obj.date = contract_date_db_format;
-                    contract_obj.counterparty_id = contract_counterparty_id; // Use the correctly determined ID
+                std::string contract_date_db_format = convertDateToDBFormat(contract_matches[2].str());
+                current_contract_id = dbManager->getContractIdByNumberDate(contract_number, contract_date_db_format);
+                if (current_contract_id == -1) {
+                    Contract contract_obj{-1, contract_number, contract_date_db_format, contract_counterparty_id};
                     if (dbManager->addContract(contract_obj)) {
                         current_contract_id = contract_obj.id;
-                        std::cerr << "Added Contract: Number=" << contract_number << ", Date=" << contract_date_db_format << ", ID=" << current_contract_id << std::endl;
-                    } else {
-                        std::cerr << "Failed to add contract: " << contract_number << " from " << line << std::endl;
                     }
-                } else {
-                    current_contract_id = found_contract_id;
-                    std::cerr << "Found existing Contract: Number=" << contract_number << ", Date=" << contract_date_db_format << ", ID=" << current_contract_id << std::endl;
                 }
-                payment.contract_id = current_contract_id;
             }
         }
 
-        // --- Парсинг и обработка накладных ---
+        int current_invoice_id = -1;
         std::smatch invoice_matches;
         if (std::regex_search(payment.description, invoice_matches, invoice_regex)) {
-            if (invoice_matches.size() == 3) { // Full match + 2 capture groups
+            if (invoice_matches.size() == 3) {
                 std::string invoice_number = invoice_matches[1].str();
-                std::string invoice_date_ddmmyyyy = invoice_matches[2].str();
-                std::string invoice_date_db_format = convertDateToDBFormat(invoice_date_ddmmyyyy);
-
-                int found_invoice_id = dbManager->getInvoiceIdByNumberDate(invoice_number, invoice_date_db_format);
-                if (found_invoice_id == -1) {
-                    Invoice invoice_obj;
-                    invoice_obj.number = invoice_number;
-                    invoice_obj.date = invoice_date_db_format;
-                    invoice_obj.contract_id = current_contract_id; // Link to contract if found
+                std::string invoice_date_db_format = convertDateToDBFormat(invoice_matches[2].str());
+                current_invoice_id = dbManager->getInvoiceIdByNumberDate(invoice_number, invoice_date_db_format);
+                if (current_invoice_id == -1) {
+                    Invoice invoice_obj{-1, invoice_number, invoice_date_db_format, current_contract_id};
                     if (dbManager->addInvoice(invoice_obj)) {
-                        payment.invoice_id = invoice_obj.id;
-                        std::cerr << "Added Invoice: Number=" << invoice_number << ", Date=" << invoice_date_db_format << ", ID=" << payment.invoice_id << ", Contract ID=" << current_contract_id << std::endl;
-                    } else {
-                        std::cerr << "Failed to add invoice: " << invoice_number << " from " << line << std::endl;
+                        current_invoice_id = invoice_obj.id;
                     }
-                } else {
-                    payment.invoice_id = found_invoice_id;
-                    std::cerr << "Found existing Invoice: Number=" << invoice_number << ", Date=" << invoice_date_db_format << ", ID=" << payment.invoice_id << ", Contract ID=" << current_contract_id << std::endl;
                 }
             }
         }
-
-        // --- Добавление платежа ---
+        
+        // --- Add Payment and get its ID ---
         if (!dbManager->addPayment(payment)) {
             std::cerr << "Failed to add payment from line: " << line << std::endl;
-            std::cerr << "Payment details: date=" << payment.date << ", doc=" << payment.doc_number 
-                      << ", type=" << payment.type << ", amount=" << payment.amount 
-                      << ", payer=" << payment.payer << ", recipient=" << payment.recipient << std::endl;
+            continue; // Skip to next line if payment fails
+        }
+        int new_payment_id = payment.id;
+
+        // --- KOSGU and Payment Detail Parsing ---
+        auto kosgu_begin = std::sregex_iterator(payment.description.begin(), payment.description.end(), kosgu_regex);
+        auto kosgu_end = std::sregex_iterator();
+
+        for (std::sregex_iterator i = kosgu_begin; i != kosgu_end; ++i) {
+            std::smatch match = *i;
+            if (match.size() == 4) {
+                std::string kosgu_code_from_desc = match[3].str(); // "225" from К225
+                std::string amount_str_from_desc = match[2].str(); // "5537=40"
+                
+                size_t equals_pos = amount_str_from_desc.find('=');
+                if (equals_pos != std::string::npos) {
+                    amount_str_from_desc = amount_str_from_desc.substr(0, equals_pos);
+                }
+
+                double detail_amount = 0.0;
+                try {
+                    detail_amount = std::stod(amount_str_from_desc);
+                } catch (const std::exception& e) {
+                    std::cerr << "Could not parse detail amount '" << amount_str_from_desc << "' from description." << std::endl;
+                    continue;
+                }
+
+                int kosgu_id = dbManager->getKosguIdByCode(kosgu_code_from_desc);
+                if (kosgu_id == -1) {
+                    Kosgu new_kosgu { -1, kosgu_code_from_desc, "КОСГУ " + kosgu_code_from_desc };
+                    dbManager->addKosguEntry(new_kosgu);
+                    kosgu_id = dbManager->getKosguIdByCode(kosgu_code_from_desc);
+                }
+
+                if (kosgu_id != -1) {
+                    PaymentDetail detail;
+                    detail.payment_id = new_payment_id;
+                    detail.kosgu_id = kosgu_id;
+                    detail.contract_id = current_contract_id;
+                    detail.invoice_id = current_invoice_id;
+                    detail.amount = detail_amount;
+                    
+                    if (!dbManager->addPaymentDetail(detail)) {
+                        std::cerr << "Failed to add payment detail for payment ID " << new_payment_id << std::endl;
+                    }
+                }
+            }
         }
     }
 

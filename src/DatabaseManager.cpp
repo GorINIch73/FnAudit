@@ -79,13 +79,7 @@ bool DatabaseManager::createDatabase(const std::string& filepath) {
         "recipient TEXT,"
         "description TEXT,"
         "counterparty_id INTEGER,"
-        "kosgu_id INTEGER,"
-        "contract_id INTEGER,"
-        "invoice_id INTEGER,"
-        "FOREIGN KEY(counterparty_id) REFERENCES Counterparties(id),"
-        "FOREIGN KEY(kosgu_id) REFERENCES KOSGU(id),"
-        "FOREIGN KEY(contract_id) REFERENCES Contracts(id),"
-        "FOREIGN KEY(invoice_id) REFERENCES Invoices(id));",
+        "FOREIGN KEY(counterparty_id) REFERENCES Counterparties(id));",
         
         // Справочник накладных
         "CREATE TABLE IF NOT EXISTS Invoices ("
@@ -93,7 +87,20 @@ bool DatabaseManager::createDatabase(const std::string& filepath) {
         "number TEXT NOT NULL,"
         "date TEXT NOT NULL,"
         "contract_id INTEGER,"
-        "FOREIGN KEY(contract_id) REFERENCES Contracts(id));"
+        "FOREIGN KEY(contract_id) REFERENCES Contracts(id));",
+
+        // Расшифровка платежа
+        "CREATE TABLE IF NOT EXISTS PaymentDetails ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "payment_id INTEGER NOT NULL,"
+        "kosgu_id INTEGER,"
+        "contract_id INTEGER,"
+        "invoice_id INTEGER,"
+        "amount REAL NOT NULL,"
+        "FOREIGN KEY(payment_id) REFERENCES Payments(id) ON DELETE CASCADE,"
+        "FOREIGN KEY(kosgu_id) REFERENCES KOSGU(id),"
+        "FOREIGN KEY(contract_id) REFERENCES Contracts(id),"
+        "FOREIGN KEY(invoice_id) REFERENCES Invoices(id));"
     };
 
     for (const auto& sql : create_tables_sql) {
@@ -211,6 +218,25 @@ bool DatabaseManager::deleteKosguEntry(int id) {
     return true;
 }
 
+int DatabaseManager::getKosguIdByCode(const std::string& code) {
+    if (!db) return -1;
+    std::string sql = "SELECT id FROM KOSGU WHERE code = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for KOSGU lookup by code: " << sqlite3_errmsg(db) << std::endl;
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, code.c_str(), -1, SQLITE_STATIC);
+
+    int id = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        id = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    return id;
+}
+
 
 // Counterparty CRUD
 bool DatabaseManager::addCounterparty(Counterparty& counterparty) {
@@ -279,6 +305,86 @@ int DatabaseManager::getCounterpartyIdByName(const std::string& name) {
     }
     sqlite3_finalize(stmt);
     return id;
+}
+
+// Callback функция для getCounterparties
+static int counterparty_select_callback(void* data, int argc, char** argv, char** azColName) {
+    std::vector<Counterparty>* counterparty_list = static_cast<std::vector<Counterparty>*>(data);
+    Counterparty entry;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "id") {
+            entry.id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "name") {
+            entry.name = argv[i] ? argv[i] : "";
+        } else if (colName == "inn") {
+            entry.inn = argv[i] ? argv[i] : "";
+        }
+    }
+    counterparty_list->push_back(entry);
+    return 0;
+}
+
+std::vector<Counterparty> DatabaseManager::getCounterparties() {
+    std::vector<Counterparty> entries;
+    if (!db) return entries;
+
+    std::string sql = "SELECT id, name, inn FROM Counterparties;";
+    char* errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(), counterparty_select_callback, &entries, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select Counterparty entries: " << errmsg << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return entries;
+}
+
+bool DatabaseManager::updateCounterparty(const Counterparty& counterparty) {
+    if (!db) return false;
+    std::string sql = "UPDATE Counterparties SET name = ?, inn = ? WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for counterparty update: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, counterparty.name.c_str(), -1, SQLITE_STATIC);
+    if (counterparty.inn.empty()) {
+        sqlite3_bind_null(stmt, 2);
+    } else {
+        sqlite3_bind_text(stmt, 2, counterparty.inn.c_str(), -1, SQLITE_STATIC);
+    }
+    sqlite3_bind_int(stmt, 3, counterparty.id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to update Counterparty entry: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool DatabaseManager::deleteCounterparty(int id) {
+    if (!db) return false;
+    std::string sql = "DELETE FROM Counterparties WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to delete Counterparty entry: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
 }
 
 // Contract CRUD
@@ -450,7 +556,7 @@ int DatabaseManager::getInvoiceIdByNumberDate(const std::string& number, const s
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for invoice lookup: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
         return -1;
     }
     sqlite3_bind_text(stmt, 1, number.c_str(), -1, SQLITE_STATIC);
@@ -532,7 +638,7 @@ bool DatabaseManager::deleteInvoice(int id) {
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for invoice delete: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db) << std::endl;
         return false;
     }
     sqlite3_bind_int(stmt, 1, id);
@@ -549,7 +655,7 @@ bool DatabaseManager::deleteInvoice(int id) {
 
 
 // Payment CRUD
-bool DatabaseManager::addPayment(const Payment& payment) {
+bool DatabaseManager::addPayment(Payment& payment) {
     if (!db) return false;
 
     std::cout << "DB: ADDING PAYMENT ->" 
@@ -558,8 +664,8 @@ bool DatabaseManager::addPayment(const Payment& payment) {
               << ", Amount: " << payment.amount
               << ", Desc: " << payment.description << std::endl;
 
-    std::string sql = "INSERT INTO Payments (date, doc_number, type, amount, payer, recipient, description, counterparty_id, kosgu_id, contract_id, invoice_id) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+    std::string sql = "INSERT INTO Payments (date, doc_number, type, amount, payer, recipient, description, counterparty_id) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -578,31 +684,17 @@ bool DatabaseManager::addPayment(const Payment& payment) {
     } else {
         sqlite3_bind_null(stmt, 8);
     }
-    if (payment.kosgu_id != -1) {
-        sqlite3_bind_int(stmt, 9, payment.kosgu_id);
-    } else {
-        sqlite3_bind_null(stmt, 9);
-    }
-    if (payment.contract_id != -1) {
-        sqlite3_bind_int(stmt, 10, payment.contract_id);
-    } else {
-        sqlite3_bind_null(stmt, 10);
-    }
-    if (payment.invoice_id != -1) {
-        sqlite3_bind_int(stmt, 11, payment.invoice_id);
-    } else {
-        sqlite3_bind_null(stmt, 11);
-    }
     
     rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-    
     if (rc != SQLITE_DONE) {
         int extended_code = sqlite3_extended_errcode(db);
         std::cerr << "Failed to add payment: " << sqlite3_errmsg(db) 
                   << " (code: " << rc << ", extended code: " << extended_code << ")" << std::endl;
+        sqlite3_finalize(stmt);
         return false;
     }
+    payment.id = sqlite3_last_insert_rowid(db);
+    sqlite3_finalize(stmt);
     return true;
 }
 
@@ -621,9 +713,6 @@ static int payment_select_callback(void* data, int argc, char** argv, char** azC
         else if (colName == "recipient") p.recipient = argv[i] ? argv[i] : "";
         else if (colName == "description") p.description = argv[i] ? argv[i] : "";
         else if (colName == "counterparty_id") p.counterparty_id = argv[i] ? std::stoi(argv[i]) : -1;
-        else if (colName == "kosgu_id") p.kosgu_id = argv[i] ? std::stoi(argv[i]) : -1;
-        else if (colName == "contract_id") p.contract_id = argv[i] ? std::stoi(argv[i]) : -1;
-        else if (colName == "invoice_id") p.invoice_id = argv[i] ? std::stoi(argv[i]) : -1;
     }
     payments->push_back(p);
     return 0;
@@ -646,8 +735,8 @@ std::vector<Payment> DatabaseManager::getPayments() {
 bool DatabaseManager::updatePayment(const Payment& payment) {
     if (!db) return false;
     std::string sql = "UPDATE Payments SET date = ?, doc_number = ?, type = ?, amount = ?, "
-                      "payer = ?, recipient = ?, description = ?, counterparty_id = ?, kosgu_id = ?, "
-                      "contract_id = ?, invoice_id = ? WHERE id = ?;";
+                      "payer = ?, recipient = ?, description = ?, counterparty_id = ? "
+                      "WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -666,22 +755,7 @@ bool DatabaseManager::updatePayment(const Payment& payment) {
     } else {
         sqlite3_bind_null(stmt, 8);
     }
-    if (payment.kosgu_id != -1) {
-        sqlite3_bind_int(stmt, 9, payment.kosgu_id);
-    } else {
-        sqlite3_bind_null(stmt, 9);
-    }
-    if (payment.contract_id != -1) {
-        sqlite3_bind_int(stmt, 10, payment.contract_id);
-    } else {
-        sqlite3_bind_null(stmt, 10);
-    }
-    if (payment.invoice_id != -1) {
-        sqlite3_bind_int(stmt, 11, payment.invoice_id);
-    } else {
-        sqlite3_bind_null(stmt, 11);
-    }
-    sqlite3_bind_int(stmt, 12, payment.id);
+    sqlite3_bind_int(stmt, 9, payment.id);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -713,6 +787,124 @@ bool DatabaseManager::deletePayment(int id) {
         int extended_code = sqlite3_extended_errcode(db);
         std::cerr << "Failed to delete payment: " << sqlite3_errmsg(db)
                   << " (code: " << rc << ", extended code: " << extended_code << ")" << std::endl;
+        return false;
+    }
+    return true;
+}
+
+// PaymentDetail CRUD
+bool DatabaseManager::addPaymentDetail(PaymentDetail& detail) {
+    if (!db) return false;
+    std::string sql = "INSERT INTO PaymentDetails (payment_id, kosgu_id, contract_id, invoice_id, amount) VALUES (?, ?, ?, ?, ?);";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for payment detail: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, detail.payment_id);
+    sqlite3_bind_int(stmt, 2, detail.kosgu_id);
+    sqlite3_bind_int(stmt, 3, detail.contract_id);
+    sqlite3_bind_int(stmt, 4, detail.invoice_id);
+    sqlite3_bind_double(stmt, 5, detail.amount);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to add payment detail: " << sqlite3_errmsg(db) << std::endl;
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    detail.id = sqlite3_last_insert_rowid(db);
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+static int payment_detail_select_callback(void* data, int argc, char** argv, char** azColName) {
+    auto* details = static_cast<std::vector<PaymentDetail>*>(data);
+    PaymentDetail pd;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "id") pd.id = argv[i] ? std::stoi(argv[i]) : -1;
+        else if (colName == "payment_id") pd.payment_id = argv[i] ? std::stoi(argv[i]) : -1;
+        else if (colName == "kosgu_id") pd.kosgu_id = argv[i] ? std::stoi(argv[i]) : -1;
+        else if (colName == "contract_id") pd.contract_id = argv[i] ? std::stoi(argv[i]) : -1;
+        else if (colName == "invoice_id") pd.invoice_id = argv[i] ? std::stoi(argv[i]) : -1;
+        else if (colName == "amount") pd.amount = argv[i] ? std::stod(argv[i]) : 0.0;
+    }
+    details->push_back(pd);
+    return 0;
+}
+
+std::vector<PaymentDetail> DatabaseManager::getPaymentDetails(int payment_id) {
+    std::vector<PaymentDetail> details;
+    if (!db) return details;
+
+    std::string sql = "SELECT * FROM PaymentDetails WHERE payment_id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for getting payment details: " << sqlite3_errmsg(db) << std::endl;
+        return details;
+    }
+    sqlite3_bind_int(stmt, 1, payment_id);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        PaymentDetail pd;
+        pd.id = sqlite3_column_int(stmt, 0);
+        pd.payment_id = sqlite3_column_int(stmt, 1);
+        pd.kosgu_id = sqlite3_column_int(stmt, 2);
+        pd.contract_id = sqlite3_column_int(stmt, 3);
+        pd.invoice_id = sqlite3_column_int(stmt, 4);
+        pd.amount = sqlite3_column_double(stmt, 5);
+        details.push_back(pd);
+    }
+
+    sqlite3_finalize(stmt);
+    return details;
+}
+
+bool DatabaseManager::updatePaymentDetail(const PaymentDetail& detail) {
+    if (!db) return false;
+    std::string sql = "UPDATE PaymentDetails SET kosgu_id = ?, contract_id = ?, invoice_id = ?, amount = ? WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for updating payment detail: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+
+    sqlite3_bind_int(stmt, 1, detail.kosgu_id);
+    sqlite3_bind_int(stmt, 2, detail.contract_id);
+    sqlite3_bind_int(stmt, 3, detail.invoice_id);
+    sqlite3_bind_double(stmt, 4, detail.amount);
+    sqlite3_bind_int(stmt, 5, detail.id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to update payment detail: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
+bool DatabaseManager::deletePaymentDetail(int id) {
+    if (!db) return false;
+    std::string sql = "DELETE FROM PaymentDetails WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for deleting payment detail: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to delete payment detail: " << sqlite3_errmsg(db) << std::endl;
         return false;
     }
     return true;
@@ -760,85 +952,5 @@ bool DatabaseManager::executeSelect(const std::string& sql, std::vector<std::str
         return false;
     }
     
-    return true;
-}
-
-// Callback функция для getCounterparties
-static int counterparty_select_callback(void* data, int argc, char** argv, char** azColName) {
-    std::vector<Counterparty>* counterparty_list = static_cast<std::vector<Counterparty>*>(data);
-    Counterparty entry;
-    for (int i = 0; i < argc; i++) {
-        std::string colName = azColName[i];
-        if (colName == "id") {
-            entry.id = argv[i] ? std::stoi(argv[i]) : -1;
-        } else if (colName == "name") {
-            entry.name = argv[i] ? argv[i] : "";
-        } else if (colName == "inn") {
-            entry.inn = argv[i] ? argv[i] : "";
-        }
-    }
-    counterparty_list->push_back(entry);
-    return 0;
-}
-
-std::vector<Counterparty> DatabaseManager::getCounterparties() {
-    std::vector<Counterparty> entries;
-    if (!db) return entries;
-
-    std::string sql = "SELECT id, name, inn FROM Counterparties;";
-    char* errmsg = nullptr;
-    int rc = sqlite3_exec(db, sql.c_str(), counterparty_select_callback, &entries, &errmsg);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to select Counterparty entries: " << errmsg << std::endl;
-        sqlite3_free(errmsg);
-    }
-    return entries;
-}
-
-bool DatabaseManager::updateCounterparty(const Counterparty& counterparty) {
-    if (!db) return false;
-    std::string sql = "UPDATE Counterparties SET name = ?, inn = ? WHERE id = ?;";
-    sqlite3_stmt* stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for counterparty update: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    sqlite3_bind_text(stmt, 1, counterparty.name.c_str(), -1, SQLITE_STATIC);
-    if (counterparty.inn.empty()) {
-        sqlite3_bind_null(stmt, 2);
-    } else {
-        sqlite3_bind_text(stmt, 2, counterparty.inn.c_str(), -1, SQLITE_STATIC);
-    }
-    sqlite3_bind_int(stmt, 3, counterparty.id);
-
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc != SQLITE_DONE) {
-        std::cerr << "Failed to update Counterparty entry: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    return true;
-}
-
-bool DatabaseManager::deleteCounterparty(int id) {
-    if (!db) return false;
-    std::string sql = "DELETE FROM Counterparties WHERE id = ?;";
-    sqlite3_stmt* stmt = nullptr;
-    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for counterparty delete: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
-    sqlite3_bind_int(stmt, 1, id);
-
-    rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
-    if (rc != SQLITE_DONE) {
-        std::cerr << "Failed to delete Counterparty entry: " << sqlite3_errmsg(db) << std::endl;
-        return false;
-    }
     return true;
 }
