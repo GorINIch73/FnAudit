@@ -64,6 +64,7 @@ set(APP_SOURCES
     src/views/InvoicesView.cpp
     src/views/SqlQueryView.cpp
     src/views/SettingsView.cpp
+    src/views/ImportMapView.cpp
 )
 
 set_source_files_properties(src/pdfgen.c PROPERTIES LANGUAGE C)

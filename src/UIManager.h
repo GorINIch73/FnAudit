@@ -14,6 +14,7 @@
 #include "views/InvoicesView.h"
 #include "views/SqlQueryView.h"
 #include "views/SettingsView.h"
+#include "views/ImportMapView.h"
 
 struct GLFWwindow;
 class ImportManager;
@@ -42,6 +43,7 @@ public:
     InvoicesView invoicesView;
     SqlQueryView sqlQueryView;
     SettingsView settingsView;
+    ImportMapView importMapView;
     BaseView* activeView = nullptr;
 
 private:

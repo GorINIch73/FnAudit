@@ -2,20 +2,18 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include "DatabaseManager.h"
+
+// Represents the mapping from a target field name (e.g., "Дата") 
+// to the index of the column in the source file.
+using ColumnMapping = std::map<std::string, int>;
 
 class ImportManager {
 public:
     ImportManager();
 
-    // Imports payments from a TSV file.
-    // Returns true on success, false on failure.
-    bool ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager);
+    // Imports payments from a TSV file using a user-defined column mapping.
+    bool ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager, const ColumnMapping& mapping);
 
-private:
-    // Helper to parse a single line of TSV data into a Payment object
-    Payment parsePaymentLine(const std::string& line);
-    
-    // Helper to extract counterparty details from payer/recipient
-    Counterparty extractCounterparty(const std::string& name, const std::string& inn);
 };

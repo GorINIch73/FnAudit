@@ -66,6 +66,7 @@ void UIManager::SetDatabaseManager(DatabaseManager* manager) {
     invoicesView.SetDatabaseManager(manager);
     sqlQueryView.SetDatabaseManager(manager);
     settingsView.SetDatabaseManager(manager);
+    importMapView.SetDatabaseManager(manager);
 }
 
 void UIManager::SetPdfReporter(PdfReporter* reporter) {
@@ -127,9 +128,9 @@ void UIManager::HandleFileDialogs() {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (dbManager->is_open()) {
-                importManager->ImportPaymentsFromTsv(filePathName, dbManager);
+                importMapView.Open(filePathName);
             } else {
-                // TODO: Show error message
+                // TODO: Show error message that a database must be open first.
             }
         }
         ImGuiFileDialog::Instance()->Close();
@@ -164,4 +165,5 @@ void UIManager::Render() {
     invoicesView.Render();
     sqlQueryView.Render();
     settingsView.Render();
+    importMapView.Render();
 }

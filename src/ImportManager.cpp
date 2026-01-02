@@ -3,84 +3,47 @@
 #include <sstream>
 #include <vector>
 #include <string>
-#include <algorithm> // For std::remove
-#include <regex>     // For regex parsing
-#include <iostream>  // For std::cerr
-#include <ctime>     // For std::time, std::localtime
-#include <iomanip>   // For std::put_time
+#include <algorithm>
+#include <regex>
+#include <iostream>
 
 ImportManager::ImportManager() {}
 
-// Helper function to trim whitespace and quotes from a string
-std::string trim(const std::string& str) {
-    size_t first = str.find_first_not_of(" \t\n\r\"");
-    if (std::string::npos == first) {
-        return str;
+// Helper to split a string by a delimiter
+static std::vector<std::string> split(const std::string& s, char delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(s);
+    while (std::getline(tokenStream, token, delimiter)) {
+        tokens.push_back(token);
     }
+    return tokens;
+}
+
+// Helper to trim whitespace and quotes
+static std::string trim(const std::string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r\"");
+    if (std::string::npos == first) return "";
     size_t last = str.find_last_not_of(" \t\n\r\"");
     return str.substr(first, (last - first + 1));
 }
 
-// Helper function to parse a single line of TSV data into a Payment object
-Payment ImportManager::parsePaymentLine(const std::string& line) {
-    Payment payment;
-    std::stringstream ss(line);
-    std::string token;
-    std::vector<std::string> tokens;
-
-    // Split by tab delimiter
-    while (std::getline(ss, token, '\t')) {
-        tokens.push_back(trim(token));
+// Helper to safely get a value from a row based on the mapping
+static std::string get_value_from_row(const std::vector<std::string>& row, const ColumnMapping& mapping, const std::string& field_name) {
+    auto it = mapping.find(field_name);
+    if (it == mapping.end() || it->second == -1) {
+        return ""; // Not mapped
     }
-
-    if (tokens.size() >= 9) {
-        std::string status = tokens[0];
-        if (status == "Принят") {
-            payment.type = "income";
-        } else if (status == "Расход"){
-             payment.type = "expense";
-        } else {
-             payment.type = "unknown";
-        }
-
-        payment.doc_number = tokens[1];
-        payment.date = tokens[2];
-        try {
-            std::string amount_str = tokens[3];
-            std::replace(amount_str.begin(), amount_str.end(), ',', '.');
-            payment.amount = std::stod(amount_str);
-        } catch (const std::exception& e) {
-            std::cerr << "Error parsing amount: " << e.what() << " for value " << tokens[3] << std::endl;
-            payment.amount = 0.0;
-        }
-        
-        if (payment.type == "income") {
-            payment.payer = tokens[5];
-            payment.recipient = "";
-        } else if (payment.type == "expense") {
-            payment.payer = "";
-            payment.recipient = tokens[5];
-        }
-
-        payment.description = tokens[6];
-    } else {
-        std::cerr << "Warning: TSV line has fewer than 9 columns: " << line << std::endl;
+    int col_index = it->second;
+    if (col_index >= row.size()) {
+        return ""; // Index out of bounds
     }
-
-    return payment;
-}
-
-// Helper to extract counterparty details from payer/recipient
-Counterparty ImportManager::extractCounterparty(const std::string& name, const std::string& inn) {
-    Counterparty counterparty;
-    counterparty.name = trim(name);
-    counterparty.inn = trim(inn);
-    return counterparty;
+    return trim(row[col_index]);
 }
 
 
 // Helper function to convert DD.MM.YY or DD.MM.YYYY to YYYY-MM-DD
-std::string convertDateToDBFormat(const std::string& date_str) {
+static std::string convertDateToDBFormat(const std::string& date_str) {
     if (date_str.length() == 10 && date_str[2] == '.' && date_str[5] == '.') { // DD.MM.YYYY
         return date_str.substr(6, 4) + "-" + date_str.substr(3, 2) + "-" + date_str.substr(0, 2);
     } else if (date_str.length() == 8 && date_str[2] == '.' && date_str[5] == '.') { // DD.MM.YY
@@ -92,7 +55,7 @@ std::string convertDateToDBFormat(const std::string& date_str) {
     return date_str; // Return as is if format is unexpected
 }
 
-bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager) {
+bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager, const ColumnMapping& mapping) {
     if (!dbManager) {
         std::cerr << "DatabaseManager is null." << std::endl;
         return false;
@@ -110,37 +73,63 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
     std::regex contract_regex("(?:по контракту|по контр|Контракт|дог\\.|К-т)(?: №)?\\s*([^\\s,]+)\\s*(?:от\\s*)?(\\d{2}\\.\\d{2}\\.(\\d{2}|\\d{4}))");
     std::regex invoice_regex("(?:акт|сч\\.?|сч-ф|счет на оплату|№)\\s*([^\\s,]+)\\s*от\\s*(\\d{2}\\.\\d{2}\\.(\\d{2}|\\d{4}))");
     std::regex kosgu_regex("К(\\d{3})");
-    std::regex amount_regex("\\((\\d{3}-\\d{4}-\\d{10}-\\d{3}):\\s*([\\d=,]+)\\s*ЛС");
+    std::regex amount_regex("\\((\\d{3}-\\d{4}-\\d{10}-\\d{3}):\\s*([\\d=,]+)\\s*ЛС\\)");
+
 
     while (std::getline(file, line)) {
-        Payment payment = parsePaymentLine(line);
-        if (payment.date.empty() || payment.amount == 0.0) {
-            continue;
-        }
-        payment.date = convertDateToDBFormat(payment.date);
+        if (line.empty()) continue;
 
-        Counterparty payer_counterparty = extractCounterparty(payment.payer, "");
-        Counterparty recipient_counterparty = extractCounterparty(payment.recipient, "");
-        int payer_id = -1;
-        if (!payer_counterparty.name.empty()) {
-            payer_id = dbManager->getCounterpartyIdByName(payer_counterparty.name);
-            if (payer_id == -1) {
-                if (dbManager->addCounterparty(payer_counterparty)) {
-                    payer_id = payer_counterparty.id;
+        std::vector<std::string> row = split(line, '\t');
+        Payment payment;
+
+        payment.date = convertDateToDBFormat(get_value_from_row(row, mapping, "Дата"));
+        payment.doc_number = get_value_from_row(row, mapping, "Номер док.");
+        payment.type = get_value_from_row(row, mapping, "Тип");
+        payment.payer = get_value_from_row(row, mapping, "Плательщик");
+        payment.recipient = get_value_from_row(row, mapping, "Получатель");
+        payment.description = get_value_from_row(row, mapping, "Назначение");
+
+        try {
+            std::string amount_str = get_value_from_row(row, mapping, "Сумма");
+            std::replace(amount_str.begin(), amount_str.end(), ',', '.');
+            payment.amount = std::stod(amount_str);
+        } catch (const std::exception&) {
+            payment.amount = 0.0;
+        }
+
+        // --- Heuristic to determine payment type if not provided ---
+        if (payment.type.empty()) {
+            if (!payment.payer.empty()) {
+                payment.type = "income";
+            } else if (!payment.recipient.empty()) {
+                payment.type = "expense";
+            } else {
+                payment.type = "unknown";
+            }
+        }
+
+        if (payment.date.empty() && payment.amount == 0.0) {
+            continue; // Skip empty/invalid rows
+        }
+
+        // --- Existing logic for parsing description and handling counterparties ---
+        Counterparty counterparty;
+        if(payment.type == "income") {
+            counterparty.name = payment.payer;
+        } else {
+            counterparty.name = payment.recipient;
+        }
+
+        int counterparty_id = -1;
+        if (!counterparty.name.empty()) {
+            counterparty_id = dbManager->getCounterpartyIdByName(counterparty.name);
+            if (counterparty_id == -1) {
+                if (dbManager->addCounterparty(counterparty)) {
+                    counterparty_id = counterparty.id;
                 }
             }
         }
-        int recipient_id = -1;
-        if (!recipient_counterparty.name.empty()) {
-            recipient_id = dbManager->getCounterpartyIdByName(recipient_counterparty.name);
-            if (recipient_id == -1) {
-                if (dbManager->addCounterparty(recipient_counterparty)) {
-                    recipient_id = recipient_counterparty.id;
-                }
-            }
-        }
-        payment.counterparty_id = (payment.type == "income") ? payer_id : recipient_id;
-        int contract_counterparty_id = (payment.type == "income") ? payer_id : recipient_id;
+        payment.counterparty_id = counterparty_id;
 
         int current_contract_id = -1;
         std::smatch contract_matches;
@@ -150,7 +139,7 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
                 std::string contract_date_db_format = convertDateToDBFormat(contract_matches[2].str());
                 current_contract_id = dbManager->getContractIdByNumberDate(contract_number, contract_date_db_format);
                 if (current_contract_id == -1) {
-                    Contract contract_obj{-1, contract_number, contract_date_db_format, contract_counterparty_id};
+                    Contract contract_obj{-1, contract_number, contract_date_db_format, counterparty_id};
                     if (dbManager->addContract(contract_obj)) {
                         current_contract_id = contract_obj.id;
                     }
@@ -178,7 +167,7 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
             continue;
         }
         int new_payment_id = payment.id;
-
+        
         std::sregex_iterator kosgu_begin(payment.description.begin(), payment.description.end(), kosgu_regex);
         std::sregex_iterator kosgu_end;
 
