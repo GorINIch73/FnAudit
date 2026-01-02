@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <atomic>
+#include <mutex>
 #include "DatabaseManager.h"
 
 // Represents the mapping from a target field name (e.g., "Дата") 
@@ -14,6 +16,13 @@ public:
     ImportManager();
 
     // Imports payments from a TSV file using a user-defined column mapping.
-    bool ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager, const ColumnMapping& mapping);
+    bool ImportPaymentsFromTsv(
+        const std::string& filepath, 
+        DatabaseManager* dbManager, 
+        const ColumnMapping& mapping,
+        std::atomic<float>& progress,
+        std::string& message,
+        std::mutex& message_mutex
+    );
 
 };

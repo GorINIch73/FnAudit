@@ -3,6 +3,8 @@
 #include "imgui.h"
 #include <vector>
 #include <string>
+#include <atomic>
+#include <mutex>
 #include "Kosgu.h"
 #include "DatabaseManager.h"
 #include "PdfReporter.h"
@@ -22,7 +24,7 @@ class ImportManager;
 class UIManager {
 public:
     UIManager();
-~UIManager();
+    ~UIManager();
     void Render();
     void SetDatabaseManager(DatabaseManager* dbManager);
     void SetPdfReporter(PdfReporter* pdfReporter);
@@ -36,6 +38,11 @@ public:
     std::vector<std::string> recentDbPaths;
     std::string currentDbPath;
 
+    std::atomic<bool> isImporting{false};
+    std::atomic<float> importProgress{0.0f};
+    std::string importMessage;
+    std::mutex importMutex;
+
     PaymentsView paymentsView;
     KosguView kosguView;
     CounterpartiesView counterpartiesView;
@@ -44,6 +51,7 @@ public:
     SqlQueryView sqlQueryView;
     SettingsView settingsView;
     ImportMapView importMapView;
+    ImportManager* importManager;
     BaseView* activeView = nullptr;
 
 private:
@@ -52,6 +60,5 @@ private:
 
     DatabaseManager* dbManager;
     PdfReporter* pdfReporter;
-    ImportManager* importManager;
     GLFWwindow* window;
 };

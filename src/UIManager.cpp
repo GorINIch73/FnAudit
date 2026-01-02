@@ -17,6 +17,7 @@ const std::string RECENT_PATHS_FILE = ".recent_dbs.txt";
 UIManager::UIManager()
     : dbManager(nullptr), pdfReporter(nullptr), importManager(nullptr), window(nullptr), activeView(nullptr) {
     LoadRecentDbPaths();
+    importMapView.SetUIManager(this);
 }
 
 UIManager::~UIManager() {
@@ -166,4 +167,21 @@ void UIManager::Render() {
     sqlQueryView.Render();
     settingsView.Render();
     importMapView.Render();
+
+    if (isImporting) {
+        ImGui::OpenPopup("Importing...");
+    }
+
+    if (ImGui::BeginPopupModal("Importing...", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        {
+            std::lock_guard<std::mutex> lock(importMutex);
+            ImGui::Text("%s", importMessage.c_str());
+        }
+        ImGui::ProgressBar(importProgress, ImVec2(200, 0));
+
+        if (!isImporting) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
 }

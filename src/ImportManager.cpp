@@ -55,17 +55,25 @@ static std::string convertDateToDBFormat(const std::string& date_str) {
     return date_str; // Return as is if format is unexpected
 }
 
-bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager, const ColumnMapping& mapping) {
+bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseManager* dbManager, const ColumnMapping& mapping, std::atomic<float>& progress, std::string& message, std::mutex& message_mutex) {
     if (!dbManager) {
-        std::cerr << "DatabaseManager is null." << std::endl;
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Ошибка: Менеджер базы данных не инициализирован.";
         return false;
     }
 
     std::ifstream file(filepath);
     if (!file.is_open()) {
-        std::cerr << "Failed to open TSV file: " << filepath << std::endl;
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Ошибка: Не удалось открыть TSV файл: " + filepath;
         return false;
     }
+
+    // Get total lines for progress
+    file.seekg(0, std::ios::beg);
+    size_t total_lines = std::count(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), '\n');
+    file.clear();
+    file.seekg(0, std::ios::beg);
 
     std::string line;
     std::getline(file, line); // Skip header line
@@ -75,8 +83,15 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
     std::regex kosgu_regex("К(\\d{3})");
     std::regex amount_regex("\\((\\d{3}-\\d{4}-\\d{10}-\\d{3}):\\s*([\\d=,]+)\\s*ЛС\\)");
 
-
+    size_t line_num = 0;
     while (std::getline(file, line)) {
+        line_num++;
+        progress = static_cast<float>(line_num) / total_lines;
+        {
+            std::lock_guard<std::mutex> lock(message_mutex);
+            message = "Импорт строки " + std::to_string(line_num) + " из " + std::to_string(total_lines);
+        }
+
         if (line.empty()) continue;
 
         std::vector<std::string> row = split(line, '\t');
@@ -85,7 +100,7 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
         payment.date = convertDateToDBFormat(get_value_from_row(row, mapping, "Дата"));
         payment.doc_number = get_value_from_row(row, mapping, "Номер док.");
         payment.type = get_value_from_row(row, mapping, "Тип");
-        std::string local_payer_name = get_value_from_row(row, mapping, "Плательщик"); // Get payer name into a local variable
+        std::string local_payer_name = get_value_from_row(row, mapping, "Плательщик");
         payment.recipient = get_value_from_row(row, mapping, "Получатель");
         payment.description = get_value_from_row(row, mapping, "Назначение");
 
@@ -97,24 +112,21 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
             payment.amount = 0.0;
         }
 
-        // --- Heuristic to determine payment type if not provided ---
-        // Now only relies on recipient since payer is removed from Payment struct
         if (payment.type.empty()) {
-            if (!payment.recipient.empty()) { // If recipient is present, assume expense
+            if (!payment.recipient.empty()) {
                 payment.type = "expense";
-            } else { // Otherwise, if recipient is also empty, assume income by default or mark as unknown
-                payment.type = "income"; // Default to income if no clear expense indicator
+            } else {
+                payment.type = "income";
             }
         }
 
         if (payment.date.empty() && payment.amount == 0.0) {
-            continue; // Skip empty/invalid rows
+            continue;
         }
 
-        // --- Existing logic for parsing description and handling counterparties ---
         Counterparty counterparty;
         if(payment.type == "income") {
-            counterparty.name = local_payer_name; // Use local variable for income counterparty
+            counterparty.name = local_payer_name;
         } else {
             counterparty.name = payment.recipient;
         }
@@ -221,5 +233,10 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string& filepath, DatabaseM
     }
 
     file.close();
+    {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Импорт завершен.";
+    }
+    progress = 1.0f;
     return true;
 }

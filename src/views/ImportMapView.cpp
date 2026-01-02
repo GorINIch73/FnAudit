@@ -1,9 +1,11 @@
 #include "ImportMapView.h"
 #include "../ImportManager.h"
+#include "../UIManager.h"
 #include "imgui.h"
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <thread>
 
 // Helper to split a string by a delimiter
 static std::vector<std::string> split(const std::string& s, char delimiter) {
@@ -63,11 +65,8 @@ void ImportMapView::ReadPreviewData() {
     }
 }
 
-void ImportMapView::PerformImport() {
-    if (dbManager && !importFilePath.empty()) {
-        ImportManager importManager;
-        importManager.ImportPaymentsFromTsv(importFilePath, dbManager, currentMapping);
-    }
+void ImportMapView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
 }
 
 void ImportMapView::Render() {
@@ -155,7 +154,20 @@ void ImportMapView::Render() {
 
         ImGui::Separator();
         if (ImGui::Button("Импортировать")) {
-            PerformImport();
+            if (dbManager && uiManager && uiManager->importManager) {
+                uiManager->isImporting = true;
+                std::thread([this]() {
+                    uiManager->importManager->ImportPaymentsFromTsv(
+                        importFilePath,
+                        dbManager,
+                        currentMapping,
+                        uiManager->importProgress,
+                        uiManager->importMessage,
+                        uiManager->importMutex
+                    );
+                    uiManager->isImporting = false;
+                }).detach();
+            }
             IsVisible = false;
         }
         ImGui::SameLine();
