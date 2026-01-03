@@ -98,7 +98,11 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "FOREIGN KEY(payment_id) REFERENCES Payments(id) ON DELETE CASCADE,"
         "FOREIGN KEY(kosgu_id) REFERENCES KOSGU(id),"
         "FOREIGN KEY(contract_id) REFERENCES Contracts(id),"
-        "FOREIGN KEY(invoice_id) REFERENCES Invoices(id));"};
+        "FOREIGN KEY(invoice_id) REFERENCES Invoices(id));",
+        "CREATE TABLE IF NOT EXISTS Regexes ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "name TEXT NOT NULL UNIQUE,"
+        "pattern TEXT NOT NULL);"};
 
     for (const auto &sql : create_tables_sql) {
         if (!execute(sql)) {
@@ -128,6 +132,25 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
     if (!execute(insert_default_settings)) {
         close();
         return false;
+    }
+
+    std::vector<std::string> default_regexes = {
+        "INSERT OR IGNORE INTO Regexes (name, pattern) VALUES ('Contract', "
+        "'(?:по контракту|по контр|Контракт|дог\\.|К-т)(?: "
+        "№)?\\s*([^\\s,]+)\\s*(?:от\\s*)?(\\d{2}\\.\\d{2}\\.(?:\\d{2}|\\d{4}))'"
+        ");",
+        "INSERT OR IGNORE INTO Regexes (name, pattern) VALUES ('Invoice', "
+        "'(?:акт|сч\\.?|сч-ф|счет на "
+        "оплату|№)\\s*([^\\s,]+)\\s*(?:от\\s*)?(\\d{2}\\.\\d{2}\\.(?:\\d{2}|"
+        "\\d{4}))');",
+        "INSERT OR IGNORE INTO Regexes (name, pattern) VALUES ('KOSGU', "
+        "'К(\\d{3})');"};
+
+    for (const auto &sql : default_regexes) {
+        if (!execute(sql)) {
+            close();
+            return false;
+        }
     }
 
     return true;
@@ -445,19 +468,23 @@ bool DatabaseManager::deleteCounterparty(int id) {
     return true;
 }
 
-std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
+std::vector<ContractPaymentInfo>
+DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
     std::vector<ContractPaymentInfo> results;
-    if (!db) return results;
+    if (!db)
+        return results;
 
     std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "JOIN Contracts c ON pd.contract_id = c.id "
                       "WHERE c.counterparty_id = ?;";
-    
-    sqlite3_stmt* stmt = nullptr;
+
+    sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for getPaymentInfoForCounterparty: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr
+            << "Failed to prepare statement for getPaymentInfoForCounterparty: "
+            << sqlite3_errmsg(db) << std::endl;
         return results;
     }
 
@@ -465,10 +492,10 @@ std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForCounterparty(
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char*)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char*)sqlite3_column_text(stmt, 1);
+        info.date = (const char *)sqlite3_column_text(stmt, 0);
+        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char*)sqlite3_column_text(stmt, 3);
+        info.description = (const char *)sqlite3_column_text(stmt, 3);
         results.push_back(info);
     }
 
@@ -630,18 +657,22 @@ bool DatabaseManager::deleteContract(int id) {
     return true;
 }
 
-std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForContract(int contract_id) {
+std::vector<ContractPaymentInfo>
+DatabaseManager::getPaymentInfoForContract(int contract_id) {
     std::vector<ContractPaymentInfo> results;
-    if (!db) return results;
+    if (!db)
+        return results;
 
     std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "WHERE pd.contract_id = ?;";
-    
-    sqlite3_stmt* stmt = nullptr;
+
+    sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for getPaymentInfoForContract: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr
+            << "Failed to prepare statement for getPaymentInfoForContract: "
+            << sqlite3_errmsg(db) << std::endl;
         return results;
     }
 
@@ -649,10 +680,10 @@ std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForContract(int 
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char*)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char*)sqlite3_column_text(stmt, 1);
+        info.date = (const char *)sqlite3_column_text(stmt, 0);
+        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char*)sqlite3_column_text(stmt, 3);
+        info.description = (const char *)sqlite3_column_text(stmt, 3);
         results.push_back(info);
     }
 
@@ -811,18 +842,22 @@ bool DatabaseManager::deleteInvoice(int id) {
     return true;
 }
 
-std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForInvoice(int invoice_id) {
+std::vector<ContractPaymentInfo>
+DatabaseManager::getPaymentInfoForInvoice(int invoice_id) {
     std::vector<ContractPaymentInfo> results;
-    if (!db) return results;
+    if (!db)
+        return results;
 
     std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "WHERE pd.invoice_id = ?;";
-    
-    sqlite3_stmt* stmt = nullptr;
+
+    sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for getPaymentInfoForInvoice: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr
+            << "Failed to prepare statement for getPaymentInfoForInvoice: "
+            << sqlite3_errmsg(db) << std::endl;
         return results;
     }
 
@@ -830,10 +865,10 @@ std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForInvoice(int i
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char*)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char*)sqlite3_column_text(stmt, 1);
+        info.date = (const char *)sqlite3_column_text(stmt, 0);
+        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char*)sqlite3_column_text(stmt, 3);
+        info.description = (const char *)sqlite3_column_text(stmt, 3);
         results.push_back(info);
     }
 
@@ -998,18 +1033,21 @@ bool DatabaseManager::deletePayment(int id) {
     return true;
 }
 
-std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
+std::vector<ContractPaymentInfo>
+DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
     std::vector<ContractPaymentInfo> results;
-    if (!db) return results;
+    if (!db)
+        return results;
 
     std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "WHERE pd.kosgu_id = ?;";
-    
-    sqlite3_stmt* stmt = nullptr;
+
+    sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for getPaymentInfoForKosgu: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to prepare statement for getPaymentInfoForKosgu: "
+                  << sqlite3_errmsg(db) << std::endl;
         return results;
     }
 
@@ -1017,10 +1055,10 @@ std::vector<ContractPaymentInfo> DatabaseManager::getPaymentInfoForKosgu(int kos
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char*)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char*)sqlite3_column_text(stmt, 1);
+        info.date = (const char *)sqlite3_column_text(stmt, 0);
+        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char*)sqlite3_column_text(stmt, 3);
+        info.description = (const char *)sqlite3_column_text(stmt, 3);
         results.push_back(info);
     }
 
@@ -1165,6 +1203,105 @@ bool DatabaseManager::deletePaymentDetail(int id) {
         return false;
     }
     return true;
+}
+
+// Regex CRUD
+static int regex_select_callback(void *data, int argc, char **argv,
+                                 char **azColName) {
+    std::vector<Regex> *regex_list = static_cast<std::vector<Regex> *>(data);
+    Regex entry;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "id") {
+            entry.id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "name") {
+            entry.name = argv[i] ? argv[i] : "";
+        } else if (colName == "pattern") {
+            entry.pattern = argv[i] ? argv[i] : "";
+        }
+    }
+    regex_list->push_back(entry);
+    return 0;
+}
+
+std::vector<Regex> DatabaseManager::getRegexes() {
+    std::vector<Regex> entries;
+    if (!db)
+        return entries;
+
+    std::string sql = "SELECT id, name, pattern FROM Regexes;";
+    char *errmsg = nullptr;
+    int rc =
+        sqlite3_exec(db, sql.c_str(), regex_select_callback, &entries, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select Regex entries: " << errmsg << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return entries;
+}
+
+bool DatabaseManager::addRegex(Regex &regex) {
+    if (!db)
+        return false;
+    std::string sql = "INSERT INTO Regexes (name, pattern) VALUES (?, ?);";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, regex.name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, regex.pattern.c_str(), -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    regex.id = sqlite3_last_insert_rowid(db);
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool DatabaseManager::updateRegex(const Regex &regex) {
+    if (!db)
+        return false;
+    std::string sql = "UPDATE Regexes SET name = ?, pattern = ? WHERE id = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, regex.name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, regex.pattern.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, regex.id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return rc == SQLITE_DONE;
+}
+
+bool DatabaseManager::deleteRegex(int id) {
+    if (!db)
+        return false;
+    std::string sql = "DELETE FROM Regexes WHERE id = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return rc == SQLITE_DONE;
 }
 
 // Callback for generic SELECT queries

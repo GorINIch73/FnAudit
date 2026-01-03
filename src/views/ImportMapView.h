@@ -4,12 +4,11 @@
 #include <string>
 #include <vector>
 #include <map>
+#include "../Regex.h"
+#include <regex>
 
 // Forward declaration
 class UIManager;
-
-// Represents the mapping from a target field name to the index of the column in the source file.
-using ColumnMapping = std::map<std::string, int>;
 
 class ImportMapView : public BaseView {
 public:
@@ -29,6 +28,7 @@ public:
 private:
     void Reset();
     void ReadPreviewData();
+    void RefreshRegexes();
 
     UIManager* uiManager = nullptr;
     std::string importFilePath;
@@ -36,4 +36,13 @@ private:
     std::vector<std::vector<std::string>> sampleData; // To store first few rows for preview
     std::vector<std::string> targetFields;
     std::map<std::string, int> currentMapping; // Maps target field to file header index
+
+    std::vector<Regex> regexes;
+    int contract_regex_index = -1;
+    int kosgu_regex_index = -1;
+    int invoice_regex_index = -1;
+    std::string sample_description;
+    std::string contract_match;
+    std::string kosgu_match;
+    std::string invoice_match;
 };

@@ -11,6 +11,7 @@
 #include "Invoice.h"
 #include "PaymentDetail.h"
 #include "Settings.h"
+#include "Regex.h"
 
 class DatabaseManager {
 public:
@@ -68,6 +69,12 @@ public:
 
     // Generic SQL query execution for SELECT statements
     bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);
+
+    // Regex
+    std::vector<Regex> getRegexes();
+    bool addRegex(Regex& regex);
+    bool updateRegex(const Regex& regex);
+    bool deleteRegex(int id);
 
 private:
     bool execute(const std::string& sql);
