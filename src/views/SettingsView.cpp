@@ -19,6 +19,7 @@ void SettingsView::LoadSettings() {
         strncpy(start_date_buf, currentSettings.period_start_date.c_str(), sizeof(start_date_buf) - 1);
         strncpy(end_date_buf, currentSettings.period_end_date.c_str(), sizeof(end_date_buf) - 1);
         strncpy(note_buf, currentSettings.note.c_str(), sizeof(note_buf) - 1);
+        import_preview_lines_buf = currentSettings.import_preview_lines;
     }
 }
 
@@ -28,6 +29,7 @@ void SettingsView::SaveSettings() {
         currentSettings.period_start_date = start_date_buf;
         currentSettings.period_end_date = end_date_buf;
         currentSettings.note = note_buf;
+        currentSettings.import_preview_lines = import_preview_lines_buf;
         if (dbManager->updateSettings(currentSettings)) {
             std::cout << "DEBUG: Settings saved successfully." << std::endl;
         } else {
@@ -51,6 +53,7 @@ void SettingsView::Render() {
         ImGui::InputText("Дата начала периода", start_date_buf, sizeof(start_date_buf));
         ImGui::InputText("Дата окончания периода", end_date_buf, sizeof(end_date_buf));
         ImGui::InputTextMultiline("Примечание", note_buf, sizeof(note_buf));
+        ImGui::InputInt("Строк предпросмотра", &import_preview_lines_buf);
 
         if (ImGui::Button("Сохранить")) {
             SaveSettings();

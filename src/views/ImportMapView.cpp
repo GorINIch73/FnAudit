@@ -88,10 +88,16 @@ void ImportMapView::ReadPreviewData() {
         fileHeaders = split(headerLine, '\t');
     }
 
-    // Read first 30 data rows
+    // Read first N data rows based on settings
+    int lines_to_read = 20; // Default value
+    if (dbManager) {
+        Settings settings = dbManager->getSettings();
+        lines_to_read = settings.import_preview_lines;
+    }
+
     std::string dataLine;
     int line_count = 0;
-    while (std::getline(file, dataLine) && line_count < 30) {
+    while (std::getline(file, dataLine) && line_count < lines_to_read) {
         sampleData.push_back(split(dataLine, '\t'));
         line_count++;
     }

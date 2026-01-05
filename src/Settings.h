@@ -8,4 +8,5 @@ struct Settings {
     std::string period_start_date;
     std::string period_end_date;
     std::string note;
+    int import_preview_lines;
 };

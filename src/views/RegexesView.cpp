@@ -49,6 +49,10 @@ void RegexesView::Render() {
         return;
     }
 
+    if (ImGui::IsWindowAppearing()) {
+        RefreshData();
+    }
+
     // --- Control Panel ---
     if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
         isAdding = true;
