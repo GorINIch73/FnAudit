@@ -176,8 +176,9 @@ void ImportMapView::Render() {
 
         // --- Data Preview Table ---
         ImGui::Text("Предпросмотр данных (первые 30 строк):");
+        float bottom_part_height = ImGui::GetTextLineHeightWithSpacing() * 16;
         ImGui::BeginChild("PreviewScrollRegion",
-                          ImVec2(0, ImGui::GetTextLineHeight() * 7), true,
+                          ImVec2(0, -bottom_part_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
         if (ImGui::BeginTable("preview_table", fileHeaders.size(),
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
@@ -253,9 +254,6 @@ void ImportMapView::Render() {
                               kosgu_pattern_buffer);
         render_regex_selector("Накладная", invoice_regex_index, invoice_match,
                               invoice_pattern_buffer);
-
-        // Pin buttons to the bottom
-        ImGui::SetCursorPosY(ImGui::GetWindowHeight() - footer_height);
 
         ImGui::Separator();
         if (ImGui::Button("Импортировать")) {
