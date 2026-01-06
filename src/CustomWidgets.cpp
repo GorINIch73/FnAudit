@@ -2,9 +2,9 @@
 #include "CustomWidgets.h"
 #include "imgui.h"
 #include "imgui_internal.h" // For ImTextCharFromUtf8
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <algorithm>
 
 namespace CustomWidgets {
 
@@ -60,34 +60,38 @@ bool InputTextMultiline(const char *label, std::string *str, const ImVec2 &size,
 
 // Implementation based on user's explicit request for character-level wrapping
 bool InputTextMultilineWithWrap(const char *label, std::string *str,
-                                const ImVec2 &size,
-                                ImGuiInputTextFlags flags) {
+                                const ImVec2 &size, ImGuiInputTextFlags flags) {
     IM_ASSERT((flags & ImGuiInputTextFlags_CallbackResize) == 0);
-    
+
     bool changed = false;
     float width = (size.x <= 0) ? ImGui::GetContentRegionAvail().x : size.x;
 
     // Create a temporary string with manual character-level wrapping
     std::string wrapped_text;
-    wrapped_text.reserve(str->size()); 
+    wrapped_text.reserve(str->size());
     float current_line_width = 0.0f;
-    const char* p_text = str->c_str();
-    const char* text_end = p_text + str->size();
+    const char *p_text = str->c_str();
+    const char *text_end = p_text + str->size();
 
     while (p_text < text_end) {
-        const char* p_char_start = p_text;
+        const char *p_char_start = p_text;
         unsigned int c = 0;
         int char_len = ImTextCharFromUtf8(&c, p_text, text_end);
         p_text += char_len;
-        if (c == 0) break;
+        if (c == 0)
+            break;
 
-        float char_width = ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX, 0.0f, p_char_start, p_text).x;
+        float char_width = ImGui::GetFont()
+                               ->CalcTextSizeA(ImGui::GetFontSize(), FLT_MAX,
+                                               0.0f, p_char_start, p_text)
+                               .x;
 
-        if (*p_char_start != '\n' && *p_char_start != '\r' && current_line_width + char_width > width && width > 0) {
+        if (*p_char_start != '\n' && *p_char_start != '\r' &&
+            current_line_width + char_width > width && width > 0) {
             wrapped_text.push_back('\n');
             current_line_width = 0.0f;
         }
-        
+
         wrapped_text.append(p_char_start, char_len);
 
         if (*p_char_start == '\n' || *p_char_start == '\r') {
@@ -97,36 +101,45 @@ bool InputTextMultilineWithWrap(const char *label, std::string *str,
         }
     }
 
-    // Use the existing callback system to manage the buffer for the wrapped text
-    flags |= ImGuiInputTextFlags_CallbackResize | ImGuiInputTextFlags_NoHorizontalScroll;
+    // Use the existing callback system to manage the buffer for the wrapped
+    // text
+    flags |= ImGuiInputTextFlags_CallbackResize |
+             ImGuiInputTextFlags_NoHorizontalScroll;
     InputTextCallback_UserData cb_user_data;
     cb_user_data.Str = &wrapped_text;
     cb_user_data.ChainCallback = nullptr;
     cb_user_data.ChainCallbackUserData = nullptr;
 
-    ImVec2 multiline_size = ImVec2(width, (size.y > 0) ? size.y : ImGui::GetTextLineHeight() * 4);
-    
-    changed = ImGui::InputTextMultiline(label, (char*)wrapped_text.data(), wrapped_text.capacity() + 1,
-                                  multiline_size, flags, InputTextCallback, &cb_user_data);
+    ImVec2 multiline_size =
+        ImVec2(width, (size.y > 0) ? size.y : ImGui::GetTextLineHeight() * 4);
+
+    changed = ImGui::InputTextMultiline(
+        label, (char *)wrapped_text.data(), wrapped_text.capacity() + 1,
+        multiline_size, flags, InputTextCallback, &cb_user_data);
 
     if (changed) {
         // Per user's example, strip all newlines from the result.
         // This means the field cannot contain intentional newlines.
-        wrapped_text.erase(std::remove_if(wrapped_text.begin(), wrapped_text.end(), 
-            [](char c){ return c == '\n' || c == '\r'; }), wrapped_text.end());
+        wrapped_text.erase(
+            std::remove_if(wrapped_text.begin(), wrapped_text.end(),
+                           [](char c) { return c == '\n' || c == '\r'; }),
+            wrapped_text.end());
         *str = wrapped_text;
     }
 
     return changed;
 }
 
-bool ComboWithFilter(const char* label, int& current_id, std::vector<ComboItem>& items, char* search_buffer, int search_buffer_size, ImGuiComboFlags flags) {
+bool ComboWithFilter(const char *label, int &current_id,
+                     std::vector<ComboItem> &items, char *search_buffer,
+                     int search_buffer_size, ImGuiComboFlags flags) {
     bool changed = false;
 
     // Find the current item for preview
     std::string preview = "Не выбрано";
-    auto current_it = std::find_if(items.begin(), items.end(),
-                                   [&](const ComboItem& i) { return i.id == current_id; });
+    auto current_it =
+        std::find_if(items.begin(), items.end(),
+                     [&](const ComboItem &i) { return i.id == current_id; });
     if (current_it != items.end()) {
         preview = current_it->name;
     }
@@ -134,16 +147,24 @@ bool ComboWithFilter(const char* label, int& current_id, std::vector<ComboItem>&
     ImGui::PushID(label);
 
     ImGui::PushItemWidth(-FLT_MIN);
-    if (ImGui::BeginCombo("##combo", preview.c_str(), flags | ImGuiComboFlags_PopupAlignLeft)) {
+    if (ImGui::BeginCombo("##combo", preview.c_str(),
+                          flags | ImGuiComboFlags_PopupAlignLeft)) {
+        static bool is_window_appearing = true;
+        if (!is_window_appearing)
+            is_window_appearing = ImGui::IsWindowAppearing();
+
         ImGui::PushItemWidth(-FLT_MIN);
-        if (ImGui::InputText("##search", search_buffer, search_buffer_size, ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (ImGui::InputText("##search", search_buffer, search_buffer_size,
+                             ImGuiInputTextFlags_EnterReturnsTrue)) {
             if (!items.empty()) {
                 if (search_buffer[0] == '\0') {
                     current_id = items[0].id;
                 } else {
-                    auto it = std::find_if(items.begin(), items.end(), [&](const ComboItem& item) {
-                        return strcasestr(item.name.c_str(), search_buffer) != nullptr;
-                    });
+                    auto it = std::find_if(
+                        items.begin(), items.end(), [&](const ComboItem &item) {
+                            return strcasestr(item.name.c_str(),
+                                              search_buffer) != nullptr;
+                        });
                     if (it != items.end()) {
                         current_id = it->id;
                     }
@@ -154,35 +175,45 @@ bool ComboWithFilter(const char* label, int& current_id, std::vector<ComboItem>&
         }
         ImGui::PopItemWidth();
 
-        std::vector<ComboItem*> filtered_items;
-        for (auto& item : items) {
-            if (search_buffer[0] == '\0' || strcasestr(item.name.c_str(), search_buffer) != nullptr) {
+        std::vector<ComboItem *> filtered_items;
+        for (auto &item : items) {
+            if (search_buffer[0] == '\0' ||
+                strcasestr(item.name.c_str(), search_buffer) != nullptr) {
                 filtered_items.push_back(&item);
             }
         }
 
-        if (ImGui::BeginListBox("##list", ImVec2(-FLT_MIN, std::min((float)filtered_items.size() * ImGui::GetTextLineHeightWithSpacing() + 30, 200.0f)))) {
+        if (ImGui::BeginListBox(
+                "##list",
+                ImVec2(-FLT_MIN, ImGui::GetTextLineHeightWithSpacing() * 8))) {
             for (auto item : filtered_items) {
                 bool is_selected = (current_id == item->id);
-                if (ImGui::Selectable((!item->name.empty() ? item->name.c_str() : "-ПУСТО-"), is_selected)) {
+                if (ImGui::Selectable(
+                        (!item->name.empty() ? item->name.c_str() : "-ПУСТО-"),
+                        is_selected)) {
                     current_id = item->id;
                     changed = true;
                     search_buffer[0] = '\0'; // Reset search
                     ImGui::CloseCurrentPopup();
                 }
-                if (is_selected) {
+                if (is_selected && is_window_appearing) {
+                    // if (is_window_appearing) {
+                    ImGui::SetScrollHereY(0.5f);
                     ImGui::SetItemDefaultFocus();
+                    is_window_appearing = false;
                 }
             }
+
             ImGui::EndListBox();
         }
         ImGui::EndCombo();
     }
 
     if (ImGui::IsItemActive() && search_buffer[0] != '\0') {
-        auto exact_match = std::find_if(items.begin(), items.end(), [&](const ComboItem& i) {
-            return strcasecmp(i.name.c_str(), search_buffer) == 0;
-        });
+        auto exact_match =
+            std::find_if(items.begin(), items.end(), [&](const ComboItem &i) {
+                return strcasecmp(i.name.c_str(), search_buffer) == 0;
+            });
 
         if (exact_match != items.end()) {
             current_id = exact_match->id;

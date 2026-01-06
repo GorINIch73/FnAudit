@@ -328,7 +328,7 @@ void PaymentsView::Render() {
     ImGui::SameLine();
 
     // --- Расшифровка платежа ---
-    ImGui::BeginChild("PaymentDetailsEditor", ImVec2(0, 0), true);
+    ImGui::BeginChild("PaymentDetailsContainer", ImVec2(0, 0), true);
     ImGui::Text("Расшифровка платежа");
 
     if (selectedPaymentIndex != -1) {
