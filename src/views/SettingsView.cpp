@@ -1,35 +1,21 @@
 #include "SettingsView.h"
+#include "../CustomWidgets.h"
 #include "imgui.h"
-#include <cstring> // For strncpy
 #include <iostream>
 
 SettingsView::SettingsView() {
     Title = "Настройки";
     IsVisible = false;
-    memset(organization_name_buf, 0, sizeof(organization_name_buf));
-    memset(start_date_buf, 0, sizeof(start_date_buf));
-    memset(end_date_buf, 0, sizeof(end_date_buf));
-    memset(note_buf, 0, sizeof(note_buf));
 }
 
 void SettingsView::LoadSettings() {
     if (dbManager) {
         currentSettings = dbManager->getSettings();
-        strncpy(organization_name_buf, currentSettings.organization_name.c_str(), sizeof(organization_name_buf) - 1);
-        strncpy(start_date_buf, currentSettings.period_start_date.c_str(), sizeof(start_date_buf) - 1);
-        strncpy(end_date_buf, currentSettings.period_end_date.c_str(), sizeof(end_date_buf) - 1);
-        strncpy(note_buf, currentSettings.note.c_str(), sizeof(note_buf) - 1);
-        import_preview_lines_buf = currentSettings.import_preview_lines;
     }
 }
 
 void SettingsView::SaveSettings() {
     if (dbManager) {
-        currentSettings.organization_name = organization_name_buf;
-        currentSettings.period_start_date = start_date_buf;
-        currentSettings.period_end_date = end_date_buf;
-        currentSettings.note = note_buf;
-        currentSettings.import_preview_lines = import_preview_lines_buf;
         if (dbManager->updateSettings(currentSettings)) {
             std::cout << "DEBUG: Settings saved successfully." << std::endl;
         } else {
@@ -49,11 +35,11 @@ void SettingsView::Render() {
             LoadSettings();
         }
 
-        ImGui::InputText("Название организации", organization_name_buf, sizeof(organization_name_buf));
-        ImGui::InputText("Дата начала периода", start_date_buf, sizeof(start_date_buf));
-        ImGui::InputText("Дата окончания периода", end_date_buf, sizeof(end_date_buf));
-        ImGui::InputTextMultiline("Примечание", note_buf, sizeof(note_buf));
-        ImGui::InputInt("Строк предпросмотра", &import_preview_lines_buf);
+        CustomWidgets::InputText("Название организации", &currentSettings.organization_name);
+        CustomWidgets::InputText("Дата начала периода", &currentSettings.period_start_date);
+        CustomWidgets::InputText("Дата окончания периода", &currentSettings.period_end_date);
+        CustomWidgets::InputTextMultilineWithWrap("Примечание", &currentSettings.note, ImVec2(-1.0f, ImGui::GetTextLineHeight() * 4));
+        ImGui::InputInt("Строк предпросмотра", &currentSettings.import_preview_lines);
 
         if (ImGui::Button("Сохранить")) {
             SaveSettings();

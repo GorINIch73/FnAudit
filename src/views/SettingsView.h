@@ -19,9 +19,4 @@ private:
     void SaveSettings();
 
     Settings currentSettings;
-    char organization_name_buf[256];
-    char start_date_buf[12]; // YYYY-MM-DD
-    char end_date_buf[12];   // YYYY-MM-DD
-    char note_buf[512];
-    int import_preview_lines_buf;
 };

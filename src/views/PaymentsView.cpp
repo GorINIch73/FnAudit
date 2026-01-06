@@ -323,7 +323,7 @@ void PaymentsView::Render() {
             selectedPayment.recipient = recipientBuf;
         }
 
-        CustomWidgets::InputTextMultiline(
+        CustomWidgets::InputTextMultilineWithWrap(
             "Назначение", &descriptionBuffer,
             ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 8));
 
