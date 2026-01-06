@@ -1,4 +1,5 @@
 #include "ContractsView.h"
+#include "../CustomWidgets.h"
 #include <iostream>
 #include <cstring>
 #include "../IconsFontAwesome6.h"
@@ -7,6 +8,7 @@
 ContractsView::ContractsView()
     : selectedContractIndex(-1), showEditModal(false), isAdding(false) {
     memset(filterText, 0, sizeof(filterText));
+    memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
 }
 
 void ContractsView::SetDatabaseManager(DatabaseManager* manager) {
@@ -35,19 +37,17 @@ const char* ContractsView::GetTitle() {
 }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> ContractsView::GetDataAsStrings() {
-    auto getCounterpartyName = [&](int id) -> std::string {
-        for (const auto& cp : counterpartiesForDropdown) {
-            if (cp.id == id) {
-                return cp.name;
-            }
-        }
-        return "N/A";
-    };
-
     std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контрагент"};
     std::vector<std::vector<std::string>> rows;
     for (const auto& entry : contracts) {
-        rows.push_back({std::to_string(entry.id), entry.number, entry.date, getCounterpartyName(entry.counterparty_id)});
+        std::string counterpartyName = "N/A";
+        for (const auto& cp : counterpartiesForDropdown) {
+            if (cp.id == entry.counterparty_id) {
+                counterpartyName = cp.name;
+                break;
+            }
+        }
+        rows.push_back({std::to_string(entry.id), entry.number, entry.date, counterpartyName});
     }
     return {headers, rows};
 }
@@ -141,15 +141,6 @@ void ContractsView::Render() {
             }
         }
 
-        auto getCounterpartyName = [&](int id) -> const char* {
-            for (const auto& cp : counterpartiesForDropdown) {
-                if (cp.id == id) {
-                    return cp.name.c_str();
-                }
-            }
-            return "N/A";
-        };
-
         for (int i = 0; i < contracts.size(); ++i) {
              if (filterText[0] != '\0' && strcasestr(contracts[i].number.c_str(), filterText) == nullptr) {
                 continue;
@@ -178,7 +169,14 @@ void ContractsView::Render() {
             ImGui::TableNextColumn();
             ImGui::Text("%s", contracts[i].date.c_str());
             ImGui::TableNextColumn();
-            ImGui::Text("%s", getCounterpartyName(contracts[i].counterparty_id));
+            const char* counterpartyName = "N/A";
+            for (const auto& cp : counterpartiesForDropdown) {
+                if (cp.id == contracts[i].counterparty_id) {
+                    counterpartyName = cp.name.c_str();
+                    break;
+                }
+            }
+            ImGui::Text("%s", counterpartyName);
         }
         ImGui::EndTable();
     }
@@ -215,28 +213,11 @@ void ContractsView::Render() {
         }
         
         if (!counterpartiesForDropdown.empty()) {
-            auto getCounterpartyName = [&](int id) -> const char* {
-                for (const auto& cp : counterpartiesForDropdown) {
-                    if (cp.id == id) {
-                        return cp.name.c_str();
-                    }
-                }
-                return "N/A";
-            };
-            const char* currentCounterpartyName = getCounterpartyName(selectedContract.counterparty_id);
-            
-            if (ImGui::BeginCombo("Контрагент", currentCounterpartyName)) {
-                for (const auto& cp : counterpartiesForDropdown) {
-                    bool isSelected = (cp.id == selectedContract.counterparty_id);
-                    if (ImGui::Selectable(cp.name.c_str(), isSelected)) {
-                        selectedContract.counterparty_id = cp.id;
-                    }
-                    if (isSelected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-                ImGui::EndCombo();
+            std::vector<CustomWidgets::ComboItem> counterpartyItems;
+            for (const auto& cp : counterpartiesForDropdown) {
+                counterpartyItems.push_back({cp.id, cp.name});
             }
+            CustomWidgets::ComboWithFilter("Контрагент", selectedContract.counterparty_id, counterpartyItems, counterpartyFilter, sizeof(counterpartyFilter), 0);
         }
         ImGui::EndChild(); 
         ImGui::SameLine();

@@ -1,4 +1,5 @@
 #include "InvoicesView.h"
+#include "../CustomWidgets.h"
 #include <iostream>
 #include <cstring>
 #include "../IconsFontAwesome6.h"
@@ -7,6 +8,7 @@
 InvoicesView::InvoicesView()
     : selectedInvoiceIndex(-1), showEditModal(false), isAdding(false) {
     memset(filterText, 0, sizeof(filterText));
+    memset(contractFilter, 0, sizeof(contractFilter));
 }
 
 void InvoicesView::SetDatabaseManager(DatabaseManager* manager) {
@@ -35,19 +37,17 @@ const char* InvoicesView::GetTitle() {
 }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> InvoicesView::GetDataAsStrings() {
-    auto getContractNumber = [&](int id) -> std::string {
-        for (const auto& c : contractsForDropdown) {
-            if (c.id == id) {
-                return c.number;
-            }
-        }
-        return "N/A";
-    };
-
     std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контракт"};
     std::vector<std::vector<std::string>> rows;
     for (const auto& entry : invoices) {
-        rows.push_back({std::to_string(entry.id), entry.number, entry.date, getContractNumber(entry.contract_id)});
+        std::string contractNumber = "N/A";
+        for (const auto& c : contractsForDropdown) {
+            if (c.id == entry.contract_id) {
+                contractNumber = c.number;
+                break;
+            }
+        }
+        rows.push_back({std::to_string(entry.id), entry.number, entry.date, contractNumber});
     }
     return {headers, rows};
 }
@@ -140,15 +140,6 @@ void InvoicesView::Render() {
             }
         }
 
-        auto getContractNumber = [&](int id) -> const char* {
-            for (const auto& c : contractsForDropdown) {
-                if (c.id == id) {
-                    return c.number.c_str();
-                }
-            }
-            return "N/A";
-        };
-
         for (int i = 0; i < invoices.size(); ++i) {
             if (filterText[0] != '\0' && strcasestr(invoices[i].number.c_str(), filterText) == nullptr) {
                 continue;
@@ -177,7 +168,14 @@ void InvoicesView::Render() {
             ImGui::TableNextColumn();
             ImGui::Text("%s", invoices[i].date.c_str());
             ImGui::TableNextColumn();
-            ImGui::Text("%s", getContractNumber(invoices[i].contract_id));
+            const char* contractNumber = "N/A";
+            for (const auto& c : contractsForDropdown) {
+                if (c.id == invoices[i].contract_id) {
+                    contractNumber = c.number.c_str();
+                    break;
+                }
+            }
+            ImGui::Text("%s", contractNumber);
         }
         ImGui::EndTable();
     }
@@ -214,28 +212,11 @@ void InvoicesView::Render() {
         }
         
         if (!contractsForDropdown.empty()) {
-            auto getContractNumber = [&](int id) -> const char* {
-                for (const auto& c : contractsForDropdown) {
-                    if (c.id == id) {
-                        return c.number.c_str();
-                    }
-                }
-                return "N/A";
-            };
-            const char* currentContractNumber = getContractNumber(selectedInvoice.contract_id);
-
-            if (ImGui::BeginCombo("Контракт", currentContractNumber)) {
-                for (const auto& c : contractsForDropdown) {
-                    bool isSelected = (c.id == selectedInvoice.contract_id);
-                    if (ImGui::Selectable(c.number.c_str(), isSelected)) {
-                        selectedInvoice.contract_id = c.id;
-                    }
-                    if (isSelected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-                ImGui::EndCombo();
+            std::vector<CustomWidgets::ComboItem> contractItems;
+            for (const auto& c : contractsForDropdown) {
+                contractItems.push_back({c.id, c.number});
             }
+            CustomWidgets::ComboWithFilter("Контракт", selectedInvoice.contract_id, contractItems, contractFilter, sizeof(contractFilter), 0);
         }
         ImGui::EndChild();
         ImGui::SameLine();
