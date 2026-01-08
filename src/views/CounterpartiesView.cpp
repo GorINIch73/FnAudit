@@ -9,6 +9,7 @@ CounterpartiesView::CounterpartiesView()
       showEditModal(false),
       isAdding(false),
       isDirty(false) {
+    Title = "Справочник 'Контрагенты'";
     memset(filterText, 0, sizeof(filterText));
 }
 
@@ -27,9 +28,6 @@ void CounterpartiesView::RefreshData() {
     }
 }
 
-const char *CounterpartiesView::GetTitle() {
-    return "Справочник 'Контрагенты'";
-}
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 CounterpartiesView::GetDataAsStrings() {
@@ -116,13 +114,13 @@ static void SortCounterparties(std::vector<Counterparty> &counterparties,
 
 void CounterpartiesView::Render() {
     if (!IsVisible) {
-        if (!IsVisible) {
+        if (isDirty) {
             SaveChanges();
         }
         return;
     }
 
-    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
+    if (ImGui::Begin(GetTitle(), &IsVisible)) {
         if (dbManager && counterparties.empty()) {
             RefreshData();
         }
@@ -306,6 +304,6 @@ void CounterpartiesView::Render() {
             ImGui::EndChild();
         }
 
-        ImGui::End();
     }
+    ImGui::End();
 }

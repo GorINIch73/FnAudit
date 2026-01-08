@@ -5,6 +5,9 @@
 #include <string>
 #include <atomic>
 #include <mutex>
+#include <memory> // Required for std::unique_ptr
+#include <type_traits> // Required for std::is_same_v
+
 #include "Kosgu.h"
 #include "DatabaseManager.h"
 #include "PdfReporter.h"
@@ -34,7 +37,28 @@ public:
     void AddRecentDbPath(std::string path);
     void HandleFileDialogs();
     void SetWindowTitle(const std::string& db_path);
-    void SetActiveView(BaseView* view);
+
+    template<typename T>
+    T* CreateView() {
+        auto view = std::make_unique<T>();
+        T* viewPtr = view.get();
+        view->SetDatabaseManager(dbManager);
+        view->SetPdfReporter(pdfReporter);
+
+        if constexpr (std::is_same_v<T, ImportMapView>) {
+            viewPtr->SetUIManager(this);
+        }
+
+        std::string title = std::string(view->GetTitle());
+        // Only add a unique ID if it's not a singleton view like Settings or ImportMap
+        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView>) {
+             title += "###" + std::to_string(viewIdCounter++);
+        }
+        view->SetTitle(title);
+        view->IsVisible = true;
+        allViews.push_back(std::move(view));
+        return viewPtr;
+    }
 
     std::vector<std::string> recentDbPaths;
     std::string currentDbPath;
@@ -44,18 +68,8 @@ public:
     std::string importMessage;
     std::mutex importMutex;
 
-    PaymentsView paymentsView;
-    KosguView kosguView;
-    CounterpartiesView counterpartiesView;
-    ContractsView contractsView;
-    InvoicesView invoicesView;
-    SqlQueryView sqlQueryView;
-    SettingsView settingsView;
-    ImportMapView importMapView;
-    RegexesView regexesView;
     ImportManager* importManager;
-    BaseView* activeView = nullptr;
-    std::vector<BaseView*> allViews;
+    std::vector<std::unique_ptr<BaseView>> allViews;
 
 private:
     void LoadRecentDbPaths();
@@ -64,4 +78,5 @@ private:
     DatabaseManager* dbManager;
     PdfReporter* pdfReporter;
     GLFWwindow* window;
+    int viewIdCounter = 0;
 };

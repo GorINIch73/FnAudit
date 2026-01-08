@@ -14,13 +14,16 @@ public:
     virtual void SetDatabaseManager(DatabaseManager* dbManager) = 0;
     virtual void SetPdfReporter(PdfReporter* pdfReporter) = 0;
     virtual std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() = 0;
-    virtual const char* GetTitle() = 0;
+    
+    virtual const char* GetTitle() { return Title.c_str(); }
+    virtual void SetTitle(const std::string& title) { Title = title; }
+
     virtual void OnDeactivate() {}
 
     bool IsVisible = false;
-    std::string Title;
 
 protected:
     DatabaseManager* dbManager = nullptr;
     PdfReporter* pdfReporter = nullptr;
+    std::string Title;
 };

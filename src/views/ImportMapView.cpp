@@ -44,7 +44,6 @@ static std::string get_regex_match(const std::string &text,
 
 ImportMapView::ImportMapView() {
     Title = "Сопоставление полей для импорта";
-    IsVisible = false;
     targetFields = {"Дата",  "Номер док.", "Тип",
                     "Сумма", "Контрагент", "Назначение"};
 }
@@ -69,6 +68,7 @@ void ImportMapView::Reset() {
     contract_pattern_buffer.clear();
     kosgu_pattern_buffer.clear();
     invoice_pattern_buffer.clear();
+    import_started = false;
 }
 
 void ImportMapView::ReadPreviewData() {
@@ -116,11 +116,18 @@ void ImportMapView::Render() {
         return;
     }
 
+    // If import has finished, close the window
+    if (import_started && uiManager && !uiManager->isImporting) {
+        IsVisible = false;
+        return;
+    }
+
     float footer_height =
         ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
 
     ImGui::SetNextWindowSize(ImVec2(700, 750), ImGuiCond_FirstUseEver);
     if (ImGui::Begin(Title.c_str(), &IsVisible)) {
+        ImGui::BeginDisabled(import_started);
         ImGui::Text("Файл: %s", importFilePath.c_str());
         ImGui::Separator();
 
@@ -306,9 +313,13 @@ void ImportMapView::Render() {
         render_regex_selector("Накладная", invoice_regex_index, invoice_match,
                               invoice_pattern_buffer);
 
+        ImGui::EndDisabled(); // Re-enable UI for the buttons
         ImGui::Separator();
+        
+        ImGui::BeginDisabled(import_started);
         if (ImGui::Button("Импортировать")) {
             if (dbManager && uiManager && uiManager->importManager) {
+                import_started = true;
                 uiManager->isImporting = true;
                 std::thread([this]() {
                     uiManager->importManager->ImportPaymentsFromTsv(
@@ -319,12 +330,12 @@ void ImportMapView::Render() {
                     uiManager->isImporting = false;
                 }).detach();
             }
-            IsVisible = false;
         }
         ImGui::SameLine();
         if (ImGui::Button("Отмена")) {
             IsVisible = false;
         }
+        ImGui::EndDisabled();
     }
     ImGui::End();
 }

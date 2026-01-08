@@ -23,7 +23,6 @@ public:
     void SetPdfReporter(PdfReporter* reporter) override { /* Not used */ }
     void SetUIManager(UIManager* manager);
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override { return {}; }
-    const char* GetTitle() override { return Title.c_str(); }
 
 private:
     void Reset();
@@ -48,4 +47,5 @@ private:
     std::string contract_pattern_buffer;
     std::string kosgu_pattern_buffer;
     std::string invoice_pattern_buffer;
+    bool import_started = false;
 };

@@ -10,6 +10,7 @@ ContractsView::ContractsView()
       showEditModal(false),
       isAdding(false),
       isDirty(false) {
+    Title = "Справочник 'Договоры'";
     memset(filterText, 0, sizeof(filterText));
     memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
 }
@@ -35,7 +36,6 @@ void ContractsView::RefreshDropdownData() {
     }
 }
 
-const char *ContractsView::GetTitle() { return "Справочник 'Договоры'"; }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 ContractsView::GetDataAsStrings() {

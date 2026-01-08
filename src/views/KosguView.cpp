@@ -9,6 +9,7 @@ KosguView::KosguView()
       showEditModal(false),
       isAdding(false),
       isDirty(false) {
+    Title = "Справочник КОСГУ";
     memset(filterText, 0, sizeof(filterText));
 }
 
@@ -27,7 +28,6 @@ void KosguView::RefreshData() {
     }
 }
 
-const char *KosguView::GetTitle() { return "Справочник КОСГУ"; }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 KosguView::GetDataAsStrings() {

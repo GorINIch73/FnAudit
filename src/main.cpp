@@ -122,19 +122,19 @@ int main(int, char**) {
             }
             if (ImGui::BeginMenu(ICON_FA_BOOK " Справочники")) {
                 if (ImGui::MenuItem(ICON_FA_HASHTAG " КОСГУ")) {
-                    uiManager.kosguView.IsVisible = true;
+                    uiManager.CreateView<KosguView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_BUILDING_COLUMNS " Банк")) {
-                    uiManager.paymentsView.IsVisible = true;
+                    uiManager.CreateView<PaymentsView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_ADDRESS_BOOK " Контрагенты")) {
-                    uiManager.counterpartiesView.IsVisible = true;
+                    uiManager.CreateView<CounterpartiesView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_CONTRACT " Договоры")) {
-                    uiManager.contractsView.IsVisible = true;
+                    uiManager.CreateView<ContractsView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_INVOICE " Накладные")) {
-                    uiManager.invoicesView.IsVisible = true;
+                    uiManager.CreateView<InvoicesView>();
                 }
                 ImGui::EndMenu();
             }
@@ -146,7 +146,7 @@ int main(int, char**) {
             }
             if (ImGui::BeginMenu(ICON_FA_FILE_PDF " Отчеты")) {
                 if (ImGui::MenuItem(ICON_FA_DATABASE " SQL Запрос")) {
-                    uiManager.sqlQueryView.IsVisible = true;
+                    uiManager.CreateView<SqlQueryView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Экспорт в PDF")) {
                     ImGuiFileDialog::Instance()->OpenDialog("SavePdfFileDlgKey", "Сохранить отчет в PDF", ".pdf");
@@ -155,10 +155,20 @@ int main(int, char**) {
             }
             if (ImGui::BeginMenu(ICON_FA_GEAR " Сервис")) {
                 if (ImGui::MenuItem(ICON_FA_SLIDERS " Настройки")) {
-                    uiManager.settingsView.IsVisible = true;
+                    bool found = false;
+                    for(const auto& view : uiManager.allViews) {
+                        if (dynamic_cast<SettingsView*>(view.get())) {
+                            ImGui::SetWindowFocus(view->GetTitle());
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        uiManager.CreateView<SettingsView>();
+                    }
                 }
                 if (ImGui::MenuItem(ICON_FA_SQUARE_ROOT_VARIABLE " Регулярные выражения")) {
-                    uiManager.regexesView.IsVisible = true;
+                    uiManager.CreateView<RegexesView>();
                 }
                 ImGui::EndMenu();
             }

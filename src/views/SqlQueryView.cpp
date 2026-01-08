@@ -4,6 +4,7 @@
 #include <iostream>
 
 SqlQueryView::SqlQueryView() {
+    Title = "SQL Запрос";
     memset(queryInputBuffer, 0, sizeof(queryInputBuffer));
 }
 
@@ -15,7 +16,6 @@ void SqlQueryView::SetPdfReporter(PdfReporter *reporter) {
     pdfReporter = reporter;
 }
 
-const char *SqlQueryView::GetTitle() { return "SQL Запрос"; }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 SqlQueryView::GetDataAsStrings() {
@@ -27,7 +27,7 @@ void SqlQueryView::Render() {
         return;
     }
 
-    if (!ImGui::Begin(GetTitle(), &IsVisible)) {
+    if (ImGui::Begin(GetTitle(), &IsVisible)) {
 
         ImGui::Text("Введите SQL запрос:");
         ImGui::InputTextMultiline(

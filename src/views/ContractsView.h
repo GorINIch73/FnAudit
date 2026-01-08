@@ -13,7 +13,6 @@ public:
     void SetDatabaseManager(DatabaseManager* dbManager) override;
     void SetPdfReporter(PdfReporter* pdfReporter) override;
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
-    const char* GetTitle() override;
     void OnDeactivate() override;
 
 private:

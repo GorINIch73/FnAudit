@@ -5,7 +5,6 @@
 
 SettingsView::SettingsView() {
     Title = "Настройки";
-    IsVisible = false;
 }
 
 void SettingsView::LoadSettings() {

@@ -18,6 +18,7 @@ PaymentsView::PaymentsView()
       selectedDetailIndex(-1),
       isAddingDetail(false),
       isDetailDirty(false) {
+    Title = "Справочник 'Банк' (Платежи)";
     memset(filterText, 0, sizeof(filterText)); // Инициализация filterText
     memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
     memset(kosguFilter, 0, sizeof(kosguFilter));
@@ -51,7 +52,6 @@ void PaymentsView::RefreshDropdownData() {
     }
 }
 
-const char *PaymentsView::GetTitle() { return "Справочник 'Банк' (Платежи)"; }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 PaymentsView::GetDataAsStrings() {

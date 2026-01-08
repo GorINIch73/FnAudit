@@ -15,25 +15,13 @@ const size_t MAX_RECENT_PATHS = 10;
 const std::string RECENT_PATHS_FILE = ".recent_dbs.txt";
 
 UIManager::UIManager()
-    : dbManager(nullptr), pdfReporter(nullptr), importManager(nullptr), window(nullptr), activeView(nullptr) {
+    : dbManager(nullptr), pdfReporter(nullptr), importManager(nullptr), window(nullptr) {
     LoadRecentDbPaths();
-    importMapView.SetUIManager(this);
-
-    allViews.push_back(&paymentsView);
-    allViews.push_back(&kosguView);
-    allViews.push_back(&counterpartiesView);
-    allViews.push_back(&contractsView);
-    allViews.push_back(&invoicesView);
-    allViews.push_back(&sqlQueryView);
-    allViews.push_back(&settingsView);
-    allViews.push_back(&importMapView);
-    allViews.push_back(&regexesView);
 }
 
+
+
 UIManager::~UIManager() {
-    for (auto& view : allViews) {
-        view->OnDeactivate();
-    }
     SaveRecentDbPaths();
 }
 
@@ -73,25 +61,16 @@ void UIManager::SaveRecentDbPaths() {
 
 void UIManager::SetDatabaseManager(DatabaseManager* manager) {
     dbManager = manager;
-    paymentsView.SetDatabaseManager(manager);
-    kosguView.SetDatabaseManager(manager);
-    counterpartiesView.SetDatabaseManager(manager);
-    contractsView.SetDatabaseManager(manager);
-    invoicesView.SetDatabaseManager(manager);
-    sqlQueryView.SetDatabaseManager(manager);
-    settingsView.SetDatabaseManager(manager);
-    importMapView.SetDatabaseManager(manager);
-    regexesView.SetDatabaseManager(manager);
+    for (auto& view : allViews) {
+        view->SetDatabaseManager(manager);
+    }
 }
 
 void UIManager::SetPdfReporter(PdfReporter* reporter) {
     pdfReporter = reporter;
-    paymentsView.SetPdfReporter(reporter);
-    kosguView.SetPdfReporter(reporter);
-    counterpartiesView.SetPdfReporter(reporter);
-    contractsView.SetPdfReporter(reporter);
-    invoicesView.SetPdfReporter(reporter);
-    sqlQueryView.SetPdfReporter(reporter);
+    for (auto& view : allViews) {
+        view->SetPdfReporter(reporter);
+    }
 }
 
 void UIManager::SetImportManager(ImportManager* manager) {
@@ -102,12 +81,7 @@ void UIManager::SetWindow(GLFWwindow* w) {
     window = w;
 }
 
-void UIManager::SetActiveView(BaseView* view) {
-    if (activeView != nullptr && activeView != view) {
-        activeView->OnDeactivate();
-    }
-    activeView = view;
-}
+
 
 void UIManager::SetWindowTitle(const std::string& db_path) {
     std::string title = "Financial Audit Application";
@@ -146,7 +120,7 @@ void UIManager::HandleFileDialogs() {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (dbManager->is_open()) {
-                importMapView.Open(filePathName);
+                CreateView<ImportMapView>()->Open(filePathName);
             } else {
                 // TODO: Show error message that a database must be open first.
             }
@@ -157,9 +131,21 @@ void UIManager::HandleFileDialogs() {
     if (ImGuiFileDialog::Instance()->Display("SavePdfFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            if (activeView) {
-                auto data = activeView->GetDataAsStrings();
-                pdfReporter->generatePdfFromTable(filePathName, activeView->GetTitle(), data.first, data.second);
+            
+            BaseView* focusedView = nullptr;
+            for(const auto& view : allViews) {
+                if(view->IsVisible && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
+                   // This is tricky. We need to check if the window with the view's title is focused.
+                   // A simpler way for now is to find the last-focused window.
+                   // Let's find any visible window for now.
+                   focusedView = view.get();
+                   break;
+                }
+            }
+
+            if (focusedView) {
+                auto data = focusedView->GetDataAsStrings();
+                pdfReporter->generatePdfFromTable(filePathName, focusedView->GetTitle(), data.first, data.second);
             }
         }
         ImGuiFileDialog::Instance()->Close();
@@ -168,24 +154,22 @@ void UIManager::HandleFileDialogs() {
 
 
 void UIManager::Render() {
-    if(paymentsView.IsVisible) SetActiveView(&paymentsView);
-    if(kosguView.IsVisible) SetActiveView(&kosguView);
-    if(counterpartiesView.IsVisible) SetActiveView(&counterpartiesView);
-    if(contractsView.IsVisible) SetActiveView(&contractsView);
-    if(invoicesView.IsVisible) SetActiveView(&invoicesView);
-    if(sqlQueryView.IsVisible) SetActiveView(&sqlQueryView);
-    if(settingsView.IsVisible) SetActiveView(&settingsView);
-    if(regexesView.IsVisible) SetActiveView(&regexesView);
+    // Render all views
+    for (auto& view : allViews) {
+        view->Render();
+    }
 
-    paymentsView.Render();
-    kosguView.Render();
-    counterpartiesView.Render();
-    contractsView.Render();
-    invoicesView.Render();
-    sqlQueryView.Render();
-    settingsView.Render();
-    importMapView.Render();
-    regexesView.Render();
+    // Remove closed views
+    allViews.erase(
+        std::remove_if(allViews.begin(), allViews.end(), [](const std::unique_ptr<BaseView>& view) {
+            if (!view->IsVisible) {
+                view->OnDeactivate();
+                return true;
+            }
+            return false;
+        }),
+        allViews.end()
+    );
 
     if (isImporting) {
         ImGui::OpenPopup("Importing...");

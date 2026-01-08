@@ -9,6 +9,7 @@ RegexesView::RegexesView()
     : selectedRegexIndex(-1),
       isAdding(false),
       isDirty(false) {
+    Title = "Справочник 'Регулярные выражения'";
     memset(filterText, 0, sizeof(filterText));
 }
 
@@ -28,9 +29,6 @@ void RegexesView::RefreshData() {
     }
 }
 
-const char *RegexesView::GetTitle() {
-    return "Справочник 'Регулярные выражения'";
-}
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 RegexesView::GetDataAsStrings() {

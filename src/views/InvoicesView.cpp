@@ -10,6 +10,7 @@ InvoicesView::InvoicesView()
       showEditModal(false),
       isAdding(false),
       isDirty(false) {
+    Title = "Справочник 'Накладные'";
     memset(filterText, 0, sizeof(filterText));
     memset(contractFilter, 0, sizeof(contractFilter));
 }
@@ -35,7 +36,6 @@ void InvoicesView::RefreshDropdownData() {
     }
 }
 
-const char *InvoicesView::GetTitle() { return "Справочник 'Накладные'"; }
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 InvoicesView::GetDataAsStrings() {
