@@ -20,4 +20,8 @@ bool InputTextMultilineWithWrap(const char *label, std::string *str,
                                 ImGuiInputTextFlags flags = 0);
 
 bool ComboWithFilter(const char* label, int& current_id, std::vector<ComboItem>& items, char* search_buffer, int search_buffer_size, ImGuiComboFlags flags);
+
+void HorizontalSplitter(const char* str_id, float* height, float min_height = 50.0f, float max_height = -1.0f);
+void VerticalSplitter(const char* str_id, float* width, float min_width = 100.0f, float max_width = -1.0f);
+
 }

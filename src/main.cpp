@@ -52,6 +52,12 @@ int main(int, char**) {
     // Установка стиля ImGui
     ImGui::StyleColorsDark();
 
+    // Подсветка разделителей для докинга
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_Separator]        = ImVec4(0.70f, 0.50f, 0.00f, 1.00f);
+    style.Colors[ImGuiCol_SeparatorHovered] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
+    style.Colors[ImGuiCol_SeparatorActive]  = ImVec4(1.00f, 0.80f, 0.20f, 1.00f);
+
     // Загрузка шрифта с поддержкой кириллицы (Roboto)
     ImFontConfig font_cfg;
     font_cfg.FontDataOwnedByAtlas = false;

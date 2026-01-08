@@ -227,4 +227,48 @@ bool ComboWithFilter(const char *label, int &current_id,
     return changed;
 }
 
+void HorizontalSplitter(const char* str_id, float* height, float min_height, float max_height) {
+    ImGui::InvisibleButton(str_id, ImVec2(-1, 8.0f));
+
+    ImVec2 min = ImGui::GetItemRectMin();
+    ImVec2 max = ImGui::GetItemRectMax();
+    ImVec2 center = ImVec2((min.x + max.x) / 2, (min.y + max.y) / 2);
+
+    ImU32 color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+
+    ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(min.x, center.y - 1), ImVec2(max.x, center.y + 1), color);
+
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
+    }
+    if (ImGui::IsItemActive()) {
+        *height += ImGui::GetIO().MouseDelta.y;
+        if (*height < min_height) *height = min_height;
+        if (max_height > 0 && *height > max_height) *height = max_height;
+    }
+}
+
+void VerticalSplitter(const char* str_id, float* width, float min_width, float max_width) {
+    ImGui::InvisibleButton(str_id, ImVec2(8.0f, -1));
+
+    ImVec2 min = ImGui::GetItemRectMin();
+    ImVec2 max = ImGui::GetItemRectMax();
+    ImVec2 center = ImVec2((min.x + max.x) / 2, (min.y + max.y) / 2);
+
+    ImU32 color = ImGui::GetColorU32(ImGui::IsItemHovered() ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+
+    ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(center.x - 1, min.y), ImVec2(center.x + 1, max.y), color);
+
+
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+    }
+    if (ImGui::IsItemActive()) {
+        *width += ImGui::GetIO().MouseDelta.x;
+        if (*width < min_width) *width = min_width;
+        if (max_width > 0 && *width > max_width) *width = max_width;
+    }
+}
+
+
 } // namespace CustomWidgets

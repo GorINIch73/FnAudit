@@ -1,4 +1,5 @@
 #include "KosguView.h"
+#include "../CustomWidgets.h"
 #include "../IconsFontAwesome6.h"
 #include <algorithm>
 #include <cstring>
@@ -210,15 +211,7 @@ void KosguView::Render() {
         }
         ImGui::EndChild();
 
-        ImGui::InvisibleButton("h_splitter", ImVec2(-1, 8.0f));
-        if (ImGui::IsItemHovered()) {
-            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNS);
-        }
-        if (ImGui::IsItemActive()) {
-            list_view_height += ImGui::GetIO().MouseDelta.y;
-            if (list_view_height < 50.0f)
-                list_view_height = 50.0f;
-        }
+        CustomWidgets::HorizontalSplitter("h_splitter", &list_view_height);
 
         if (selectedKosguIndex != -1 || isAdding) {
             ImGui::BeginChild("KosguEditor", ImVec2(editor_width, 0), true);
@@ -247,15 +240,8 @@ void KosguView::Render() {
             ImGui::EndChild();
             ImGui::SameLine();
 
-            ImGui::InvisibleButton("v_splitter", ImVec2(8.0f, -1));
-            if (ImGui::IsItemHovered()) {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-            }
-            if (ImGui::IsItemActive()) {
-                editor_width += ImGui::GetIO().MouseDelta.x;
-                if (editor_width < 100.0f)
-                    editor_width = 100.0f;
-            }
+            CustomWidgets::VerticalSplitter("v_splitter", &editor_width);
+
             ImGui::SameLine();
 
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
