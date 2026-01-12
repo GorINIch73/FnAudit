@@ -254,6 +254,13 @@ void PaymentsView::Render() {
                 "Назначение", ImGuiTableColumnFlags_WidthFixed, 600.0f, 3);
             ImGui::TableHeadersRow();
 
+            if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
+                if (sort_specs->SpecsDirty) {
+                    SortPayments(payments, sort_specs);
+                    sort_specs->SpecsDirty = false;
+                }
+            }
+
             std::vector<Payment> filtered_payments;
             if (filterText[0] != '\0') {
                 for (const auto& p : payments) {
@@ -284,13 +291,6 @@ void PaymentsView::Render() {
                 }
             } else {
                 filtered_payments = payments;
-            }
-
-            if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
-                if (sort_specs->SpecsDirty) {
-                    SortPayments(filtered_payments, sort_specs);
-                    sort_specs->SpecsDirty = false;
-                }
             }
 
             ImGuiListClipper clipper;

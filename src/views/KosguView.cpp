@@ -169,6 +169,13 @@ void KosguView::Render() {
             ImGui::TableSetupColumn("Сумма", 0, 0.0f, 3);
             ImGui::TableHeadersRow();
 
+            if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
+                if (sort_specs->SpecsDirty) {
+                    SortKosgu(kosguEntries, sort_specs);
+                    sort_specs->SpecsDirty = false;
+                }
+            }
+
             std::vector<Kosgu> filtered_kosgu_entries;
             if (filterText[0] != '\0') {
                 for (const auto &entry : kosguEntries) {
@@ -206,14 +213,6 @@ void KosguView::Render() {
                 }
             } else {
                 filtered_kosgu_entries = kosguEntries;
-            }
-
-
-            if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
-                if (sort_specs->SpecsDirty) {
-                    SortKosgu(filtered_kosgu_entries, sort_specs);
-                    sort_specs->SpecsDirty = false;
-                }
             }
 
             for (int i = 0; i < filtered_kosgu_entries.size(); ++i) {
