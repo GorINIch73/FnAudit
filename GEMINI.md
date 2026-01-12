@@ -35,12 +35,13 @@ The project is built using CMake.
 
 2.  **Configure the project with CMake:**
     ```bash
+    cd build
     cmake ..
     ```
 
 3.  **Compile the project:**
     ```bash
-    make
+    cmake --build build
     ```
 
 ### Running the Application
@@ -48,7 +49,7 @@ The project is built using CMake.
 After a successful build, the executable will be located in the `build` directory.
 
 ```bash
-./FinancialAudit
+build/FinancialAudit
 ```
 
 ## Development Conventions

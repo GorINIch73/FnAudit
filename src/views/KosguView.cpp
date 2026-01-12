@@ -171,34 +171,37 @@ void KosguView::Render() {
 
             std::vector<Kosgu> filtered_kosgu_entries;
             if (filterText[0] != '\0') {
-                for (const auto& entry : kosguEntries) {
-                    bool match = false;
-                    // Search in KOSGU fields
+                for (const auto &entry : kosguEntries) {
+                    bool kosgu_match = false;
                     if (strcasestr(entry.code.c_str(), filterText) != nullptr || strcasestr(entry.name.c_str(), filterText) != nullptr) {
-                        match = true;
+                        kosgu_match = true;
                     }
 
-                    // Search in payment details if no match yet
-                    if (!match && dbManager) {
+                    float filtered_amount = 0.0f;
+                    bool payment_match = false;
+                    if (dbManager) {
                         std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
                         for (const auto& detail : payment_details) {
                             if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
                                 strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
                                 strcasestr(detail.description.c_str(), filterText) != nullptr) {
-                                match = true;
-                                break;
+                                filtered_amount += detail.amount;
+                                payment_match = true;
+                                continue;
                             }
                             char amount_str[32];
                             snprintf(amount_str, sizeof(amount_str), "%.2f", detail.amount);
                             if (strcasestr(amount_str, filterText) != nullptr) {
-                                match = true;
-                                break;
+                                filtered_amount += detail.amount;
+                                payment_match = true;
                             }
                         }
                     }
 
-                    if (match) {
-                        filtered_kosgu_entries.push_back(entry);
+                    if (kosgu_match || payment_match) {
+                        Kosgu filtered_entry = entry;
+                        filtered_entry.total_amount = filtered_amount;
+                        filtered_kosgu_entries.push_back(filtered_entry);
                     }
                 }
             } else {
