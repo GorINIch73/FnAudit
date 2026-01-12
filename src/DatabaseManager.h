@@ -66,6 +66,7 @@ public:
     std::vector<PaymentDetail> getPaymentDetails(int payment_id);
     bool updatePaymentDetail(const PaymentDetail& detail);
     bool deletePaymentDetail(int id);
+    bool deleteAllPaymentDetails(int payment_id);
 
     // Generic SQL query execution for SELECT statements
     bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);

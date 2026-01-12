@@ -1230,6 +1230,30 @@ bool DatabaseManager::deletePaymentDetail(int id) {
     return true;
 }
 
+bool DatabaseManager::deleteAllPaymentDetails(int payment_id) {
+    if (!db)
+        return false;
+    std::string sql = "DELETE FROM PaymentDetails WHERE payment_id = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for deleting all payment details: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, payment_id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to delete all payment details: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    return true;
+}
+
 // Regex CRUD
 static int regex_select_callback(void *data, int argc, char **argv,
                                  char **azColName) {

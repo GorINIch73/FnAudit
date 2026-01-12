@@ -52,6 +52,15 @@ private:
     char kosguFilter[256];
     char contractFilter[256];
     char invoiceFilter[256];
+
+    // Group operations
+    int groupKosguId = -1;
+    int groupContractId = -1;
+    int groupInvoiceId = -1;
+    char groupKosguFilter[256];
+    char groupContractFilter[256];
+    char groupInvoiceFilter[256];
+
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
 };

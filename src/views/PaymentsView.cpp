@@ -24,6 +24,9 @@ PaymentsView::PaymentsView()
     memset(kosguFilter, 0, sizeof(kosguFilter));
     memset(contractFilter, 0, sizeof(contractFilter));
     memset(invoiceFilter, 0, sizeof(invoiceFilter));
+    memset(groupKosguFilter, 0, sizeof(groupKosguFilter));
+    memset(groupContractFilter, 0, sizeof(groupContractFilter));
+    memset(groupInvoiceFilter, 0, sizeof(groupInvoiceFilter));
 }
 
 void PaymentsView::SetDatabaseManager(DatabaseManager *manager) {
@@ -239,6 +242,89 @@ void PaymentsView::Render() {
             filterText[0] = '\0';
         }
 
+        // Create filtered list once
+        std::vector<Payment> filtered_payments;
+        if (filterText[0] != '\0') {
+            for (const auto& p : payments) {
+                bool match_found = false;
+                if (strcasestr(p.date.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found && strcasestr(p.doc_number.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found && strcasestr(p.description.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found && strcasestr(p.recipient.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found) {
+                    char amount_str[32];
+                    snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
+                    if (strcasestr(amount_str, filterText) != nullptr) match_found = true;
+                }
+                if (match_found) {
+                    filtered_payments.push_back(p);
+                }
+            }
+        } else {
+            filtered_payments = payments;
+        }
+
+        if (ImGui::CollapsingHeader("Групповые операции")) {
+            // KOSGU Dropdown
+            std::vector<CustomWidgets::ComboItem> kosguItems;
+            for (const auto &k : kosguForDropdown) {
+                kosguItems.push_back({k.id, k.code + " " + k.name});
+            }
+            CustomWidgets::ComboWithFilter("КОСГУ", groupKosguId, kosguItems, groupKosguFilter, sizeof(groupKosguFilter), 0);
+            
+            // Contract Dropdown
+            std::vector<CustomWidgets::ComboItem> contractItems;
+            for (const auto &c : contractsForDropdown) {
+                contractItems.push_back({c.id, c.number + " " + c.date});
+            }
+            CustomWidgets::ComboWithFilter("Договор", groupContractId, contractItems, groupContractFilter, sizeof(groupContractFilter), 0);
+
+            // Invoice Dropdown
+            std::vector<CustomWidgets::ComboItem> invoiceItems;
+            for (const auto &i : invoicesForDropdown) {
+                invoiceItems.push_back({i.id, i.number + " " + i.date});
+            }
+            CustomWidgets::ComboWithFilter("Накладная", groupInvoiceId, invoiceItems, groupInvoiceFilter, sizeof(groupInvoiceFilter), 0);
+
+            if (ImGui::Button("Применить к отфильтрованным")) {
+                if (dbManager) {
+                    for (const auto& payment : filtered_payments) {
+                        auto details = dbManager->getPaymentDetails(payment.id);
+                        double sum_of_details = 0.0;
+                        for (const auto& detail : details) {
+                            sum_of_details += detail.amount;
+                        }
+                        double remaining_amount = payment.amount - sum_of_details;
+                        if (remaining_amount > 0.009) { // Check for more than a kopek
+                            PaymentDetail newDetail;
+                            newDetail.payment_id = payment.id;
+                            newDetail.amount = remaining_amount;
+                            newDetail.kosgu_id = groupKosguId;
+                            newDetail.contract_id = groupContractId;
+                            newDetail.invoice_id = groupInvoiceId;
+                            dbManager->addPaymentDetail(newDetail);
+                        }
+                    }
+                    // Refresh data to show changes
+                    if(selectedPaymentIndex != -1) {
+                         paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                    }
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Удалить расшифровки у отфильтрованных")) {
+                if (dbManager) {
+                    for (const auto& payment : filtered_payments) {
+                        dbManager->deleteAllPaymentDetails(payment.id);
+                    }
+                     // Refresh data to show changes
+                    if(selectedPaymentIndex != -1) {
+                         paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                    }
+                }
+            }
+        }
+
         // --- Список платежей ---
         ImGui::BeginChild("PaymentsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
@@ -260,41 +346,9 @@ void PaymentsView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortPayments(payments, sort_specs);
+                    SortPayments(payments, sort_specs); // Sort original payments list
                     sort_specs->SpecsDirty = false;
                 }
-            }
-
-            std::vector<Payment> filtered_payments;
-            if (filterText[0] != '\0') {
-                for (const auto& p : payments) {
-                    bool match_found = false;
-                    if (strcasestr(p.date.c_str(), filterText) != nullptr) {
-                        match_found = true;
-                    }
-                    if (!match_found && strcasestr(p.doc_number.c_str(), filterText) != nullptr) {
-                        match_found = true;
-                    }
-                    if (!match_found && strcasestr(p.description.c_str(), filterText) != nullptr) {
-                        match_found = true;
-                    }
-                    if (!match_found && strcasestr(p.recipient.c_str(), filterText) != nullptr) {
-                        match_found = true;
-                    }
-                    if (!match_found) {
-                        char amount_str[32];
-                        snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
-                        if (strcasestr(amount_str, filterText) != nullptr) {
-                            match_found = true;
-                        }
-                    }
-
-                    if (match_found) {
-                        filtered_payments.push_back(p);
-                    }
-                }
-            } else {
-                filtered_payments = payments;
             }
 
             ImGuiListClipper clipper;
