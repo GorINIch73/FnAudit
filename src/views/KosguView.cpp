@@ -153,7 +153,7 @@ void KosguView::Render() {
 
         ImGui::Separator();
 
-        ImGui::InputText("Фильтр по наименованию", filterText,
+        ImGui::InputText("Фильтр", filterText,
                          sizeof(filterText));
 
         ImGui::BeginChild("KosguList", ImVec2(0, list_view_height), true,
@@ -169,33 +169,69 @@ void KosguView::Render() {
             ImGui::TableSetupColumn("Сумма", 0, 0.0f, 3);
             ImGui::TableHeadersRow();
 
+            std::vector<Kosgu> filtered_kosgu_entries;
+            if (filterText[0] != '\0') {
+                for (const auto& entry : kosguEntries) {
+                    bool match = false;
+                    // Search in KOSGU fields
+                    if (strcasestr(entry.code.c_str(), filterText) != nullptr || strcasestr(entry.name.c_str(), filterText) != nullptr) {
+                        match = true;
+                    }
+
+                    // Search in payment details if no match yet
+                    if (!match && dbManager) {
+                        std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
+                        for (const auto& detail : payment_details) {
+                            if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
+                                strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
+                                strcasestr(detail.description.c_str(), filterText) != nullptr) {
+                                match = true;
+                                break;
+                            }
+                            char amount_str[32];
+                            snprintf(amount_str, sizeof(amount_str), "%.2f", detail.amount);
+                            if (strcasestr(amount_str, filterText) != nullptr) {
+                                match = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (match) {
+                        filtered_kosgu_entries.push_back(entry);
+                    }
+                }
+            } else {
+                filtered_kosgu_entries = kosguEntries;
+            }
+
+
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortKosgu(kosguEntries, sort_specs);
+                    SortKosgu(filtered_kosgu_entries, sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
 
-            for (int i = 0; i < kosguEntries.size(); ++i) {
-                if (filterText[0] != '\0' &&
-                    strcasestr(kosguEntries[i].name.c_str(), filterText) ==
-                        nullptr) {
-                    continue;
-                }
-
+            for (int i = 0; i < filtered_kosgu_entries.size(); ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                bool is_selected = (selectedKosguIndex == i);
+                // Find original index to maintain selection state
+                auto original_it = std::find_if(kosguEntries.begin(), kosguEntries.end(), 
+                                                [&](const Kosgu& k) { return k.id == filtered_kosgu_entries[i].id; });
+                int original_index = std::distance(kosguEntries.begin(), original_it);
+
+                bool is_selected = (selectedKosguIndex == original_index);
                 char label[256];
-                sprintf(label, "%d##%d", kosguEntries[i].id, i);
+                sprintf(label, "%d##%d", filtered_kosgu_entries[i].id, i);
                 if (ImGui::Selectable(label, is_selected,
                                       ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedKosguIndex != i) {
+                    if (selectedKosguIndex != original_index) {
                         SaveChanges();
-                        selectedKosguIndex = i;
-                        selectedKosgu = kosguEntries[i];
-                        originalKosgu = kosguEntries[i];
+                        selectedKosguIndex = original_index;
+                        selectedKosgu = kosguEntries[original_index];
+                        originalKosgu = kosguEntries[original_index];
                         isAdding = false;
                         isDirty = false;
                         if (dbManager) {
@@ -209,11 +245,11 @@ void KosguView::Render() {
                 }
 
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", kosguEntries[i].code.c_str());
+                ImGui::Text("%s", filtered_kosgu_entries[i].code.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", kosguEntries[i].name.c_str());
+                ImGui::Text("%s", filtered_kosgu_entries[i].name.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text("%.2f", kosguEntries[i].total_amount);
+                ImGui::Text("%.2f", filtered_kosgu_entries[i].total_amount);
             }
             ImGui::EndTable();
         }
@@ -254,6 +290,29 @@ void KosguView::Render() {
 
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
             ImGui::Text("Расшифровки платежей:");
+
+            std::vector<ContractPaymentInfo> filtered_payment_info;
+            if (filterText[0] != '\0') {
+                for (const auto& info : payment_info) {
+                    bool match = false;
+                    if (strcasestr(info.date.c_str(), filterText) != nullptr ||
+                        strcasestr(info.doc_number.c_str(), filterText) != nullptr ||
+                        strcasestr(info.description.c_str(), filterText) != nullptr) {
+                        match = true;
+                    }
+                    char amount_str[32];
+                    snprintf(amount_str, sizeof(amount_str), "%.2f", info.amount);
+                    if (strcasestr(amount_str, filterText) != nullptr) {
+                        match = true;
+                    }
+                    if (match) {
+                        filtered_payment_info.push_back(info);
+                    }
+                }
+            } else {
+                filtered_payment_info = payment_info;
+            }
+
             if (ImGui::BeginTable(
                     "payment_details_table", 4,
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
@@ -265,7 +324,7 @@ void KosguView::Render() {
                 ImGui::TableSetupColumn("Назначение");
                 ImGui::TableHeadersRow();
 
-                for (const auto &info : payment_info) {
+                for (const auto &info : filtered_payment_info) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", info.date.c_str());
