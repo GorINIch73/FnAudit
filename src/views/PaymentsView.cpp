@@ -254,80 +254,94 @@ void PaymentsView::Render() {
                 "Назначение", ImGuiTableColumnFlags_WidthFixed, 600.0f, 3);
             ImGui::TableHeadersRow();
 
-            if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
-                if (sort_specs->SpecsDirty) {
-                    SortPayments(payments, sort_specs);
-                    sort_specs->SpecsDirty = false;
-                }
-            }
-
-            for (int i = 0; i < payments.size(); ++i) {
-                
-                if (filterText[0] != '\0') {
+            std::vector<Payment> filtered_payments;
+            if (filterText[0] != '\0') {
+                for (const auto& p : payments) {
                     bool match_found = false;
-
-                    if (strcasestr(payments[i].date.c_str(), filterText) != nullptr) {
+                    if (strcasestr(p.date.c_str(), filterText) != nullptr) {
                         match_found = true;
                     }
-                    if (!match_found && strcasestr(payments[i].doc_number.c_str(), filterText) != nullptr) {
+                    if (!match_found && strcasestr(p.doc_number.c_str(), filterText) != nullptr) {
                         match_found = true;
                     }
-                    if (!match_found && strcasestr(payments[i].description.c_str(), filterText) != nullptr) {
+                    if (!match_found && strcasestr(p.description.c_str(), filterText) != nullptr) {
                         match_found = true;
                     }
-                    if (!match_found && strcasestr(payments[i].recipient.c_str(), filterText) != nullptr) {
+                    if (!match_found && strcasestr(p.recipient.c_str(), filterText) != nullptr) {
                         match_found = true;
                     }
                     if (!match_found) {
                         char amount_str[32];
-                        snprintf(amount_str, sizeof(amount_str), "%.2f", payments[i].amount);
+                        snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
                         if (strcasestr(amount_str, filterText) != nullptr) {
                             match_found = true;
                         }
                     }
 
-                    if (!match_found) {
-                        continue;
+                    if (match_found) {
+                        filtered_payments.push_back(p);
                     }
                 }
+            } else {
+                filtered_payments = payments;
+            }
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
+                if (sort_specs->SpecsDirty) {
+                    SortPayments(filtered_payments, sort_specs);
+                    sort_specs->SpecsDirty = false;
+                }
+            }
 
-                bool is_selected = (selectedPaymentIndex == i);
-                char label[128];
-                sprintf(label, "%s##%d", payments[i].date.c_str(),
-                        payments[i].id);
-                if (ImGui::Selectable(label, is_selected,
-                                      ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedPaymentIndex != i) {
-                        SaveChanges();
-                        SaveDetailChanges();
+            ImGuiListClipper clipper;
+            clipper.Begin(filtered_payments.size());
+            while (clipper.Step()) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                    const auto& payment = filtered_payments[i];
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                        selectedPaymentIndex = i;
-                        selectedPayment = payments[i];
-                        originalPayment = payments[i];
-                        descriptionBuffer = selectedPayment.description;
-                        if (dbManager) {
-                            paymentDetails = dbManager->getPaymentDetails(
-                                selectedPayment.id);
+                    // Find the original index in the main 'payments' vector
+                    int original_index = -1;
+                    for(int j = 0; j < payments.size(); ++j) {
+                        if(payments[j].id == payment.id) {
+                            original_index = j;
+                            break;
                         }
-                        isAdding = false;
-                        isDirty = false;
-                        selectedDetailIndex = -1;
-                        isDetailDirty = false;
                     }
-                }
-                if (is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", payments[i].doc_number.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", payments[i].amount);
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", payments[i].description.c_str());
+                    bool is_selected = (selectedPaymentIndex == original_index);
+                    char label[128];
+                    sprintf(label, "%s##%d", payment.date.c_str(), payment.id);
+                    if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (selectedPaymentIndex != original_index) {
+                            SaveChanges();
+                            SaveDetailChanges();
+
+                            selectedPaymentIndex = original_index;
+                            selectedPayment = payments[original_index];
+                            originalPayment = payments[original_index];
+                            descriptionBuffer = selectedPayment.description;
+                            if (dbManager) {
+                                paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                            }
+                            isAdding = false;
+                            isDirty = false;
+                            selectedDetailIndex = -1;
+                            isDetailDirty = false;
+                        }
+                    }
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", payment.doc_number.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", payment.amount);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", payment.description.c_str());
+                }
             }
             ImGui::EndTable();
         }
