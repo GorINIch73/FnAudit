@@ -177,6 +177,10 @@ void InvoicesView::Render() {
         ImGui::Separator();
 
         ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText));
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_XMARK "##clear_filter_invoice")) {
+            filterText[0] = '\0';
+        }
 
         // Таблица со списком
         ImGui::BeginChild("InvoicesList", ImVec2(0, list_view_height), true,

@@ -160,6 +160,10 @@ void CounterpartiesView::Render() {
         ImGui::Separator();
 
         ImGui::InputText("Фильтр по имени", filterText, sizeof(filterText));
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_XMARK "##clear_filter_counterparty")) {
+            filterText[0] = '\0';
+        }
 
         // Таблица со списком
         ImGui::BeginChild("CounterpartiesList", ImVec2(0, list_view_height),

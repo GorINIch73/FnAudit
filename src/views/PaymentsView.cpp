@@ -234,6 +234,10 @@ void PaymentsView::Render() {
         ImGui::Separator();
 
         ImGui::InputText("Общий фильтр", filterText, sizeof(filterText));
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_XMARK)) {
+            filterText[0] = '\0';
+        }
 
         // --- Список платежей ---
         ImGui::BeginChild("PaymentsList", ImVec2(0, list_view_height), true,

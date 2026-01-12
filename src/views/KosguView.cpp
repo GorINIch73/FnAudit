@@ -155,6 +155,10 @@ void KosguView::Render() {
 
         ImGui::InputText("Фильтр", filterText,
                          sizeof(filterText));
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_XMARK)) {
+            filterText[0] = '\0';
+        }
 
         ImGui::BeginChild("KosguList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);

@@ -115,6 +115,10 @@ void RegexesView::Render() {
 
         ImGui::Separator();
         ImGui::InputText("Фильтр по имени", filterText, sizeof(filterText));
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_XMARK "##clear_filter_regex")) {
+            filterText[0] = '\0';
+        }
 
         // --- Regex List ---
         float list_width = ImGui::GetContentRegionAvail().x * 0.4f;
