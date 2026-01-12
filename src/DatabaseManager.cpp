@@ -174,6 +174,8 @@ static int kosgu_select_callback(void *data, int argc, char **argv,
             entry.code = argv[i] ? argv[i] : "";
         } else if (colName == "name") {
             entry.name = argv[i] ? argv[i] : "";
+        } else if (colName == "total_amount") {
+            entry.total_amount = argv[i] ? std::stod(argv[i]) : 0.0;
         }
     }
     kosgu_list->push_back(entry);
@@ -185,7 +187,10 @@ std::vector<Kosgu> DatabaseManager::getKosguEntries() {
     if (!db)
         return entries;
 
-    std::string sql = "SELECT id, code, name FROM KOSGU;";
+    std::string sql = "SELECT k.id, k.code, k.name, IFNULL(SUM(pd.amount), 0.0) as total_amount "
+                      "FROM KOSGU k "
+                      "LEFT JOIN PaymentDetails pd ON k.id = pd.kosgu_id "
+                      "GROUP BY k.id, k.code, k.name;";
     char *errmsg = nullptr;
     int rc =
         sqlite3_exec(db, sql.c_str(), kosgu_select_callback, &entries, &errmsg);
@@ -395,6 +400,8 @@ static int counterparty_select_callback(void *data, int argc, char **argv,
             entry.name = argv[i] ? argv[i] : "";
         } else if (colName == "inn") {
             entry.inn = argv[i] ? argv[i] : "";
+        } else if (colName == "total_amount") {
+            entry.total_amount = argv[i] ? std::stod(argv[i]) : 0.0;
         }
     }
     counterparty_list->push_back(entry);
@@ -406,7 +413,11 @@ std::vector<Counterparty> DatabaseManager::getCounterparties() {
     if (!db)
         return entries;
 
-    std::string sql = "SELECT id, name, inn FROM Counterparties;";
+    std::string sql = "SELECT c.id, c.name, c.inn, IFNULL(SUM(pd.amount), 0.0) as total_amount "
+                        "FROM Counterparties c "
+                        "LEFT JOIN Contracts con ON c.id = con.counterparty_id "
+                        "LEFT JOIN PaymentDetails pd ON con.id = pd.contract_id "
+                        "GROUP BY c.id, c.name, c.inn;";
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), counterparty_select_callback,
                           &entries, &errmsg);
@@ -582,6 +593,8 @@ static int contract_select_callback(void *data, int argc, char **argv,
             entry.date = argv[i] ? argv[i] : "";
         } else if (colName == "counterparty_id") {
             entry.counterparty_id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "total_amount") {
+            entry.total_amount = argv[i] ? std::stod(argv[i]) : 0.0;
         }
     }
     contract_list->push_back(entry);
@@ -593,8 +606,10 @@ std::vector<Contract> DatabaseManager::getContracts() {
     if (!db)
         return entries;
 
-    std::string sql =
-        "SELECT id, number, date, counterparty_id FROM Contracts;";
+    std::string sql = "SELECT c.id, c.number, c.date, c.counterparty_id, IFNULL(SUM(pd.amount), 0.0) as total_amount "
+                      "FROM Contracts c "
+                      "LEFT JOIN PaymentDetails pd ON c.id = pd.contract_id "
+                      "GROUP BY c.id, c.number, c.date, c.counterparty_id;";
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), contract_select_callback, &entries,
                           &errmsg);
@@ -768,6 +783,8 @@ static int invoice_select_callback(void *data, int argc, char **argv,
             entry.date = argv[i] ? argv[i] : "";
         } else if (colName == "contract_id") {
             entry.contract_id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "total_amount") {
+            entry.total_amount = argv[i] ? std::stod(argv[i]) : 0.0;
         }
     }
     invoice_list->push_back(entry);
@@ -779,7 +796,10 @@ std::vector<Invoice> DatabaseManager::getInvoices() {
     if (!db)
         return entries;
 
-    std::string sql = "SELECT id, number, date, contract_id FROM Invoices;";
+    std::string sql = "SELECT i.id, i.number, i.date, i.contract_id, IFNULL(SUM(pd.amount), 0.0) as total_amount "
+                      "FROM Invoices i "
+                      "LEFT JOIN PaymentDetails pd ON i.id = pd.invoice_id "
+                      "GROUP BY i.id, i.number, i.date, i.contract_id;";
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), invoice_select_callback, &entries,
                           &errmsg);

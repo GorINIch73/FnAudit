@@ -32,10 +32,10 @@ void CounterpartiesView::RefreshData() {
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 CounterpartiesView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Наименование", "ИНН"};
+    std::vector<std::string> headers = {"ID", "Наименование", "ИНН", "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : counterparties) {
-        rows.push_back({std::to_string(entry.id), entry.name, entry.inn});
+        rows.push_back({std::to_string(entry.id), entry.name, entry.inn, std::to_string(entry.total_amount)});
     }
     return {headers, rows};
 }
@@ -99,6 +99,11 @@ static void SortCounterparties(std::vector<Counterparty> &counterparties,
                       case 2:
                           delta = a.inn.compare(b.inn);
                           break;
+                      case 3:
+                            delta = (a.total_amount < b.total_amount)   ? -1
+                                  : (a.total_amount > b.total_amount) ? 1
+                                                          : 0;
+                          break;
                       default:
                           break;
                       }
@@ -159,7 +164,7 @@ void CounterpartiesView::Render() {
         // Таблица со списком
         ImGui::BeginChild("CounterpartiesList", ImVec2(0, list_view_height),
                           true, ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("counterparties_table", 3,
+        if (ImGui::BeginTable("counterparties_table", 4,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable)) {
@@ -167,6 +172,7 @@ void CounterpartiesView::Render() {
             ImGui::TableSetupColumn("Наименование",
                                     ImGuiTableColumnFlags_DefaultSort, 0.0f, 1);
             ImGui::TableSetupColumn("ИНН", 0, 0.0f, 2);
+            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 3);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -213,6 +219,8 @@ void CounterpartiesView::Render() {
                 ImGui::Text("%s", counterparties[i].name.c_str());
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", counterparties[i].inn.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text("%.2f", counterparties[i].total_amount);
             }
             ImGui::EndTable();
         }

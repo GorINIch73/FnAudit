@@ -32,10 +32,10 @@ void KosguView::RefreshData() {
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 KosguView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Код", "Наименование"};
+    std::vector<std::string> headers = {"ID", "Код", "Наименование", "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : kosguEntries) {
-        rows.push_back({std::to_string(entry.id), entry.code, entry.name});
+        rows.push_back({std::to_string(entry.id), entry.code, entry.name, std::to_string(entry.total_amount)});
     }
     return {headers, rows};
 }
@@ -91,6 +91,11 @@ static void SortKosgu(std::vector<Kosgu> &kosguEntries,
                           break;
                       case 2:
                           delta = a.name.compare(b.name);
+                          break;
+                      case 3:
+                            delta = (a.total_amount < b.total_amount)   ? -1
+                                  : (a.total_amount > b.total_amount) ? 1
+                                                          : 0;
                           break;
                       default:
                           break;
@@ -153,7 +158,7 @@ void KosguView::Render() {
 
         ImGui::BeginChild("KosguList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("kosgu_table", 3,
+        if (ImGui::BeginTable("kosgu_table", 4,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable)) {
@@ -161,6 +166,7 @@ void KosguView::Render() {
             ImGui::TableSetupColumn("Код", ImGuiTableColumnFlags_DefaultSort,
                                     0.0f, 1);
             ImGui::TableSetupColumn("Наименование", 0, 0.0f, 2);
+            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 3);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -206,6 +212,8 @@ void KosguView::Render() {
                 ImGui::Text("%s", kosguEntries[i].code.c_str());
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", kosguEntries[i].name.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text("%.2f", kosguEntries[i].total_amount);
             }
             ImGui::EndTable();
         }

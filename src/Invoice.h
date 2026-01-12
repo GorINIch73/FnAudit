@@ -7,4 +7,5 @@ struct Invoice {
     std::string number;
     std::string date;
     int contract_id = -1;
+    double total_amount = 0.0;
 };

@@ -39,7 +39,7 @@ void InvoicesView::RefreshDropdownData() {
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 InvoicesView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контракт"};
+    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контракт", "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : invoices) {
         std::string contractNumber = "N/A";
@@ -50,7 +50,7 @@ InvoicesView::GetDataAsStrings() {
             }
         }
         rows.push_back({std::to_string(entry.id), entry.number, entry.date,
-                        contractNumber});
+                        contractNumber, std::to_string(entry.total_amount)});
     }
     return {headers, rows};
 }
@@ -114,6 +114,11 @@ static void SortInvoices(std::vector<Invoice> &invoices,
                                   : (a.contract_id > b.contract_id) ? 1
                                                                     : 0;
                           break;
+                      case 4:
+                            delta = (a.total_amount < b.total_amount)   ? -1
+                                    : (a.total_amount > b.total_amount) ? 1
+                                                                        : 0;
+                            break;
                       default:
                           break;
                       }
@@ -176,7 +181,7 @@ void InvoicesView::Render() {
         // Таблица со списком
         ImGui::BeginChild("InvoicesList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("invoices_table", 4,
+        if (ImGui::BeginTable("invoices_table", 5,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable)) {
@@ -185,6 +190,7 @@ void InvoicesView::Render() {
             ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort,
                                     0.0f, 2);
             ImGui::TableSetupColumn("Контракт", 0, 0.0f, 3);
+            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 4);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -239,6 +245,8 @@ void InvoicesView::Render() {
                     }
                 }
                 ImGui::Text("%s", contractNumber);
+                ImGui::TableNextColumn();
+                ImGui::Text("%.2f", invoices[i].total_amount);
             }
             ImGui::EndTable();
         }

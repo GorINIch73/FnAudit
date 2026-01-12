@@ -39,7 +39,7 @@ void ContractsView::RefreshDropdownData() {
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 ContractsView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контрагент"};
+    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контрагент", "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : contracts) {
         std::string counterpartyName = "N/A";
@@ -50,7 +50,7 @@ ContractsView::GetDataAsStrings() {
             }
         }
         rows.push_back({std::to_string(entry.id), entry.number, entry.date,
-                        counterpartyName});
+                        counterpartyName, std::to_string(entry.total_amount)});
     }
     return {headers, rows};
 }
@@ -114,6 +114,11 @@ static void SortContracts(std::vector<Contract> &contracts,
                                   : (a.counterparty_id > b.counterparty_id) ? 1
                                                                             : 0;
                           break;
+                      case 4:
+                            delta = (a.total_amount < b.total_amount)   ? -1
+                                  : (a.total_amount > b.total_amount) ? 1
+                                                                      : 0;
+                          break;
                       default:
                           break;
                       }
@@ -176,7 +181,7 @@ void ContractsView::Render() {
         // Таблица со списком
         ImGui::BeginChild("ContractsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("contracts_table", 4,
+        if (ImGui::BeginTable("contracts_table", 5,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable)) {
@@ -185,6 +190,7 @@ void ContractsView::Render() {
             ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort,
                                     0.0f, 2);
             ImGui::TableSetupColumn("Контрагент", 0, 0.0f, 3);
+            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 4);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -239,6 +245,8 @@ void ContractsView::Render() {
                     }
                 }
                 ImGui::Text("%s", counterpartyName);
+                ImGui::TableNextColumn();
+                ImGui::Text("%.2f", contracts[i].total_amount);
             }
             ImGui::EndTable();
         }
