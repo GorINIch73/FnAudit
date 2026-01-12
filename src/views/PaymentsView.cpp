@@ -465,6 +465,19 @@ void PaymentsView::Render() {
                 selectedDetailIndex = -1;
                 selectedDetail =
                     PaymentDetail{-1, selectedPayment.id, -1, -1, -1, 0.0};
+
+                // Calculate sum of existing payment details
+                double sum_of_existing_details = 0.0;
+                for (const auto& detail : paymentDetails) {
+                    sum_of_existing_details += detail.amount;
+                }
+
+                // Calculate remaining amount
+                double remaining_amount = selectedPayment.amount - sum_of_existing_details;
+
+                // Assign to selectedDetail.amount
+                selectedDetail.amount = remaining_amount;
+
                 originalDetail = selectedDetail;
                 isDetailDirty = true;
             }
