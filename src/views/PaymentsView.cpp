@@ -305,6 +305,7 @@ void PaymentsView::Render() {
             ImGui::OpenPopup("Добавление расшифровки по КОСГУ");
         }
 
+
         if (ImGui::BeginPopupModal("Добавление расшифровки по КОСГУ", &show_add_kosgu_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Добавить расшифровку с КОСГУ для %zu отфильтрованных платежей:", filtered_payments.size());
             ImGui::Separator();
