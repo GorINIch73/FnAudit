@@ -72,6 +72,18 @@ private:
     char replacement_contract_filter[256]{};
     char replacement_invoice_filter[256]{};
 
+    // For chunked group operations with progress bar
+    enum GroupOperationType {
+        NONE,
+        ADD_KOSGU,
+        REPLACE,
+        DELETE_DETAILS
+    };
+    GroupOperationType current_operation = NONE;
+    int processed_items = 0;
+    std::vector<Payment> items_to_process;
+    void ProcessGroupOperation();
+
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
 };

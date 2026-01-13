@@ -183,6 +183,11 @@ void PaymentsView::Render() {
         }
         return;
     }
+    
+    // Handle chunked group operation processing
+    if (current_operation != NONE) {
+        ProcessGroupOperation();
+    }
 
     if (ImGui::Begin(GetTitle(), &IsVisible)) {
 
@@ -190,6 +195,21 @@ void PaymentsView::Render() {
             RefreshData();
             RefreshDropdownData();
         }
+
+        // --- Progress Bar Popup ---
+        if (current_operation != NONE) {
+            ImGui::OpenPopup("Выполнение операции...");
+        }
+        if (ImGui::BeginPopupModal("Выполнение операции...", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+            if (current_operation == NONE) {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::Text("Обработка %d из %zu...", processed_items, items_to_process.size());
+            float progress = (items_to_process.empty()) ? 0.0f : (float)processed_items / (float)items_to_process.size();
+            ImGui::ProgressBar(progress, ImVec2(250.0f, 0.0f));
+            ImGui::EndPopup();
+        }
+
 
         // --- Панель управления ---
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
@@ -267,7 +287,7 @@ void PaymentsView::Render() {
         if (ImGui::CollapsingHeader("Групповые операции")) {
 
             if (ImGui::Button("Добавить расшифровку по КОСГУ")) {
-                 if (!filtered_payments.empty()) {
+                 if (!filtered_payments.empty() && current_operation == NONE) {
                     show_add_kosgu_popup = true;
                     groupKosguId = -1;
                     memset(groupKosguFilter, 0, sizeof(groupKosguFilter));
@@ -275,21 +295,17 @@ void PaymentsView::Render() {
             }
             ImGui::SameLine();
             if (ImGui::Button("Удалить расшифровки у отфильтрованных")) {
-                if (dbManager) {
-                    for (const auto& payment : filtered_payments) {
-                        dbManager->deleteAllPaymentDetails(payment.id);
-                    }
-                     // Refresh data to show changes
-                    if(selectedPaymentIndex != -1) {
-                         paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
-                    }
+                if (!filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = filtered_payments;
+                    processed_items = 0;
+                    current_operation = DELETE_DETAILS;
                 }
             }
             ImGui::SameLine();
             if (ImGui::Button("Заменить")) {
-                if (!filtered_payments.empty()) {
+                if (!filtered_payments.empty() && current_operation == NONE) {
                     show_replace_popup = true;
-                    // Reset state
+                    // Reset state for the popup
                     replacement_target = 0;
                     replacement_kosgu_id = -1;
                     replacement_contract_id = -1;
@@ -319,27 +335,10 @@ void PaymentsView::Render() {
             ImGui::Separator();
 
             if (ImGui::Button("ОК", ImVec2(120, 0))) {
-                if (dbManager && groupKosguId != -1) {
-                     for (const auto& payment : filtered_payments) {
-                        auto details = dbManager->getPaymentDetails(payment.id);
-                        double sum_of_details = 0.0;
-                        for (const auto& detail : details) {
-                            sum_of_details += detail.amount;
-                        }
-                        double remaining_amount = payment.amount - sum_of_details;
-                        if (remaining_amount > 0.009) {
-                            PaymentDetail newDetail;
-                            newDetail.payment_id = payment.id;
-                            newDetail.amount = remaining_amount;
-                            newDetail.kosgu_id = groupKosguId;
-                            newDetail.contract_id = -1;
-                            newDetail.invoice_id = -1;
-                            dbManager->addPaymentDetail(newDetail);
-                        }
-                    }
-                    if(selectedPaymentIndex != -1) { 
-                        paymentDetails = dbManager->getPaymentDetails(selectedPayment.id); 
-                    }
+                if (dbManager && groupKosguId != -1 && !filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = filtered_payments;
+                    processed_items = 0;
+                    current_operation = ADD_KOSGU;
                 }
                 show_add_kosgu_popup = false;
                 ImGui::CloseCurrentPopup();
@@ -391,31 +390,17 @@ void PaymentsView::Render() {
             ImGui::Separator();
 
             if (ImGui::Button("ОК", ImVec2(120, 0))) {
-                if (dbManager) {
-                    std::vector<int> payment_ids;
-                    for (const auto& p : filtered_payments) {
-                        payment_ids.push_back(p.id);
-                    }
-
-                    std::string field_to_update;
+                if (dbManager && !filtered_payments.empty() && current_operation == NONE) {
+                    
                     int new_id = -1;
+                    if (replacement_target == 0) new_id = replacement_kosgu_id;
+                    else if (replacement_target == 1) new_id = replacement_contract_id;
+                    else new_id = replacement_invoice_id;
 
-                    if (replacement_target == 0) {
-                        field_to_update = "kosgu_id";
-                        new_id = replacement_kosgu_id;
-                    } else if (replacement_target == 1) {
-                        field_to_update = "contract_id";
-                        new_id = replacement_contract_id;
-                    } else {
-                        field_to_update = "invoice_id";
-                        new_id = replacement_invoice_id;
-                    }
-
-                    if (new_id != -1 && !payment_ids.empty()) {
-                        dbManager->bulkUpdatePaymentDetails(payment_ids, field_to_update, new_id);
-                        if(selectedPaymentIndex != -1) { // Refresh details if a payment is selected
-                            paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
-                        }
+                    if (new_id != -1) {
+                        items_to_process = filtered_payments;
+                        processed_items = 0;
+                        current_operation = REPLACE;
                     }
                 }
                 show_replace_popup = false;
@@ -785,4 +770,73 @@ void PaymentsView::Render() {
         ImGui::EndChild();
     }
     ImGui::End();
+}
+
+void PaymentsView::ProcessGroupOperation() {
+    if (!dbManager || current_operation == NONE || items_to_process.empty()) {
+        return;
+    }
+
+    const int items_per_frame = 20;
+    int processed_in_frame = 0;
+
+    while (processed_items < items_to_process.size() && processed_in_frame < items_per_frame) {
+        const auto& payment = items_to_process[processed_items];
+
+        switch (current_operation) {
+            case ADD_KOSGU: {
+                auto details = dbManager->getPaymentDetails(payment.id);
+                double sum_of_details = 0.0;
+                for (const auto& detail : details) {
+                    sum_of_details += detail.amount;
+                }
+                double remaining_amount = payment.amount - sum_of_details;
+                if (remaining_amount > 0.009 && groupKosguId != -1) {
+                    PaymentDetail newDetail;
+                    newDetail.payment_id = payment.id;
+                    newDetail.amount = remaining_amount;
+                    newDetail.kosgu_id = groupKosguId;
+                    newDetail.contract_id = -1;
+                    newDetail.invoice_id = -1;
+                    dbManager->addPaymentDetail(newDetail);
+                }
+                break;
+            }
+            case REPLACE: {
+                 std::string field_to_update;
+                 int new_id = -1;
+                 if (replacement_target == 0) { field_to_update = "kosgu_id"; new_id = replacement_kosgu_id; }
+                 else if (replacement_target == 1) { field_to_update = "contract_id"; new_id = replacement_contract_id; }
+                 else { field_to_update = "invoice_id"; new_id = replacement_invoice_id; }
+                
+                 if(new_id != -1) {
+                    // We can't use the bulk update here easily with chunking, 
+                    // so we update payment by payment.
+                    dbManager->bulkUpdatePaymentDetails({payment.id}, field_to_update, new_id);
+                 }
+                break;
+            }
+            case DELETE_DETAILS: {
+                dbManager->deleteAllPaymentDetails(payment.id);
+                break;
+            }
+            case NONE:
+                break;
+        }
+
+        processed_items++;
+        processed_in_frame++;
+    }
+
+    if (processed_items >= items_to_process.size()) {
+        // Operation finished
+        current_operation = NONE;
+        processed_items = 0;
+        items_to_process.clear();
+        
+        // Refresh details of currently selected payment if any
+        if(selectedPaymentIndex != -1) {
+             paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+        }
+    }
 }
