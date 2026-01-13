@@ -136,19 +136,42 @@ void KosguView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            SaveChanges();
-            if (!isAdding && selectedKosguIndex != -1 && dbManager) {
-                dbManager->deleteKosguEntry(
-                    kosguEntries[selectedKosguIndex].id);
-                RefreshData();
-                selectedKosgu = Kosgu{};
-                originalKosgu = Kosgu{};
+            if (!isAdding && selectedKosguIndex != -1) {
+                kosgu_id_to_delete = kosguEntries[selectedKosguIndex].id;
+                show_delete_popup = true;
             }
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
             SaveChanges();
             RefreshData();
+        }
+
+        if (show_delete_popup) {
+            ImGui::OpenPopup("Подтверждение удаления##Kosgu");
+        }
+        if (ImGui::BeginPopupModal("Подтверждение удаления##Kosgu", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить эту запись КОСГУ?\nЭто действие нельзя отменить.");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (dbManager && kosgu_id_to_delete != -1) {
+                    dbManager->deleteKosguEntry(kosgu_id_to_delete);
+                    RefreshData();
+                    selectedKosgu = Kosgu{};
+                    originalKosgu = Kosgu{};
+                }
+                kosgu_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                kosgu_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         ImGui::Separator();

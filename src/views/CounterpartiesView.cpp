@@ -142,19 +142,42 @@ void CounterpartiesView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            SaveChanges();
-            if (!isAdding && selectedCounterpartyIndex != -1 && dbManager) {
-                dbManager->deleteCounterparty(
-                    counterparties[selectedCounterpartyIndex].id);
-                RefreshData();
-                selectedCounterparty = Counterparty{};
-                originalCounterparty = Counterparty{};
+            if (!isAdding && selectedCounterpartyIndex != -1) {
+                counterparty_id_to_delete = counterparties[selectedCounterpartyIndex].id;
+                show_delete_popup = true;
             }
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
             SaveChanges();
             RefreshData();
+        }
+
+        if (show_delete_popup) {
+            ImGui::OpenPopup("Подтверждение удаления##Counterparty");
+        }
+        if (ImGui::BeginPopupModal("Подтверждение удаления##Counterparty", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить этого контрагента?\nЭто действие нельзя отменить.");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (dbManager && counterparty_id_to_delete != -1) {
+                    dbManager->deleteCounterparty(counterparty_id_to_delete);
+                    RefreshData();
+                    selectedCounterparty = Counterparty{};
+                    originalCounterparty = Counterparty{};
+                }
+                counterparty_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                counterparty_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         ImGui::Separator();

@@ -27,6 +27,8 @@ private:
     bool showEditModal;
     bool isAdding;
     bool isDirty = false;
+    bool show_delete_popup = false;
+    int contract_id_to_delete = -1;
 
     std::vector<ContractPaymentInfo> payment_info;
     std::vector<Counterparty> counterpartiesForDropdown;

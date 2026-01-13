@@ -23,5 +23,7 @@ private:
     int selectedRegexIndex;
     bool isAdding;
     bool isDirty = false;
+    bool show_delete_popup = false;
+    int regex_id_to_delete = -1;
     char filterText[256];
 };

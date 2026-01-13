@@ -159,12 +159,9 @@ void InvoicesView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            SaveChanges();
-            if (!isAdding && selectedInvoiceIndex != -1 && dbManager) {
-                dbManager->deleteInvoice(invoices[selectedInvoiceIndex].id);
-                RefreshData();
-                selectedInvoice = Invoice{};
-                originalInvoice = Invoice{};
+            if (!isAdding && selectedInvoiceIndex != -1) {
+                invoice_id_to_delete = invoices[selectedInvoiceIndex].id;
+                show_delete_popup = true;
             }
         }
         ImGui::SameLine();
@@ -172,6 +169,33 @@ void InvoicesView::Render() {
             SaveChanges();
             RefreshData();
             RefreshDropdownData();
+        }
+
+        if (show_delete_popup) {
+            ImGui::OpenPopup("Подтверждение удаления##Invoice");
+        }
+        if (ImGui::BeginPopupModal("Подтверждение удаления##Invoice", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить эту накладную?\nЭто действие нельзя отменить.");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (dbManager && invoice_id_to_delete != -1) {
+                    dbManager->deleteInvoice(invoice_id_to_delete);
+                    RefreshData();
+                    selectedInvoice = Invoice{};
+                    originalInvoice = Invoice{};
+                }
+                invoice_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                invoice_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         ImGui::Separator();

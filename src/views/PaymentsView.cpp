@@ -196,6 +196,28 @@ void PaymentsView::Render() {
             RefreshDropdownData();
         }
 
+        // Create filtered list once so it's available to all subsequent UI
+        std::vector<Payment> filtered_payments;
+        if (filterText[0] != '\0') {
+            for (const auto& p : payments) {
+                bool match_found = false;
+                if (strcasestr(p.date.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found && strcasestr(p.doc_number.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found && strcasestr(p.description.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found && strcasestr(p.recipient.c_str(), filterText) != nullptr) match_found = true;
+                if (!match_found) {
+                    char amount_str[32];
+                    snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
+                    if (strcasestr(amount_str, filterText) != nullptr) match_found = true;
+                }
+                if (match_found) {
+                    filtered_payments.push_back(p);
+                }
+            }
+        } else {
+            filtered_payments = payments;
+        }
+
         // --- Progress Bar Popup ---
         if (current_operation != NONE) {
             ImGui::OpenPopup("Выполнение операции...");
@@ -234,16 +256,9 @@ void PaymentsView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            SaveChanges();
-            SaveDetailChanges();
-            if (!isAdding && selectedPaymentIndex != -1 && dbManager) {
-                dbManager->deletePayment(payments[selectedPaymentIndex].id);
-                RefreshData();
-                selectedPayment = Payment{};
-                originalPayment = Payment{};
-                descriptionBuffer.clear();
-                paymentDetails.clear();
-                isDirty = false;
+            if (!isAdding && selectedPaymentIndex != -1) {
+                payment_id_to_delete = payments[selectedPaymentIndex].id;
+                show_delete_payment_popup = true;
             }
         }
         ImGui::SameLine();
@@ -254,34 +269,68 @@ void PaymentsView::Render() {
             RefreshDropdownData();
         }
 
+        // --- Delete Confirmation Popups ---
+        if (show_delete_payment_popup) {
+            ImGui::OpenPopup("Подтверждение удаления");
+        }
+        if (ImGui::BeginPopupModal("Подтверждение удаления", &show_delete_payment_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить этот платеж?\nЭто действие нельзя отменить.");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (dbManager && payment_id_to_delete != -1) {
+                    dbManager->deletePayment(payment_id_to_delete);
+                    RefreshData();
+                    selectedPayment = Payment{};
+                    originalPayment = Payment{};
+                    descriptionBuffer.clear();
+                    paymentDetails.clear();
+                    isDirty = false;
+                }
+                payment_id_to_delete = -1;
+                show_delete_payment_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                payment_id_to_delete = -1;
+                show_delete_payment_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+        
+        if (show_group_delete_popup) {
+            ImGui::OpenPopup("Удалить все расшифровки?");
+        }
+        if (ImGui::BeginPopupModal("Удалить все расшифровки?", &show_group_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить расшифровки для %zu платежей?", filtered_payments.size());
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (!filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = filtered_payments;
+                    processed_items = 0;
+                    current_operation = DELETE_DETAILS;
+                }
+                show_group_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                show_group_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
+
         ImGui::Separator();
 
         ImGui::InputText("Общий фильтр", filterText, sizeof(filterText));
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK)) {
             filterText[0] = '\0';
-        }
-
-        // Create filtered list once
-        std::vector<Payment> filtered_payments;
-        if (filterText[0] != '\0') {
-            for (const auto& p : payments) {
-                bool match_found = false;
-                if (strcasestr(p.date.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found && strcasestr(p.doc_number.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found && strcasestr(p.description.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found && strcasestr(p.recipient.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found) {
-                    char amount_str[32];
-                    snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
-                    if (strcasestr(amount_str, filterText) != nullptr) match_found = true;
-                }
-                if (match_found) {
-                    filtered_payments.push_back(p);
-                }
-            }
-        } else {
-            filtered_payments = payments;
         }
 
         if (ImGui::CollapsingHeader("Групповые операции")) {
@@ -296,9 +345,7 @@ void PaymentsView::Render() {
             ImGui::SameLine();
             if (ImGui::Button("Удалить расшифровки у отфильтрованных")) {
                 if (!filtered_payments.empty() && current_operation == NONE) {
-                    items_to_process = filtered_payments;
-                    processed_items = 0;
-                    current_operation = DELETE_DETAILS;
+                    show_group_delete_popup = true;
                 }
             }
             ImGui::SameLine();
@@ -600,6 +647,33 @@ void PaymentsView::Render() {
 
         // --- Расшифровка платежа ---
         ImGui::BeginChild("PaymentDetailsContainer", ImVec2(0, 0), true);
+        if (show_delete_detail_popup) {
+            ImGui::OpenPopup("Удалить расшифровку?");
+        }
+        if (ImGui::BeginPopupModal("Удалить расшифровку?", &show_delete_detail_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить эту расшифровку?");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                 if (dbManager && detail_id_to_delete != -1) {
+                    dbManager->deletePaymentDetail(detail_id_to_delete);
+                    paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                    selectedDetailIndex = -1;
+                    isDetailDirty = false;
+                 }
+                detail_id_to_delete = -1;
+                show_delete_detail_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                detail_id_to_delete = -1;
+                show_delete_detail_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+
         ImGui::Text("Расшифровка платежа");
 
         if (selectedPaymentIndex != -1) {
@@ -627,14 +701,10 @@ void PaymentsView::Render() {
             }
             ImGui::SameLine();
             if (ImGui::Button(ICON_FA_TRASH " Удалить деталь") &&
-                selectedDetailIndex != -1 && dbManager) {
+                selectedDetailIndex != -1) {
                 SaveDetailChanges();
-                dbManager->deletePaymentDetail(
-                    paymentDetails[selectedDetailIndex].id);
-                paymentDetails = dbManager->getPaymentDetails(
-                    selectedPayment.id); // Refresh details
-                selectedDetailIndex = -1;
-                isDetailDirty = false;
+                detail_id_to_delete = paymentDetails[selectedDetailIndex].id;
+                show_delete_detail_popup = true;
             }
             ImGui::SameLine();
             if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить детали") &&

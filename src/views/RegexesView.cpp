@@ -99,18 +99,42 @@ void RegexesView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            SaveChanges();
-            if (!isAdding && selectedRegexIndex != -1 && dbManager) {
-                dbManager->deleteRegex(regexes[selectedRegexIndex].id);
-                RefreshData();
-                selectedRegex = Regex{};
-                originalRegex = Regex{};
+            if (!isAdding && selectedRegexIndex != -1) {
+                regex_id_to_delete = regexes[selectedRegexIndex].id;
+                show_delete_popup = true;
             }
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
             SaveChanges();
             RefreshData();
+        }
+
+        if (show_delete_popup) {
+            ImGui::OpenPopup("Подтверждение удаления##Regex");
+        }
+        if (ImGui::BeginPopupModal("Подтверждение удаления##Regex", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить это выражение?\nЭто действие нельзя отменить.");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (dbManager && regex_id_to_delete != -1) {
+                    dbManager->deleteRegex(regex_id_to_delete);
+                    RefreshData();
+                    selectedRegex = Regex{};
+                    originalRegex = Regex{};
+                }
+                regex_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                regex_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         ImGui::Separator();

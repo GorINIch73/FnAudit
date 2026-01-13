@@ -72,6 +72,13 @@ private:
     char replacement_contract_filter[256]{};
     char replacement_invoice_filter[256]{};
 
+    // For delete confirmation popups
+    bool show_delete_payment_popup = false;
+    bool show_delete_detail_popup = false;
+    bool show_group_delete_popup = false;
+    int payment_id_to_delete = -1;
+    int detail_id_to_delete = -1;
+
     // For chunked group operations with progress bar
     enum GroupOperationType {
         NONE,

@@ -159,12 +159,9 @@ void ContractsView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            SaveChanges();
-            if (!isAdding && selectedContractIndex != -1 && dbManager) {
-                dbManager->deleteContract(contracts[selectedContractIndex].id);
-                RefreshData();
-                selectedContract = Contract{};
-                originalContract = Contract{};
+            if (!isAdding && selectedContractIndex != -1) {
+                contract_id_to_delete = contracts[selectedContractIndex].id;
+                show_delete_popup = true;
             }
         }
         ImGui::SameLine();
@@ -172,6 +169,33 @@ void ContractsView::Render() {
             SaveChanges();
             RefreshData();
             RefreshDropdownData();
+        }
+
+        if (show_delete_popup) {
+            ImGui::OpenPopup("Подтверждение удаления##Contract");
+        }
+        if (ImGui::BeginPopupModal("Подтверждение удаления##Contract", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить этот договор?\nЭто действие нельзя отменить.");
+            ImGui::Separator();
+            if (ImGui::Button("Да", ImVec2(120, 0))) {
+                if (dbManager && contract_id_to_delete != -1) {
+                    dbManager->deleteContract(contract_id_to_delete);
+                    RefreshData();
+                    selectedContract = Contract{};
+                    originalContract = Contract{};
+                }
+                contract_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Нет", ImVec2(120, 0))) {
+                contract_id_to_delete = -1;
+                show_delete_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         ImGui::Separator();

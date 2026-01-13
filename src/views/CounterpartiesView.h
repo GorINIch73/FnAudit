@@ -25,6 +25,8 @@ private:
     bool showEditModal;
     bool isAdding;
     bool isDirty = false;
+    bool show_delete_popup = false;
+    int counterparty_id_to_delete = -1;
     std::vector<ContractPaymentInfo> payment_info;
     char filterText[256];
     float list_view_height = 200.0f;
