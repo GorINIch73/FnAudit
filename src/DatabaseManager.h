@@ -67,15 +67,15 @@ public:
     bool updatePaymentDetail(const PaymentDetail& detail);
     bool deletePaymentDetail(int id);
     bool deleteAllPaymentDetails(int payment_id);
+    bool bulkUpdatePaymentDetails(const std::vector<int>& payment_ids, const std::string& field_to_update, int new_id);
 
-    // Generic SQL query execution for SELECT statements
-    bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);
-
-    // Regex
+    // Regex CRUD
     std::vector<Regex> getRegexes();
     bool addRegex(Regex& regex);
     bool updateRegex(const Regex& regex);
     bool deleteRegex(int id);
+    
+    bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);
 
 private:
     bool execute(const std::string& sql);

@@ -1254,6 +1254,49 @@ bool DatabaseManager::deleteAllPaymentDetails(int payment_id) {
     return true;
 }
 
+bool DatabaseManager::bulkUpdatePaymentDetails(const std::vector<int>& payment_ids, const std::string& field_to_update, int new_id) {
+    if (!db || payment_ids.empty()) {
+        return false;
+    }
+
+    // Basic validation to prevent SQL injection
+    if (field_to_update != "kosgu_id" && field_to_update != "contract_id" && field_to_update != "invoice_id") {
+        std::cerr << "Invalid field to update: " << field_to_update << std::endl;
+        return false;
+    }
+
+    std::string sql = "UPDATE PaymentDetails SET " + field_to_update + " = ? WHERE payment_id IN (";
+    for (size_t i = 0; i < payment_ids.size(); ++i) {
+        sql += (i == 0 ? "?" : ",?");
+    }
+    sql += ");";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for bulk update: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+
+    // Bind the new_id for the SET part
+    sqlite3_bind_int(stmt, 1, new_id);
+
+    // Bind all payment_ids for the IN clause
+    for (size_t i = 0; i < payment_ids.size(); ++i) {
+        sqlite3_bind_int(stmt, i + 2, payment_ids[i]);
+    }
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to execute bulk update: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
 // Regex CRUD
 static int regex_select_callback(void *data, int argc, char **argv,
                                  char **azColName) {

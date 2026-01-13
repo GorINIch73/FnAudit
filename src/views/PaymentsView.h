@@ -61,6 +61,16 @@ private:
     char groupContractFilter[256];
     char groupInvoiceFilter[256];
 
+    // Bulk replace operations
+    bool show_replace_popup = false;
+    int replacement_target = 0; // 0 for KOSGU, 1 for Contract, 2 for Invoice
+    int replacement_kosgu_id = -1;
+    int replacement_contract_id = -1;
+    int replacement_invoice_id = -1;
+    char replacement_kosgu_filter[256]{};
+    char replacement_contract_filter[256]{};
+    char replacement_invoice_filter[256]{};
+
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
 };

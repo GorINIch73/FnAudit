@@ -323,6 +323,97 @@ void PaymentsView::Render() {
                     }
                 }
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Заменить")) {
+                if (!filtered_payments.empty()) {
+                    show_replace_popup = true;
+                    // Reset state
+                    replacement_target = 0;
+                    replacement_kosgu_id = -1;
+                    replacement_contract_id = -1;
+                    replacement_invoice_id = -1;
+                    memset(replacement_kosgu_filter, 0, sizeof(replacement_kosgu_filter));
+                    memset(replacement_contract_filter, 0, sizeof(replacement_contract_filter));
+                    memset(replacement_invoice_filter, 0, sizeof(replacement_invoice_filter));
+                }
+            }
+        }
+
+        if (show_replace_popup) {
+            ImGui::OpenPopup("Замена в расшифровках");
+        }
+
+        if (ImGui::BeginPopupModal("Замена в расшифровках", &show_replace_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Заменить во всех расшифровках для %zu отфильтрованных платежей:", filtered_payments.size());
+            
+            ImGui::Separator();
+
+            ImGui::RadioButton("КОСГУ", &replacement_target, 0); ImGui::SameLine();
+            ImGui::RadioButton("Договор", &replacement_target, 1); ImGui::SameLine();
+            ImGui::RadioButton("Накладную", &replacement_target, 2);
+
+            ImGui::Separator();
+
+            if (replacement_target == 0) {
+                std::vector<CustomWidgets::ComboItem> kosguItems;
+                for (const auto &k : kosguForDropdown) {
+                    kosguItems.push_back({k.id, k.code + " " + k.name});
+                }
+                CustomWidgets::ComboWithFilter("Новый КОСГУ", replacement_kosgu_id, kosguItems, replacement_kosgu_filter, sizeof(replacement_kosgu_filter), 0);
+            } else if (replacement_target == 1) {
+                std::vector<CustomWidgets::ComboItem> contractItems;
+                for (const auto &c : contractsForDropdown) {
+                    contractItems.push_back({c.id, c.number + " " + c.date});
+                }
+                CustomWidgets::ComboWithFilter("Новый Договор", replacement_contract_id, contractItems, replacement_contract_filter, sizeof(replacement_contract_filter), 0);
+            } else {
+                std::vector<CustomWidgets::ComboItem> invoiceItems;
+                for (const auto &i : invoicesForDropdown) {
+                    invoiceItems.push_back({i.id, i.number + " " + i.date});
+                }
+                CustomWidgets::ComboWithFilter("Новая Накладная", replacement_invoice_id, invoiceItems, replacement_invoice_filter, sizeof(replacement_invoice_filter), 0);
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::Button("ОК", ImVec2(120, 0))) {
+                if (dbManager) {
+                    std::vector<int> payment_ids;
+                    for (const auto& p : filtered_payments) {
+                        payment_ids.push_back(p.id);
+                    }
+
+                    std::string field_to_update;
+                    int new_id = -1;
+
+                    if (replacement_target == 0) {
+                        field_to_update = "kosgu_id";
+                        new_id = replacement_kosgu_id;
+                    } else if (replacement_target == 1) {
+                        field_to_update = "contract_id";
+                        new_id = replacement_contract_id;
+                    } else {
+                        field_to_update = "invoice_id";
+                        new_id = replacement_invoice_id;
+                    }
+
+                    if (new_id != -1 && !payment_ids.empty()) {
+                        dbManager->bulkUpdatePaymentDetails(payment_ids, field_to_update, new_id);
+                        if(selectedPaymentIndex != -1) { // Refresh details if a payment is selected
+                            paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                        }
+                    }
+                }
+                show_replace_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Отмена", ImVec2(120, 0))) {
+                show_replace_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         // --- Список платежей ---
