@@ -265,51 +265,13 @@ void PaymentsView::Render() {
         }
 
         if (ImGui::CollapsingHeader("Групповые операции")) {
-            // KOSGU Dropdown
-            std::vector<CustomWidgets::ComboItem> kosguItems;
-            for (const auto &k : kosguForDropdown) {
-                kosguItems.push_back({k.id, k.code + " " + k.name});
-            }
-            CustomWidgets::ComboWithFilter("КОСГУ", groupKosguId, kosguItems, groupKosguFilter, sizeof(groupKosguFilter), 0);
-            
-            // Contract Dropdown
-            std::vector<CustomWidgets::ComboItem> contractItems;
-            for (const auto &c : contractsForDropdown) {
-                contractItems.push_back({c.id, c.number + " " + c.date});
-            }
-            CustomWidgets::ComboWithFilter("Договор", groupContractId, contractItems, groupContractFilter, sizeof(groupContractFilter), 0);
 
-            // Invoice Dropdown
-            std::vector<CustomWidgets::ComboItem> invoiceItems;
-            for (const auto &i : invoicesForDropdown) {
-                invoiceItems.push_back({i.id, i.number + " " + i.date});
-            }
-            CustomWidgets::ComboWithFilter("Накладная", groupInvoiceId, invoiceItems, groupInvoiceFilter, sizeof(groupInvoiceFilter), 0);
-
-            if (ImGui::Button("Применить к отфильтрованным")) {
-                if (dbManager) {
-                    for (const auto& payment : filtered_payments) {
-                        auto details = dbManager->getPaymentDetails(payment.id);
-                        double sum_of_details = 0.0;
-                        for (const auto& detail : details) {
-                            sum_of_details += detail.amount;
-                        }
-                        double remaining_amount = payment.amount - sum_of_details;
-                        if (remaining_amount > 0.009) { // Check for more than a kopek
-                            PaymentDetail newDetail;
-                            newDetail.payment_id = payment.id;
-                            newDetail.amount = remaining_amount;
-                            newDetail.kosgu_id = groupKosguId;
-                            newDetail.contract_id = groupContractId;
-                            newDetail.invoice_id = groupInvoiceId;
-                            dbManager->addPaymentDetail(newDetail);
-                        }
-                    }
-                    // Refresh data to show changes
-                    if(selectedPaymentIndex != -1) {
-                         paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
-                    }
-                }
+            if (ImGui::Button("Добавить расшифровку по КОСГУ")) {
+                 if (!filtered_payments.empty()) {
+                    show_add_kosgu_popup = true;
+                    groupKosguId = -1;
+                    memset(groupKosguFilter, 0, sizeof(groupKosguFilter));
+                 }
             }
             ImGui::SameLine();
             if (ImGui::Button("Удалить расшифровки у отфильтрованных")) {
@@ -337,6 +299,57 @@ void PaymentsView::Render() {
                     memset(replacement_invoice_filter, 0, sizeof(replacement_invoice_filter));
                 }
             }
+        }
+
+        if (show_add_kosgu_popup) {
+            ImGui::OpenPopup("Добавление расшифровки по КОСГУ");
+        }
+
+        if (ImGui::BeginPopupModal("Добавление расшифровки по КОСГУ", &show_add_kosgu_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Добавить расшифровку с КОСГУ для %zu отфильтрованных платежей:", filtered_payments.size());
+            ImGui::Separator();
+
+            std::vector<CustomWidgets::ComboItem> kosguItems;
+            for (const auto &k : kosguForDropdown) {
+                kosguItems.push_back({k.id, k.code + " " + k.name});
+            }
+            CustomWidgets::ComboWithFilter("КОСГУ", groupKosguId, kosguItems, groupKosguFilter, sizeof(groupKosguFilter), 0);
+            
+            ImGui::Separator();
+
+            if (ImGui::Button("ОК", ImVec2(120, 0))) {
+                if (dbManager && groupKosguId != -1) {
+                     for (const auto& payment : filtered_payments) {
+                        auto details = dbManager->getPaymentDetails(payment.id);
+                        double sum_of_details = 0.0;
+                        for (const auto& detail : details) {
+                            sum_of_details += detail.amount;
+                        }
+                        double remaining_amount = payment.amount - sum_of_details;
+                        if (remaining_amount > 0.009) {
+                            PaymentDetail newDetail;
+                            newDetail.payment_id = payment.id;
+                            newDetail.amount = remaining_amount;
+                            newDetail.kosgu_id = groupKosguId;
+                            newDetail.contract_id = -1;
+                            newDetail.invoice_id = -1;
+                            dbManager->addPaymentDetail(newDetail);
+                        }
+                    }
+                    if(selectedPaymentIndex != -1) { 
+                        paymentDetails = dbManager->getPaymentDetails(selectedPayment.id); 
+                    }
+                }
+                show_add_kosgu_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Отмена", ImVec2(120, 0))) {
+                show_add_kosgu_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
         if (show_replace_popup) {

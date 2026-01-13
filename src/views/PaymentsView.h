@@ -63,6 +63,7 @@ private:
 
     // Bulk replace operations
     bool show_replace_popup = false;
+    bool show_add_kosgu_popup = false;
     int replacement_target = 0; // 0 for KOSGU, 1 for Contract, 2 for Invoice
     int replacement_kosgu_id = -1;
     int replacement_contract_id = -1;
