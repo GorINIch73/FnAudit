@@ -91,12 +91,20 @@ private:
         NONE,
         ADD_KOSGU,
         REPLACE,
-        DELETE_DETAILS
+        DELETE_DETAILS,
+        APPLY_REGEX
     };
     GroupOperationType current_operation = NONE;
     int processed_items = 0;
     std::vector<Payment> items_to_process;
     void ProcessGroupOperation();
+
+    // State for "Apply Regex" popup
+    bool show_apply_regex_popup = false;
+    int regex_target = 0; // 0 for Contract, 1 for Invoice
+    int selected_regex_id = -1;
+    char regex_filter[128]{};
+    std::vector<Regex> regexesForDropdown;
 
     float list_view_height = 200.0f;
     float editor_width = 400.0f;

@@ -363,10 +363,59 @@ void PaymentsView::Render() {
                     memset(replacement_invoice_filter, 0, sizeof(replacement_invoice_filter));
                 }
             }
+            ImGui::SameLine();
+            if (ImGui::Button("Определить по regex")) {
+                if (!filtered_payments.empty() && current_operation == NONE) {
+                    show_apply_regex_popup = true;
+                    // Reset state
+                    regex_target = 0;
+                    selected_regex_id = -1;
+                    memset(regex_filter, 0, sizeof(regex_filter));
+                    if (dbManager) {
+                        regexesForDropdown = dbManager->getRegexes();
+                    }
+                }
+            }
         }
 
         if (show_add_kosgu_popup) {
             ImGui::OpenPopup("Добавление расшифровки по КОСГУ");
+        }
+
+        if (show_apply_regex_popup) {
+            ImGui::OpenPopup("Определить по regex");
+        }
+        if (ImGui::BeginPopupModal("Определить по regex", &show_apply_regex_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Применить regex для %zu отфильтрованных платежей:", filtered_payments.size());
+            ImGui::Text("Будет обновлена первая расшифровка без установленного значения.");
+            
+            ImGui::Separator();
+            ImGui::RadioButton("Договор", &regex_target, 0); ImGui::SameLine();
+            ImGui::RadioButton("Накладная", &regex_target, 1);
+            ImGui::Separator();
+
+            std::vector<CustomWidgets::ComboItem> regexItems;
+            for (const auto &r : regexesForDropdown) {
+                regexItems.push_back({r.id, r.name});
+            }
+            CustomWidgets::ComboWithFilter("Выбор Regex", selected_regex_id, regexItems, regex_filter, sizeof(regex_filter), 0);
+
+            ImGui::Separator();
+            if (ImGui::Button("Найти и проставить", ImVec2(120, 0))) {
+                 if (dbManager && selected_regex_id != -1 && !filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = filtered_payments;
+                    processed_items = 0;
+                    current_operation = APPLY_REGEX;
+                }
+                show_apply_regex_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Отмена", ImVec2(120, 0))) {
+                show_apply_regex_popup = false;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
 
 
@@ -986,6 +1035,70 @@ void PaymentsView::ProcessGroupOperation() {
             }
             case DELETE_DETAILS: {
                 dbManager->deleteAllPaymentDetails(payment.id);
+                break;
+            }
+            case APPLY_REGEX: {
+                auto it = std::find_if(regexesForDropdown.begin(), regexesForDropdown.end(), [&](const Regex& r){ return r.id == selected_regex_id; });
+                if (it != regexesForDropdown.end()) {
+                    try {
+                        std::regex re(it->pattern);
+                        std::smatch match;
+                        if (std::regex_search(payment.description, match, re) && match.size() > 2) {
+                            std::string number = match[1].str();
+                            std::string date = match[2].str();
+                            
+                            number.erase(number.find_last_not_of(" \n\r\t")+1);
+                            number.erase(0, number.find_first_not_of(" \n\r\t"));
+                            date.erase(date.find_last_not_of(" \n\r\t")+1);
+                            date.erase(0, date.find_first_not_of(" \n\r\t"));
+
+                            int id_to_set = -1;
+                            if (regex_target == 0) { // Contract
+                                id_to_set = dbManager->getContractIdByNumberDate(number, date);
+                                if (id_to_set == -1) {
+                                    Contract new_contract = {-1, number, date, payment.counterparty_id, 0.0};
+                                    id_to_set = dbManager->addContract(new_contract);
+                                }
+                            } else { // Invoice
+                                id_to_set = dbManager->getInvoiceIdByNumberDate(number, date);
+                                if (id_to_set == -1) {
+                                    Invoice new_invoice = {-1, number, date, -1, 0.0}; 
+                                    id_to_set = dbManager->addInvoice(new_invoice);
+                                }
+                            }
+
+                            if (id_to_set != -1) {
+                                auto details = dbManager->getPaymentDetails(payment.id);
+                                if (details.empty()) {
+                                    PaymentDetail newDetail;
+                                    newDetail.payment_id = payment.id;
+                                    newDetail.amount = payment.amount;
+                                    if (regex_target == 0) newDetail.contract_id = id_to_set;
+                                    else newDetail.invoice_id = id_to_set;
+                                    dbManager->addPaymentDetail(newDetail);
+                                } else {
+                                    for (auto& detail : details) {
+                                        if (regex_target == 0) { // Target is Contract
+                                            // if (detail.contract_id == -1) {
+                                                detail.contract_id = id_to_set;
+                                                dbManager->updatePaymentDetail(detail);
+                                                break; 
+                                            // }
+                                        } else { // Target is Invoice
+                                            // if (detail.invoice_id == -1) {
+                                                detail.invoice_id = id_to_set;
+                                                dbManager->updatePaymentDetail(detail);
+                                                break;
+                                            // }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } catch (const std::regex_error& e) {
+                        // Ignore regex errors in batch processing
+                    }
+                }
                 break;
             }
             case NONE:
