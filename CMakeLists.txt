@@ -68,6 +68,7 @@ set(APP_SOURCES
     src/views/SettingsView.cpp
     src/views/ImportMapView.cpp
     src/views/RegexesView.cpp
+    src/views/SelectiveCleanView.cpp
 )
 
 set_source_files_properties(src/pdfgen.c PROPERTIES LANGUAGE C)

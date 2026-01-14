@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <regex>
 
 PaymentsView::PaymentsView()
     : selectedPaymentIndex(-1),
@@ -621,6 +622,103 @@ void PaymentsView::Render() {
                     ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 8))) {
                 isDirty = true;
             }
+
+            ImGui::BeginDisabled(selectedPaymentIndex == -1);
+            if (ImGui::Button("Создать из назначения...")) {
+                show_create_from_desc_popup = true;
+                entity_to_create = 0; // Reset to contract
+                extracted_number.clear();
+                extracted_date.clear();
+                existing_entity_id = -1;
+            }
+            ImGui::EndDisabled();
+
+            if (show_create_from_desc_popup) {
+                ImGui::OpenPopup("Создать из назначения платежа");
+            }
+            if (ImGui::BeginPopupModal("Создать из назначения платежа", &show_create_from_desc_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                
+                static int last_entity_type = -1;
+                static int last_payment_id = -1;
+
+                if ( (last_entity_type != entity_to_create) || (last_payment_id != selectedPayment.id) ) {
+                    auto regexes = dbManager->getRegexes();
+                    std::string pattern_name = (entity_to_create == 0) ? "Contract" : "Invoice";
+                    
+                    auto it = std::find_if(regexes.begin(), regexes.end(), [&](const Regex& r){ return r.name == pattern_name; });
+                    if (it != regexes.end()) {
+                        try {
+                            std::regex re(it->pattern);
+                            std::smatch match;
+                            if (std::regex_search(selectedPayment.description, match, re) && match.size() > 2) {
+                                extracted_number = match[1].str();
+                                extracted_date = match[2].str();
+
+                                if (entity_to_create == 0) { // Contract
+                                    existing_entity_id = dbManager->getContractIdByNumberDate(extracted_number, extracted_date);
+                                } else { // Invoice
+                                    existing_entity_id = dbManager->getInvoiceIdByNumberDate(extracted_number, extracted_date);
+                                }
+
+                            } else {
+                                extracted_number.clear();
+                                extracted_date.clear();
+                                existing_entity_id = -1;
+                            }
+                        } catch (const std::regex_error& e) {
+                             extracted_number = "Regex Error";
+                             extracted_date = e.what();
+                             existing_entity_id = -1;
+                        }
+                    }
+                    last_entity_type = entity_to_create;
+                    last_payment_id = selectedPayment.id;
+                }
+
+                ImGui::Text("Назначение: %s", selectedPayment.description.c_str());
+                ImGui::Separator();
+                ImGui::RadioButton("Договор", &entity_to_create, 0); ImGui::SameLine();
+                ImGui::RadioButton("Накладная", &entity_to_create, 1);
+                ImGui::Separator();
+                
+                ImGui::Text("Номер: %s", extracted_number.c_str());
+                ImGui::Text("Дата:  %s", extracted_date.c_str());
+
+                double remaining_amount = 0.0;
+                if (dbManager) {
+                     double sum_of_details = 0.0;
+                    for (const auto& detail : paymentDetails) {
+                        sum_of_details += detail.amount;
+                    }
+                    remaining_amount = selectedPayment.amount - sum_of_details;
+                }
+
+                if (existing_entity_id != -1) {
+                    ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Подсказка: Такой %s уже существует.", (entity_to_create == 0 ? "договор" : "документ"));
+                }
+                                            if (ImGui::Button("Создать")) {
+                                                int new_id = -1;
+                                                if (entity_to_create == 0) { // Contract
+                                                    Contract new_contract = {-1, extracted_number, extracted_date, selectedPayment.counterparty_id, 0.0};
+                                                    new_id = dbManager->addContract(new_contract);
+                                                } else { // Invoice
+                                                    Invoice new_invoice = {-1, extracted_number, extracted_date, -1, 0.0}; // Don't know contract ID yet
+                                                    new_id = dbManager->addInvoice(new_invoice);
+                                                }
+                    
+                                                show_create_from_desc_popup = false;
+                                                ImGui::CloseCurrentPopup();
+                                                            }
+
+                ImGui::SameLine();
+                if (ImGui::Button("Отмена")) {
+                    show_create_from_desc_popup = false;
+                    ImGui::CloseCurrentPopup();
+                }
+
+                ImGui::EndPopup();
+            }
+
 
             if (!counterpartiesForDropdown.empty()) {
                 std::vector<CustomWidgets::ComboItem> counterpartyItems;

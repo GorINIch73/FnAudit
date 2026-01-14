@@ -21,6 +21,7 @@
 #include "views/SettingsView.h"
 #include "views/ImportMapView.h"
 #include "views/RegexesView.h"
+#include "views/SelectiveCleanView.h"
 
 struct GLFWwindow;
 class ImportManager;
@@ -51,7 +52,7 @@ public:
 
         std::string title = std::string(view->GetTitle());
         // Only add a unique ID if it's not a singleton view like Settings or ImportMap
-        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView>) {
+        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView> && !std::is_same_v<T, SelectiveCleanView>) {
              title += "###" + std::to_string(viewIdCounter++);
         }
         view->SetTitle(title);

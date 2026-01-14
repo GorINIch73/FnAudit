@@ -41,14 +41,14 @@ public:
     bool deleteCounterparty(int id);
     std::vector<ContractPaymentInfo> getPaymentInfoForCounterparty(int counterparty_id);
 
-    bool addContract(Contract& contract); // Pass by reference to get the id back
+    int addContract(Contract& contract); // Pass by reference to get the id back
     int getContractIdByNumberDate(const std::string& number, const std::string& date);
     std::vector<Contract> getContracts();
     bool updateContract(const Contract& contract);
     bool deleteContract(int id);
     std::vector<ContractPaymentInfo> getPaymentInfoForContract(int contract_id);
 
-    bool addInvoice(Invoice& invoice); // Pass by reference to get the id back
+    int addInvoice(Invoice& invoice); // Pass by reference to get the id back
     int getInvoiceIdByNumberDate(const std::string& number, const std::string& date);
     std::vector<Invoice> getInvoices();
     bool updateInvoice(const Invoice& invoice);
@@ -74,6 +74,13 @@ public:
     bool addRegex(Regex& regex);
     bool updateRegex(const Regex& regex);
     bool deleteRegex(int id);
+
+    // Maintenance methods
+    bool ClearPayments();
+    bool ClearCounterparties();
+    bool ClearContracts();
+    bool ClearInvoices();
+    bool CleanOrphanPaymentDetails();
     
     bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);
 

@@ -520,9 +520,9 @@ DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
 }
 
 // Contract CRUD
-bool DatabaseManager::addContract(Contract &contract) {
+int DatabaseManager::addContract(Contract &contract) {
     if (!db)
-        return false;
+        return -1;
     std::string sql = "INSERT INTO Contracts (number, date, counterparty_id) "
                       "VALUES (?, ?, ?);";
     sqlite3_stmt *stmt = nullptr;
@@ -530,7 +530,7 @@ bool DatabaseManager::addContract(Contract &contract) {
     if (rc != SQLITE_OK) {
         std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
                   << std::endl;
-        return false;
+        return -1;
     }
     sqlite3_bind_text(stmt, 1, contract.number.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, contract.date.c_str(), -1, SQLITE_STATIC);
@@ -547,11 +547,11 @@ bool DatabaseManager::addContract(Contract &contract) {
                   << " (code: " << rc << ", extended code: " << extended_code
                   << ")" << std::endl;
         sqlite3_finalize(stmt);
-        return false;
+        return -1;
     }
-    contract.id = sqlite3_last_insert_rowid(db);
+    int id = sqlite3_last_insert_rowid(db);
     sqlite3_finalize(stmt);
-    return true;
+    return id;
 }
 
 int DatabaseManager::getContractIdByNumberDate(const std::string &number,
@@ -712,9 +712,9 @@ DatabaseManager::getPaymentInfoForContract(int contract_id) {
 }
 
 // Invoice CRUD
-bool DatabaseManager::addInvoice(Invoice &invoice) {
+int DatabaseManager::addInvoice(Invoice &invoice) {
     if (!db)
-        return false;
+        return -1;
     std::string sql =
         "INSERT INTO Invoices (number, date, contract_id) VALUES (?, ?, ?);";
     sqlite3_stmt *stmt = nullptr;
@@ -722,7 +722,7 @@ bool DatabaseManager::addInvoice(Invoice &invoice) {
     if (rc != SQLITE_OK) {
         std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
                   << std::endl;
-        return false;
+        return -1;
     }
     sqlite3_bind_text(stmt, 1, invoice.number.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, invoice.date.c_str(), -1, SQLITE_STATIC);
@@ -737,11 +737,11 @@ bool DatabaseManager::addInvoice(Invoice &invoice) {
         std::cerr << "Failed to add invoice: " << sqlite3_errmsg(db)
                   << std::endl;
         sqlite3_finalize(stmt);
-        return false;
+        return -1;
     }
-    invoice.id = sqlite3_last_insert_rowid(db);
+    int id = sqlite3_last_insert_rowid(db);
     sqlite3_finalize(stmt);
-    return true;
+    return id;
 }
 
 int DatabaseManager::getInvoiceIdByNumberDate(const std::string &number,
@@ -1394,6 +1394,51 @@ bool DatabaseManager::deleteRegex(int id) {
     sqlite3_finalize(stmt);
 
     return rc == SQLITE_DONE;
+}
+
+// Maintenance methods
+bool DatabaseManager::ClearPayments() {
+    if (!db) return false;
+    // Delete details first, although ON DELETE CASCADE should handle it.
+    bool success = execute("DELETE FROM PaymentDetails;");
+    if (success) {
+        success = execute("DELETE FROM Payments;");
+    }
+    if (success) {
+        execute("VACUUM;");
+    }
+    return success;
+}
+
+bool DatabaseManager::ClearCounterparties() {
+    if (!db) return false;
+    // Note: This can fail if foreign key constraints are violated.
+    // The UI should warn the user about this.
+    bool success = execute("DELETE FROM Counterparties;");
+    if (success) execute("VACUUM;");
+    return success;
+}
+
+bool DatabaseManager::ClearContracts() {
+    if (!db) return false;
+    bool success = execute("DELETE FROM Contracts;");
+    if (success) execute("VACUUM;");
+    return success;
+}
+
+bool DatabaseManager::ClearInvoices() {
+    if (!db) return false;
+    bool success = execute("DELETE FROM Invoices;");
+    if (success) execute("VACUUM;");
+    return success;
+}
+
+bool DatabaseManager::CleanOrphanPaymentDetails() {
+    if (!db) return false;
+    // Deletes details for which the corresponding payment does not exist.
+    bool success = execute("DELETE FROM PaymentDetails WHERE payment_id NOT IN (SELECT id FROM Payments);");
+    if (success) execute("VACUUM;");
+    return success;
 }
 
 // Callback for generic SELECT queries

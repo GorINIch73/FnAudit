@@ -176,6 +176,20 @@ int main(int, char**) {
                 if (ImGui::MenuItem(ICON_FA_SQUARE_ROOT_VARIABLE " Регулярные выражения")) {
                     uiManager.CreateView<RegexesView>();
                 }
+                ImGui::Separator();
+                if (ImGui::MenuItem(ICON_FA_ERASER " Очистка базы")) {
+                    bool found = false;
+                    for(const auto& view : uiManager.allViews) {
+                        if (dynamic_cast<SelectiveCleanView*>(view.get())) {
+                            ImGui::SetWindowFocus(view->GetTitle());
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        uiManager.CreateView<SelectiveCleanView>();
+                    }
+                }
                 ImGui::EndMenu();
             }
             ImGui::EndMainMenuBar();

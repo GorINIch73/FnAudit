@@ -72,6 +72,13 @@ private:
     char replacement_contract_filter[256]{};
     char replacement_invoice_filter[256]{};
 
+    // For "Create from Description" popup
+    bool show_create_from_desc_popup = false;
+    int entity_to_create = 0; // 0 for Contract, 1 for Invoice
+    std::string extracted_number;
+    std::string extracted_date;
+    int existing_entity_id = -1;
+
     // For delete confirmation popups
     bool show_delete_payment_popup = false;
     bool show_delete_detail_popup = false;
