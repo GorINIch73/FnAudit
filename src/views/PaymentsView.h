@@ -9,6 +9,7 @@
 #include "../PaymentDetail.h"
 #include "../Contract.h"
 #include "../Invoice.h"
+#include "../Regex.h"
 #include "imgui.h"
 #include "CustomWidgets.h"
 
@@ -78,6 +79,10 @@ private:
     std::string extracted_number;
     std::string extracted_date;
     int existing_entity_id = -1;
+    std::vector<Regex> regexesForCreatePopup;
+    int selectedRegexIdForCreatePopup = -1;
+    char editableRegexPatternForCreate[512] = "";
+    char regexFilterForCreatePopup[128] = "";
 
     // For delete confirmation popups
     bool show_delete_payment_popup = false;
