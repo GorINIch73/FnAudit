@@ -1335,6 +1335,9 @@ std::vector<Regex> DatabaseManager::getRegexes() {
 bool DatabaseManager::addRegex(Regex &regex) {
     if (!db)
         return false;
+    
+        std::cout << "regex: " << regex.name << " " << regex.pattern
+                  << std::endl;
     std::string sql = "INSERT INTO Regexes (name, pattern) VALUES (?, ?);";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);

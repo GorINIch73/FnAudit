@@ -692,7 +692,13 @@ void PaymentsView::Render() {
             if (show_create_from_desc_popup) {
                 ImGui::OpenPopup("Создать из назначения платежа");
             }
-            
+            // if (show_save_regex_popup) {
+                // ImGui::OpenPopup("Сохранить новое Regex выражение");
+            // }
+
+
+            if (ImGui::BeginPopupModal("Создать из назначения платежа", &show_create_from_desc_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+                
             auto TestRegexAndExtract = [&](const char* pattern) {
                 if (pattern[0] != '\0' && dbManager) {
                     try {
@@ -725,12 +731,9 @@ void PaymentsView::Render() {
                     }
                 }
             };
-
-            if (ImGui::BeginPopupModal("Создать из назначения платежа", &show_create_from_desc_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
                 
                 ImGui::TextWrapped("Назначение: %s", selectedPayment.description.c_str());
                 ImGui::Separator();
-
                 std::vector<CustomWidgets::ComboItem> regexItems;
                 for (const auto &r : regexesForCreatePopup) {
                     regexItems.push_back({r.id, r.name});
@@ -747,6 +750,23 @@ void PaymentsView::Render() {
 
                 if (ImGui::InputText("Шаблон Regex", editableRegexPatternForCreate, sizeof(editableRegexPatternForCreate))) {
                     TestRegexAndExtract(editableRegexPatternForCreate);
+                }
+                
+                if (ImGui::Button("Сохранить как новый")) {
+                    if (editableRegexPatternForCreate[0] != '\0') {
+                        Regex newRegex;
+                        newRegex.name = std::to_string(selectedRegexIdForCreatePopup);
+                        newRegex.name += "*";
+                        newRegex.pattern = editableRegexPatternForCreate;
+
+                        bool saved = dbManager->addRegex(newRegex);
+                        if (saved) {
+                            regexesForCreatePopup = dbManager->getRegexes();
+                            selectedRegexIdForCreatePopup = newRegex.id;
+                            // show_save_regex_popup = false;
+                        }
+                        // show_save_regex_popup = true;
+                    }
                 }
 
                 ImGui::Separator();
@@ -784,6 +804,19 @@ void PaymentsView::Render() {
                     ImGui::CloseCurrentPopup();
                 }
 
+                // ImGui::EndPopup();
+            // }
+
+                // ImGui::SameLine();
+                // if (ImGui::Button("Отмена")) {
+                //     show_save_regex_popup = false;
+                //     show_create_from_desc_popup = true;
+                //     ImGui::CloseCurrentPopup();
+                // }
+                //
+                // if (saveRegexStatusMsg && saveRegexStatusMsg[0] != '\0') {
+                //     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", saveRegexStatusMsg);
+                // }
                 ImGui::EndPopup();
             }
 

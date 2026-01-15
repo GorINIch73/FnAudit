@@ -83,6 +83,9 @@ private:
     int selectedRegexIdForCreatePopup = -1;
     char editableRegexPatternForCreate[512] = "";
     char regexFilterForCreatePopup[128] = "";
+    bool show_save_regex_popup = false;
+    char newRegexNameBuffer[128] = "";
+    const char* saveRegexStatusMsg = "";
 
     // For delete confirmation popups
     bool show_delete_payment_popup = false;
