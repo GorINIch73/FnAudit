@@ -684,6 +684,7 @@ void PaymentsView::Render() {
                     regexesForCreatePopup = dbManager->getRegexes();
                 }
                 selectedRegexIdForCreatePopup = -1;
+                selected_regex_name = "";
                 editableRegexPatternForCreate[0] = '\0';
                 regexFilterForCreatePopup[0] = '\0';
             }
@@ -745,6 +746,7 @@ void PaymentsView::Render() {
                         strncpy(editableRegexPatternForCreate, it->pattern.c_str(), sizeof(editableRegexPatternForCreate) - 1);
                         editableRegexPatternForCreate[sizeof(editableRegexPatternForCreate) - 1] = '\0';
                         TestRegexAndExtract(editableRegexPatternForCreate);
+                        selected_regex_name=it->name;
                     }
                 }
 
@@ -754,12 +756,22 @@ void PaymentsView::Render() {
                 
                 if (ImGui::Button("Сохранить как новый")) {
                     if (editableRegexPatternForCreate[0] != '\0') {
+
                         Regex newRegex;
-                        newRegex.name = std::to_string(selectedRegexIdForCreatePopup);
+                        newRegex.name = selected_regex_name;
                         newRegex.name += "*";
                         newRegex.pattern = editableRegexPatternForCreate;
 
                         bool saved = dbManager->addRegex(newRegex);
+                        while (!saved) { 
+                            newRegex.name += "*";
+                            if (newRegex.name.length() > 120) {
+                                saved = false; // Ensure we don't enter the success block
+                                break;
+                            }  
+                            saved = dbManager->addRegex(newRegex);
+                        }
+
                         if (saved) {
                             regexesForCreatePopup = dbManager->getRegexes();
                             selectedRegexIdForCreatePopup = newRegex.id;
