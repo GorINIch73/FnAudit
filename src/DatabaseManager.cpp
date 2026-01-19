@@ -413,11 +413,14 @@ std::vector<Counterparty> DatabaseManager::getCounterparties() {
     if (!db)
         return entries;
 
-    std::string sql = "SELECT c.id, c.name, c.inn, IFNULL(SUM(pd.amount), 0.0) as total_amount "
-                        "FROM Counterparties c "
-                        "LEFT JOIN Contracts con ON c.id = con.counterparty_id "
-                        "LEFT JOIN PaymentDetails pd ON con.id = pd.contract_id "
-                        "GROUP BY c.id, c.name, c.inn;";
+    std::string sql = "SELECT c.id, c.name, c.inn, IFNULL(p_sum.total, 0.0) as total_amount "
+                      "FROM Counterparties c "
+                      "LEFT JOIN ( "
+                      "    SELECT counterparty_id, SUM(amount) as total "
+                      "    FROM Payments "
+                      "    WHERE counterparty_id IS NOT NULL "
+                      "    GROUP BY counterparty_id "
+                      ") p_sum ON c.id = p_sum.counterparty_id;";
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), counterparty_select_callback,
                           &entries, &errmsg);
@@ -490,11 +493,9 @@ DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
+    std::string sql = "SELECT p.date, p.doc_number, p.amount, p.description "
                       "FROM Payments p "
-                      "JOIN PaymentDetails pd ON p.id = pd.payment_id "
-                      "JOIN Contracts c ON pd.contract_id = c.id "
-                      "WHERE c.counterparty_id = ?;";
+                      "WHERE p.counterparty_id = ?;";
 
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
