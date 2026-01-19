@@ -200,20 +200,43 @@ void PaymentsView::Render() {
         // Create filtered list once so it's available to all subsequent UI
         std::vector<Payment> filtered_payments;
         if (filterText[0] != '\0') {
-            for (const auto& p : payments) {
-                bool match_found = false;
-                if (strcasestr(p.date.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found && strcasestr(p.doc_number.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found && strcasestr(p.description.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found && strcasestr(p.recipient.c_str(), filterText) != nullptr) match_found = true;
-                if (!match_found) {
-                    char amount_str[32];
-                    snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
-                    if (strcasestr(amount_str, filterText) != nullptr) match_found = true;
+            std::string filter_str(filterText);
+            std::stringstream ss(filter_str);
+            std::string term;
+            std::vector<std::string> search_terms;
+            while (std::getline(ss, term, ',')) {
+                size_t first = term.find_first_not_of(" \t");
+                if (std::string::npos == first) continue;
+                size_t last = term.find_last_not_of(" \t");
+                search_terms.push_back(term.substr(first, (last - first + 1)));
+            }
+
+            if (!search_terms.empty()) {
+                for (const auto& p : payments) {
+                    bool all_terms_match = true;
+                    for (const auto& current_term : search_terms) {
+                        bool term_found_in_payment = false;
+                        if (strcasestr(p.date.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
+                        if (!term_found_in_payment && strcasestr(p.doc_number.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
+                        if (!term_found_in_payment && strcasestr(p.description.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
+                        if (!term_found_in_payment && strcasestr(p.recipient.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
+                        if (!term_found_in_payment) {
+                            char amount_str[32];
+                            snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
+                            if (strcasestr(amount_str, current_term.c_str()) != nullptr) term_found_in_payment = true;
+                        }
+
+                        if (!term_found_in_payment) {
+                            all_terms_match = false;
+                            break;
+                        }
+                    }
+                    if (all_terms_match) {
+                        filtered_payments.push_back(p);
+                    }
                 }
-                if (match_found) {
-                    filtered_payments.push_back(p);
-                }
+            } else { // Handle case where filter is just whitespace or commas
+                 filtered_payments = payments;
             }
         } else {
             filtered_payments = payments;
