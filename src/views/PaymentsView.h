@@ -54,6 +54,8 @@ private:
     char contractFilter[256];
     char invoiceFilter[256];
 
+    int missing_info_filter_index = 0;
+
     // Group operations
     int groupKosguId = -1;
     int groupContractId = -1;

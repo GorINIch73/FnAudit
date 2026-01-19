@@ -684,7 +684,7 @@ DatabaseManager::getPaymentInfoForContract(int contract_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
+    std::string sql = "SELECT p.date, p.doc_number, p.amount, p.description "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "WHERE pd.contract_id = ?;";
@@ -874,7 +874,7 @@ DatabaseManager::getPaymentInfoForInvoice(int invoice_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
+    std::string sql = "SELECT p.date, p.doc_number, p.amount, p.description "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "WHERE pd.invoice_id = ?;";
@@ -1174,6 +1174,20 @@ std::vector<PaymentDetail> DatabaseManager::getPaymentDetails(int payment_id) {
     }
 
     sqlite3_finalize(stmt);
+    return details;
+}
+
+std::vector<PaymentDetail> DatabaseManager::getAllPaymentDetails() {
+    std::vector<PaymentDetail> details;
+    if (!db) return details;
+
+    std::string sql = "SELECT * FROM PaymentDetails;";
+    char* errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(), payment_detail_select_callback, &details, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select all PaymentDetails: " << errmsg << std::endl;
+        sqlite3_free(errmsg);
+    }
     return details;
 }
 

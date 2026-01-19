@@ -197,8 +197,11 @@ void PaymentsView::Render() {
             RefreshDropdownData();
         }
 
-        // Create filtered list once so it's available to all subsequent UI
+        // Create filtered list
         std::vector<Payment> filtered_payments;
+
+        // Text filter
+        std::vector<Payment> text_filtered_payments;
         if (filterText[0] != '\0') {
             std::string filter_str(filterText);
             std::stringstream ss(filter_str);
@@ -232,14 +235,52 @@ void PaymentsView::Render() {
                         }
                     }
                     if (all_terms_match) {
-                        filtered_payments.push_back(p);
+                        text_filtered_payments.push_back(p);
                     }
                 }
-            } else { // Handle case where filter is just whitespace or commas
-                 filtered_payments = payments;
+            } else {
+                 text_filtered_payments = payments;
             }
         } else {
-            filtered_payments = payments;
+            text_filtered_payments = payments;
+        }
+
+        // Missing info filter
+        if (missing_info_filter_index == 0) {
+            filtered_payments = text_filtered_payments;
+        } else {
+            std::map<int, std::vector<PaymentDetail>> details_by_payment;
+            if (dbManager) {
+                auto all_details = dbManager->getAllPaymentDetails();
+                for (const auto& detail : all_details) {
+                    details_by_payment[detail.payment_id].push_back(detail);
+                }
+            }
+
+            for (const auto& p : text_filtered_payments) {
+                auto it = details_by_payment.find(p.id);
+
+                if (missing_info_filter_index == 4) { // "Без расшифровок"
+                    if (it == details_by_payment.end()) { // has no details
+                        filtered_payments.push_back(p);
+                    }
+                } else { // Filters for missing info inside details (index 1, 2, 3)
+                    if (it != details_by_payment.end()) { // has details
+                        bool missing_found = false;
+                        for (const auto& detail : it->second) {
+                            if ((missing_info_filter_index == 1 && detail.kosgu_id == -1) ||
+                                (missing_info_filter_index == 2 && detail.contract_id == -1) ||
+                                (missing_info_filter_index == 3 && detail.invoice_id == -1)) {
+                                missing_found = true;
+                                break;
+                            }
+                        }
+                        if (missing_found) {
+                            filtered_payments.push_back(p);
+                        }
+                    }
+                }
+            }
         }
 
         // --- Progress Bar Popup ---
@@ -351,11 +392,18 @@ void PaymentsView::Render() {
 
         ImGui::Separator();
 
-        ImGui::InputText("Общий фильтр", filterText, sizeof(filterText));
+        ImGui::InputText("Фильтр", filterText, sizeof(filterText));
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK)) {
             filterText[0] = '\0';
         }
+
+        ImGui::SameLine();
+        float avail_width = ImGui::GetContentRegionAvail().x;
+        ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
+        const char* filter_items[] = { "Все", "Без КОСГУ", "Без Договора", "Без Накладной", "Без расшифровок" };
+        ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index, filter_items, IM_ARRAYSIZE(filter_items));
+        ImGui::PopItemWidth();
 
         if (ImGui::CollapsingHeader("Групповые операции")) {
 

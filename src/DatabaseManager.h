@@ -65,6 +65,7 @@ public:
 
     bool addPaymentDetail(PaymentDetail& detail);
     std::vector<PaymentDetail> getPaymentDetails(int payment_id);
+    std::vector<PaymentDetail> getAllPaymentDetails();
     bool updatePaymentDetail(const PaymentDetail& detail);
     bool deletePaymentDetail(int id);
     bool deleteAllPaymentDetails(int payment_id);
