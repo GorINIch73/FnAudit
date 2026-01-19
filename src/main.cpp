@@ -181,6 +181,9 @@ int main(int, char**) {
                 if (ImGui::MenuItem(ICON_FA_SQUARE_ROOT_VARIABLE " Регулярные выражения")) {
                     uiManager.CreateView<RegexesView>();
                 }
+                if (ImGui::MenuItem(ICON_FA_EYE " Подозрительные слова")) {
+                    uiManager.CreateView<SuspiciousWordsView>();
+                }
                 ImGui::Separator();
                 if (ImGui::MenuItem(ICON_FA_ERASER " Очистка базы")) {
                     bool found = false;

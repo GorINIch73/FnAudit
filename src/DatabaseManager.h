@@ -12,6 +12,7 @@
 #include "PaymentDetail.h"
 #include "Settings.h"
 #include "Regex.h"
+#include "SuspiciousWord.h"
 
 class DatabaseManager {
 public:
@@ -76,6 +77,11 @@ public:
     bool addRegex(Regex& regex);
     bool updateRegex(const Regex& regex);
     bool deleteRegex(int id);
+
+    // Suspicious Words CRUD
+    std::vector<SuspiciousWord> getSuspiciousWords();
+    bool addSuspiciousWord(SuspiciousWord& word);
+    bool deleteSuspiciousWord(int id);
 
     // Maintenance methods
     bool ClearPayments();

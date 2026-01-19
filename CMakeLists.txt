@@ -69,6 +69,7 @@ set(APP_SOURCES
     src/views/ImportMapView.cpp
     src/views/RegexesView.cpp
     src/views/SelectiveCleanView.cpp
+    src/views/SuspiciousWordsView.cpp
 )
 
 set_source_files_properties(src/pdfgen.c PROPERTIES LANGUAGE C)

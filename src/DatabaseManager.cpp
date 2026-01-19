@@ -102,7 +102,13 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "CREATE TABLE IF NOT EXISTS Regexes ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "name TEXT NOT NULL UNIQUE,"
-        "pattern TEXT NOT NULL);"};
+        "pattern TEXT NOT NULL);",
+
+        // Справочник подозрительных слов
+        "CREATE TABLE IF NOT EXISTS SuspiciousWords ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        "word TEXT NOT NULL UNIQUE);"
+        };
 
     for (const auto &sql : create_tables_sql) {
         if (!execute(sql)) {
@@ -127,9 +133,6 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         close();
         return false;
     }
-
-    // Add the column if it doesn't exist for backward compatibility
-    execute("ALTER TABLE Settings ADD COLUMN import_preview_lines INTEGER DEFAULT 20;");
 
     std::string insert_default_settings =
         "INSERT OR IGNORE INTO Settings (id, organization_name, "
@@ -1399,6 +1402,82 @@ bool DatabaseManager::deleteRegex(int id) {
     if (!db)
         return false;
     std::string sql = "DELETE FROM Regexes WHERE id = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return rc == SQLITE_DONE;
+}
+
+// Suspicious Words CRUD
+static int suspicious_word_select_callback(void *data, int argc, char **argv,
+                                           char **azColName) {
+    auto *words = static_cast<std::vector<SuspiciousWord> *>(data);
+    SuspiciousWord sw;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "id") {
+            sw.id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "word") {
+            sw.word = argv[i] ? argv[i] : "";
+        }
+    }
+    words->push_back(sw);
+    return 0;
+}
+
+std::vector<SuspiciousWord> DatabaseManager::getSuspiciousWords() {
+    std::vector<SuspiciousWord> words;
+    if (!db)
+        return words;
+
+    std::string sql = "SELECT id, word FROM SuspiciousWords;";
+    char *errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(), suspicious_word_select_callback,
+                          &words, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select SuspiciousWords: " << errmsg
+                  << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return words;
+}
+
+bool DatabaseManager::addSuspiciousWord(SuspiciousWord &word) {
+    if (!db)
+        return false;
+    std::string sql = "INSERT INTO SuspiciousWords (word) VALUES (?);";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, word.word.c_str(), -1, SQLITE_STATIC);
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    word.id = sqlite3_last_insert_rowid(db);
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool DatabaseManager::deleteSuspiciousWord(int id) {
+    if (!db)
+        return false;
+    std::string sql = "DELETE FROM SuspiciousWords WHERE id = ?;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
