@@ -36,6 +36,7 @@ private:
     bool isDirty = false;
 
     std::string descriptionBuffer;
+    std::string noteBuffer;
 
     std::vector<PaymentDetail> paymentDetails;
     PaymentDetail selectedDetail;

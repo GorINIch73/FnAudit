@@ -119,6 +119,9 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         }
     }
 
+    // Add the 'note' column to 'Payments' table for backward compatibility
+    execute("ALTER TABLE Payments ADD COLUMN note TEXT;");
+
     // Create Settings table if it doesn't exist and insert default row
     std::string create_settings_table_sql =
         "CREATE TABLE IF NOT EXISTS Settings ("
@@ -916,8 +919,8 @@ bool DatabaseManager::addPayment(Payment &payment) {
     //           << ", Desc: " << payment.description << std::endl;
 
     std::string sql = "INSERT INTO Payments (date, doc_number, type, amount, "
-                      "recipient, description, counterparty_id) "
-                      "VALUES (?, ?, ?, ?, ?, ?, ?);";
+                      "recipient, description, counterparty_id, note) "
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -936,6 +939,7 @@ bool DatabaseManager::addPayment(Payment &payment) {
     } else {
         sqlite3_bind_null(stmt, 7);
     }
+    sqlite3_bind_text(stmt, 8, payment.note.c_str(), -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -974,6 +978,8 @@ static int payment_select_callback(void *data, int argc, char **argv,
             p.description = argv[i] ? argv[i] : "";
         else if (colName == "counterparty_id")
             p.counterparty_id = argv[i] ? std::stoi(argv[i]) : -1;
+        else if (colName == "note")
+            p.note = argv[i] ? argv[i] : "";
     }
     payments->push_back(p);
     return 0;
@@ -985,7 +991,7 @@ std::vector<Payment> DatabaseManager::getPayments() {
         return payments;
 
     std::string sql = "SELECT id, date, doc_number, type, amount, recipient, "
-                      "description, counterparty_id FROM Payments;";
+                      "description, counterparty_id, note FROM Payments;";
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), payment_select_callback, &payments,
                           &errmsg);
@@ -1001,7 +1007,7 @@ bool DatabaseManager::updatePayment(const Payment &payment) {
         return false;
     std::string sql =
         "UPDATE Payments SET date = ?, doc_number = ?, type = ?, amount = ?, "
-        "recipient = ?, description = ?, counterparty_id = ? "
+        "recipient = ?, description = ?, counterparty_id = ?, note = ? "
         "WHERE id = ?;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -1021,7 +1027,8 @@ bool DatabaseManager::updatePayment(const Payment &payment) {
     } else {
         sqlite3_bind_null(stmt, 7);
     }
-    sqlite3_bind_int(stmt, 8, payment.id);
+    sqlite3_bind_text(stmt, 8, payment.note.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 9, payment.id);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

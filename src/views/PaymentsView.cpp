@@ -82,6 +82,7 @@ void PaymentsView::SaveChanges() {
 
     if (dbManager) {
         selectedPayment.description = descriptionBuffer;
+        selectedPayment.note = noteBuffer;
         if (isAdding) {
             dbManager->addPayment(selectedPayment);
         } else if (selectedPayment.id != -1) {
@@ -99,6 +100,7 @@ void PaymentsView::SaveChanges() {
             selectedPayment = *it;
             originalPayment = *it;
             descriptionBuffer = selectedPayment.description;
+            noteBuffer = selectedPayment.note;
             if (dbManager) {
                 paymentDetails =
                     dbManager->getPaymentDetails(selectedPayment.id);
@@ -332,6 +334,7 @@ void PaymentsView::Render() {
 
             originalPayment = selectedPayment;
             descriptionBuffer.clear();
+            noteBuffer.clear();
             paymentDetails.clear();
             isDirty = true;
         }
@@ -602,7 +605,7 @@ void PaymentsView::Render() {
         // --- Список платежей ---
         ImGui::BeginChild("PaymentsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("payments_table", 4,
+        if (ImGui::BeginTable("payments_table", 5,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable |
@@ -616,6 +619,7 @@ void PaymentsView::Render() {
             ImGui::TableSetupColumn("Сумма", 0, 0.0f, 2);
             ImGui::TableSetupColumn(
                 "Назначение", ImGuiTableColumnFlags_WidthFixed, 600.0f, 3);
+            ImGui::TableSetupColumn("Примечание", ImGuiTableColumnFlags_WidthFixed, 300.0f, 4);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -635,7 +639,7 @@ void PaymentsView::Render() {
 
                     // Find the original index in the main 'payments' vector
                     int original_index = -1;
-                    for(int j = 0; j < payments.size(); ++j) {
+                    for(size_t j = 0; j < payments.size(); ++j) {
                         if(payments[j].id == payment.id) {
                             original_index = j;
                             break;
@@ -654,6 +658,7 @@ void PaymentsView::Render() {
                             selectedPayment = payments[original_index];
                             originalPayment = payments[original_index];
                             descriptionBuffer = selectedPayment.description;
+                            noteBuffer = selectedPayment.note;
                             if (dbManager) {
                                 paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
                             }
@@ -673,6 +678,8 @@ void PaymentsView::Render() {
                     ImGui::Text("%.2f", payment.amount);
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", payment.description.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", payment.note.c_str());
                 }
             }
             ImGui::EndTable();
@@ -756,6 +763,12 @@ void PaymentsView::Render() {
             if (CustomWidgets::InputTextMultilineWithWrap(
                     "Назначение", &descriptionBuffer,
                     ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 8))) {
+                isDirty = true;
+            }
+
+            if (CustomWidgets::InputTextMultilineWithWrap(
+                    "Примечание", &noteBuffer,
+                    ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 2))) {
                 isDirty = true;
             }
 

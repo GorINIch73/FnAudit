@@ -11,6 +11,7 @@ struct Payment {
     std::string recipient;
     std::string description;
     int counterparty_id;
+    std::string note;
 };
 
 struct ContractPaymentInfo {
