@@ -48,6 +48,7 @@ private:
     std::vector<Kosgu> kosguForDropdown;
     std::vector<Contract> contractsForDropdown;
     std::vector<Invoice> invoicesForDropdown;
+    std::vector<SuspiciousWord> suspiciousWordsForFilter;
     char filterText[256];
     char counterpartyFilter[256];
     char kosguFilter[256];

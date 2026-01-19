@@ -53,6 +53,7 @@ void PaymentsView::RefreshDropdownData() {
         kosguForDropdown = dbManager->getKosguEntries();
         contractsForDropdown = dbManager->getContracts();
         invoicesForDropdown = dbManager->getInvoices();
+        suspiciousWordsForFilter = dbManager->getSuspiciousWords();
     }
 }
 
@@ -248,6 +249,21 @@ void PaymentsView::Render() {
         // Missing info filter
         if (missing_info_filter_index == 0) {
             filtered_payments = text_filtered_payments;
+        } else if (missing_info_filter_index == 5) { // "Подозрительные слова"
+            if (!suspiciousWordsForFilter.empty()) {
+                for (const auto& p : text_filtered_payments) {
+                    bool suspicious_found = false;
+                    for (const auto& sw : suspiciousWordsForFilter) {
+                        if (strcasestr(p.description.c_str(), sw.word.c_str()) != nullptr) {
+                            suspicious_found = true;
+                            break;
+                        }
+                    }
+                    if (suspicious_found) {
+                        filtered_payments.push_back(p);
+                    }
+                }
+            }
         } else {
             std::map<int, std::vector<PaymentDetail>> details_by_payment;
             if (dbManager) {
@@ -401,7 +417,7 @@ void PaymentsView::Render() {
         ImGui::SameLine();
         float avail_width = ImGui::GetContentRegionAvail().x;
         ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
-        const char* filter_items[] = { "Все", "Без КОСГУ", "Без Договора", "Без Накладной", "Без расшифровок" };
+        const char* filter_items[] = { "Все", "Без КОСГУ", "Без Договора", "Без Накладной", "Без расшифровок", "Подозрительные слова" };
         ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index, filter_items, IM_ARRAYSIZE(filter_items));
         ImGui::PopItemWidth();
 
