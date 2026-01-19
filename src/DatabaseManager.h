@@ -21,6 +21,7 @@ public:
     bool open(const std::string& filepath);
     void close();
     bool createDatabase(const std::string& filepath);
+    bool backupTo(const std::string& backupFilepath);
     bool is_open() const;
 
     // Settings

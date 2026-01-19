@@ -1564,3 +1564,42 @@ bool DatabaseManager::updateSettings(const Settings &settings) {
     }
     return true;
 }
+
+bool DatabaseManager::backupTo(const std::string& backupFilepath) {
+    if (!db) {
+        return false;
+    }
+
+    sqlite3* pBackupDb = nullptr;
+    int rc = sqlite3_open(backupFilepath.c_str(), &pBackupDb);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Cannot open backup database: " << sqlite3_errmsg(pBackupDb) << std::endl;
+        sqlite3_close(pBackupDb);
+        return false;
+    }
+
+    sqlite3_backup* pBackup = sqlite3_backup_init(pBackupDb, "main", db, "main");
+    if (!pBackup) {
+        std::cerr << "Failed to init backup: " << sqlite3_errmsg(pBackupDb) << std::endl;
+        sqlite3_close(pBackupDb);
+        return false;
+    }
+
+    rc = sqlite3_backup_step(pBackup, -1); // -1 to copy all pages
+    
+    if (rc != SQLITE_DONE) {
+         std::cerr << "Backup step failed: " << sqlite3_errmsg(pBackupDb) << std::endl;
+    }
+
+    sqlite3_backup_finish(pBackup);
+    
+    // Check for errors during backup finish
+    rc = sqlite3_errcode(pBackupDb);
+    if(rc != SQLITE_OK) {
+        std::cerr << "Backup finish failed: " << sqlite3_errmsg(pBackupDb) << std::endl;
+    }
+
+    sqlite3_close(pBackupDb);
+
+    return rc == SQLITE_OK;
+}

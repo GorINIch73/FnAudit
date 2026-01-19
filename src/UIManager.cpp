@@ -11,6 +11,8 @@
 #include "PdfReporter.h"
 #include "views/BaseView.h"
 
+#include <filesystem>
+
 const size_t MAX_RECENT_PATHS = 10;
 const std::string RECENT_PATHS_FILE = ".recent_dbs.txt";
 
@@ -111,6 +113,24 @@ void UIManager::HandleFileDialogs() {
                 currentDbPath = filePathName;
                 SetWindowTitle(currentDbPath);
                 AddRecentDbPath(filePathName);
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("SaveDbAsFileDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string newFilePath = ImGuiFileDialog::Instance()->GetFilePathName();
+            if (!currentDbPath.empty() && newFilePath != currentDbPath) {
+                try {
+                    dbManager->backupTo(newFilePath);
+                    currentDbPath = newFilePath;
+                     AddRecentDbPath(newFilePath);
+                    SetWindowTitle(currentDbPath);
+                } catch (const std::filesystem::filesystem_error& e) {
+                    // TODO: Show error message to user
+                    std::cerr << "Error saving database: " << e.what() << std::endl;
+                }
             }
         }
         ImGuiFileDialog::Instance()->Close();

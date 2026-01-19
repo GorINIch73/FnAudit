@@ -105,8 +105,13 @@ int main(int, char**) {
                 if (ImGui::MenuItem(ICON_FA_FILE_CIRCLE_PLUS " Создать новую базу")) {
                     ImGuiFileDialog::Instance()->OpenDialog("ChooseDbFileDlgKey", "Выберите файл для новой базы", ".db");
                 }
-                if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Открыть фай базы")) {
+                if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Открыть базу данных")) {
                     ImGuiFileDialog::Instance()->OpenDialog("OpenDbFileDlgKey", "Выберите файл базы данных", ".db");
+                }
+                if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK " Сохранить базу как...")) {
+                    if (!uiManager.currentDbPath.empty()) {
+                        ImGuiFileDialog::Instance()->OpenDialog("SaveDbAsFileDlgKey", "Сохранить базу как...", ".db");
+                    }
                 }
                 if (ImGui::BeginMenu(ICON_FA_CLOCK_ROTATE_LEFT " Недавние файлы")) {
                     for (const auto& path : uiManager.recentDbPaths) {
