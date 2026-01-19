@@ -39,6 +39,31 @@ void SuspiciousWordsView::Render() {
         ImGui::EndPopup();
     }
 
+    // Popup for editing a word
+    if (showEditPopup) {
+        ImGui::OpenPopup("Редактировать слово");
+        showEditPopup = false;
+    }
+    if (ImGui::BeginPopupModal("Редактировать слово", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::InputText("Слово", editedWordBuffer, sizeof(editedWordBuffer));
+
+        if (ImGui::Button("OK", ImVec2(120, 0))) {
+            if (strlen(editedWordBuffer) > 0) {
+                editedWord.word = editedWordBuffer;
+                if (dbManager->updateSuspiciousWord(editedWord)) {
+                    loadSuspiciousWords();
+                }
+                ImGui::CloseCurrentPopup();
+            }
+        }
+        ImGui::SetItemDefaultFocus();
+        ImGui::SameLine();
+        if (ImGui::Button("Отмена", ImVec2(120, 0))) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
     ImGui::Separator();
 
     // Table of suspicious words
@@ -52,6 +77,15 @@ void SuspiciousWordsView::Render() {
             ImGui::TableNextColumn();
             ImGui::Text("%s", word.word.c_str());
             ImGui::TableNextColumn();
+            
+            std::string editButton = std::string(ICON_FA_PENCIL) + "##" + std::to_string(word.id);
+            if (ImGui::Button(editButton.c_str())) {
+                editedWord = word;
+                strncpy(editedWordBuffer, editedWord.word.c_str(), sizeof(editedWordBuffer));
+                showEditPopup = true;
+            }
+            ImGui::SameLine();
+
             std::string deleteButton = std::string(ICON_FA_TRASH_CAN) + "##" + std::to_string(word.id);
             if (ImGui::Button(deleteButton.c_str())) {
                 if (dbManager->deleteSuspiciousWord(word.id)) {

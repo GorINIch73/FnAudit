@@ -1474,6 +1474,26 @@ bool DatabaseManager::addSuspiciousWord(SuspiciousWord &word) {
     return true;
 }
 
+bool DatabaseManager::updateSuspiciousWord(const SuspiciousWord &word) {
+    if (!db)
+        return false;
+    std::string sql = "UPDATE SuspiciousWords SET word = ? WHERE id = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement: " << sqlite3_errmsg(db)
+                  << std::endl;
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, word.word.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 2, word.id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return rc == SQLITE_DONE;
+}
+
 bool DatabaseManager::deleteSuspiciousWord(int id) {
     if (!db)
         return false;

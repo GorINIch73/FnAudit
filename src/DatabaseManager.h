@@ -81,6 +81,7 @@ public:
     // Suspicious Words CRUD
     std::vector<SuspiciousWord> getSuspiciousWords();
     bool addSuspiciousWord(SuspiciousWord& word);
+    bool updateSuspiciousWord(const SuspiciousWord& word);
     bool deleteSuspiciousWord(int id);
 
     // Maintenance methods

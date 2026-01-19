@@ -15,5 +15,8 @@ public:
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
 private:
     std::vector<SuspiciousWord> suspiciousWords;
+    SuspiciousWord editedWord;
+    char editedWordBuffer[256];
+    bool showEditPopup = false;
     void loadSuspiciousWords();
 };
