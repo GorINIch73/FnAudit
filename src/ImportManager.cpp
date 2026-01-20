@@ -73,7 +73,8 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                                           const std::string& kosgu_regex_str,
                                           const std::string& invoice_regex_str,
                                           bool force_income_type,
-                                          bool is_return_import
+                                          bool is_return_import,
+                                          const std::string& custom_note
                                           ) {
     if (!dbManager) {
         std::lock_guard<std::mutex> lock(message_mutex);
@@ -133,6 +134,14 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
         payment.recipient = get_value_from_row(row, mapping, "Контрагент");
         payment.description = get_value_from_row(row, mapping, "Назначение");
         payment.note = get_value_from_row(row, mapping, "Примечание");
+
+        if (!custom_note.empty()) {
+            if (!payment.note.empty()) {
+                payment.note = custom_note + " " + payment.note;
+            } else {
+                payment.note = custom_note;
+            }
+        }
 
         try {
             std::string amount_str = get_value_from_row(row, mapping, "Сумма");

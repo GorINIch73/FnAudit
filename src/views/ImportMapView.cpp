@@ -69,6 +69,7 @@ void ImportMapView::Reset() {
     kosgu_pattern_buffer.clear();
     invoice_pattern_buffer.clear();
     import_started = false;
+    custom_note_buffer.clear();
 }
 
 void ImportMapView::ReadPreviewData() {
@@ -317,6 +318,7 @@ void ImportMapView::Render() {
         ImGui::Separator();
         
         ImGui::BeginDisabled(import_started);
+        ImGui::InputText("Добавить к примечанию", &custom_note_buffer);
         ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);
         ImGui::SameLine();
         ImGui::Checkbox("Возврат", &is_return_import);
@@ -330,7 +332,8 @@ void ImportMapView::Render() {
                         uiManager->importProgress, uiManager->importMessage,
                         uiManager->importMutex, contract_pattern_buffer,
                         kosgu_pattern_buffer, invoice_pattern_buffer,
-                        force_income_type, is_return_import);
+                        force_income_type, is_return_import,
+                        custom_note_buffer);
                     uiManager->isImporting = false;
                 }).detach();
             }

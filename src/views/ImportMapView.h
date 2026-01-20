@@ -50,4 +50,5 @@ private:
     bool import_started = false;
     bool force_income_type = false;
     bool is_return_import = false;
+    std::string custom_note_buffer;
 };
