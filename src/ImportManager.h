@@ -26,7 +26,8 @@ public:
         const std::string& contract_regex,
         const std::string& kosgu_regex,
         const std::string& invoice_regex,
-        bool force_income_type
+        bool force_income_type,
+        bool is_return_import
     );
 
 };

@@ -72,7 +72,8 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                                           const std::string& contract_regex_str,
                                           const std::string& kosgu_regex_str,
                                           const std::string& invoice_regex_str,
-                                          bool force_income_type
+                                          bool force_income_type,
+                                          bool is_return_import
                                           ) {
     if (!dbManager) {
         std::lock_guard<std::mutex> lock(message_mutex);
@@ -139,6 +140,10 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
             payment.amount = std::stod(amount_str);
         } catch (const std::exception &) {
             payment.amount = 0.0;
+        }
+
+        if (is_return_import) {
+            payment.amount *= -1;
         }
         
         if (type_str_from_file.empty()) {

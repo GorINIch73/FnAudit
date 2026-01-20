@@ -318,6 +318,8 @@ void ImportMapView::Render() {
         
         ImGui::BeginDisabled(import_started);
         ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);
+        ImGui::SameLine();
+        ImGui::Checkbox("Возврат", &is_return_import);
         if (ImGui::Button("Импортировать")) {
             if (dbManager && uiManager && uiManager->importManager) {
                 import_started = true;
@@ -328,7 +330,7 @@ void ImportMapView::Render() {
                         uiManager->importProgress, uiManager->importMessage,
                         uiManager->importMutex, contract_pattern_buffer,
                         kosgu_pattern_buffer, invoice_pattern_buffer,
-                        force_income_type);
+                        force_income_type, is_return_import);
                     uiManager->isImporting = false;
                 }).detach();
             }
