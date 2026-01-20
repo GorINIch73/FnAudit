@@ -48,4 +48,5 @@ private:
     std::string kosgu_pattern_buffer;
     std::string invoice_pattern_buffer;
     bool import_started = false;
+    bool force_income_type = false;
 };

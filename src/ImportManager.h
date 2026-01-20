@@ -25,7 +25,8 @@ public:
         std::mutex& message_mutex,
         const std::string& contract_regex,
         const std::string& kosgu_regex,
-        const std::string& invoice_regex
+        const std::string& invoice_regex,
+        bool force_income_type
     );
 
 };

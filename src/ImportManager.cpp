@@ -71,7 +71,8 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                                           std::mutex &message_mutex,
                                           const std::string& contract_regex_str,
                                           const std::string& kosgu_regex_str,
-                                          const std::string& invoice_regex_str
+                                          const std::string& invoice_regex_str,
+                                          bool force_income_type
                                           ) {
     if (!dbManager) {
         std::lock_guard<std::mutex> lock(message_mutex);
@@ -206,6 +207,11 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                     }
                 }
             }
+        }
+
+        // Apply force_income_type override if set
+        if (force_income_type) {
+            payment.type = true; // true is 'income'
         }
 
         if (!dbManager->addPayment(payment)) {
