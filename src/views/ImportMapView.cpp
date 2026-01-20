@@ -45,7 +45,7 @@ static std::string get_regex_match(const std::string &text,
 ImportMapView::ImportMapView() {
     Title = "Сопоставление полей для импорта";
     targetFields = {"Дата",  "Номер док.", "Тип",
-                    "Сумма", "Контрагент", "Назначение"};
+                    "Сумма", "Контрагент", "Назначение", "Примечание"};
 }
 
 void ImportMapView::Open(const std::string &filePath) {

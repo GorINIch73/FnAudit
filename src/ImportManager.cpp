@@ -131,6 +131,7 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
             get_value_from_row(row, mapping, "Плательщик");
         payment.recipient = get_value_from_row(row, mapping, "Контрагент");
         payment.description = get_value_from_row(row, mapping, "Назначение");
+        payment.note = get_value_from_row(row, mapping, "Примечание");
 
         try {
             std::string amount_str = get_value_from_row(row, mapping, "Сумма");
