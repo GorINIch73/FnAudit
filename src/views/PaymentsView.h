@@ -29,6 +29,8 @@ private:
     void SaveDetailChanges();
 
     std::vector<Payment> payments;
+    std::vector<Payment> m_filtered_payments;
+    void UpdateFilteredPayments();
     Payment selectedPayment;
     Payment originalPayment;
     int selectedPaymentIndex;

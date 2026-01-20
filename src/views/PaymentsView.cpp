@@ -8,9 +8,9 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <regex>
 #include <sstream>
 #include <string>
-#include <regex>
 
 PaymentsView::PaymentsView()
     : selectedPaymentIndex(-1),
@@ -41,6 +41,7 @@ void PaymentsView::SetPdfReporter(PdfReporter *reporter) {
 void PaymentsView::RefreshData() {
     if (dbManager) {
         payments = dbManager->getPayments();
+        UpdateFilteredPayments(); // Ensure the filter is applied to the new data
         selectedPaymentIndex = -1;
         paymentDetails.clear();
         selectedDetailIndex = -1;
@@ -56,7 +57,6 @@ void PaymentsView::RefreshDropdownData() {
         suspiciousWordsForFilter = dbManager->getSuspiciousWords();
     }
 }
-
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 PaymentsView::GetDataAsStrings() {
@@ -187,7 +187,7 @@ void PaymentsView::Render() {
         }
         return;
     }
-    
+
     // Handle chunked group operation processing
     if (current_operation != NONE) {
         ProcessGroupOperation();
@@ -198,123 +198,28 @@ void PaymentsView::Render() {
         if (dbManager && payments.empty()) {
             RefreshData();
             RefreshDropdownData();
-        }
-
-        // Create filtered list
-        std::vector<Payment> filtered_payments;
-
-        // Text filter
-        std::vector<Payment> text_filtered_payments;
-        if (filterText[0] != '\0') {
-            std::string filter_str(filterText);
-            std::stringstream ss(filter_str);
-            std::string term;
-            std::vector<std::string> search_terms;
-            while (std::getline(ss, term, ',')) {
-                size_t first = term.find_first_not_of(" \t");
-                if (std::string::npos == first) continue;
-                size_t last = term.find_last_not_of(" \t");
-                search_terms.push_back(term.substr(first, (last - first + 1)));
-            }
-
-            if (!search_terms.empty()) {
-                for (const auto& p : payments) {
-                    bool all_terms_match = true;
-                    for (const auto& current_term : search_terms) {
-                        bool term_found_in_payment = false;
-                        if (strcasestr(p.date.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
-                        if (!term_found_in_payment && strcasestr(p.doc_number.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
-                        if (!term_found_in_payment && strcasestr(p.description.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
-                        if (!term_found_in_payment && strcasestr(p.recipient.c_str(), current_term.c_str()) != nullptr) term_found_in_payment = true;
-                        if (!term_found_in_payment) {
-                            char amount_str[32];
-                            snprintf(amount_str, sizeof(amount_str), "%.2f", p.amount);
-                            if (strcasestr(amount_str, current_term.c_str()) != nullptr) term_found_in_payment = true;
-                        }
-
-                        if (!term_found_in_payment) {
-                            all_terms_match = false;
-                            break;
-                        }
-                    }
-                    if (all_terms_match) {
-                        text_filtered_payments.push_back(p);
-                    }
-                }
-            } else {
-                 text_filtered_payments = payments;
-            }
-        } else {
-            text_filtered_payments = payments;
-        }
-
-        // Missing info filter
-        if (missing_info_filter_index == 0) {
-            filtered_payments = text_filtered_payments;
-        } else if (missing_info_filter_index == 5) { // "Подозрительные слова"
-            if (!suspiciousWordsForFilter.empty()) {
-                for (const auto& p : text_filtered_payments) {
-                    bool suspicious_found = false;
-                    for (const auto& sw : suspiciousWordsForFilter) {
-                        if (strcasestr(p.description.c_str(), sw.word.c_str()) != nullptr) {
-                            suspicious_found = true;
-                            break;
-                        }
-                    }
-                    if (suspicious_found) {
-                        filtered_payments.push_back(p);
-                    }
-                }
-            }
-        } else {
-            std::map<int, std::vector<PaymentDetail>> details_by_payment;
-            if (dbManager) {
-                auto all_details = dbManager->getAllPaymentDetails();
-                for (const auto& detail : all_details) {
-                    details_by_payment[detail.payment_id].push_back(detail);
-                }
-            }
-
-            for (const auto& p : text_filtered_payments) {
-                auto it = details_by_payment.find(p.id);
-
-                if (missing_info_filter_index == 4) { // "Без расшифровок"
-                    if (it == details_by_payment.end()) { // has no details
-                        filtered_payments.push_back(p);
-                    }
-                } else { // Filters for missing info inside details (index 1, 2, 3)
-                    if (it != details_by_payment.end()) { // has details
-                        bool missing_found = false;
-                        for (const auto& detail : it->second) {
-                            if ((missing_info_filter_index == 1 && detail.kosgu_id == -1) ||
-                                (missing_info_filter_index == 2 && detail.contract_id == -1) ||
-                                (missing_info_filter_index == 3 && detail.invoice_id == -1)) {
-                                missing_found = true;
-                                break;
-                            }
-                        }
-                        if (missing_found) {
-                            filtered_payments.push_back(p);
-                        }
-                    }
-                }
-            }
+            UpdateFilteredPayments(); // Initial filter
         }
 
         // --- Progress Bar Popup ---
         if (current_operation != NONE) {
             ImGui::OpenPopup("Выполнение операции...");
         }
-        if (ImGui::BeginPopupModal("Выполнение операции...", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove)) {
+        if (ImGui::BeginPopupModal("Выполнение операции...", NULL,
+                                   ImGuiWindowFlags_AlwaysAutoResize |
+                                       ImGuiWindowFlags_NoMove)) {
             if (current_operation == NONE) {
                 ImGui::CloseCurrentPopup();
             }
-            ImGui::Text("Обработка %d из %zu...", processed_items, items_to_process.size());
-            float progress = (items_to_process.empty()) ? 0.0f : (float)processed_items / (float)items_to_process.size();
+            ImGui::Text("Обработка %d из %zu...", processed_items,
+                        items_to_process.size());
+            float progress =
+                (items_to_process.empty())
+                    ? 0.0f
+                    : (float)processed_items / (float)items_to_process.size();
             ImGui::ProgressBar(progress, ImVec2(250.0f, 0.0f));
             ImGui::EndPopup();
         }
-
 
         // --- Панель управления ---
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
@@ -357,8 +262,11 @@ void PaymentsView::Render() {
         if (show_delete_payment_popup) {
             ImGui::OpenPopup("Подтверждение удаления");
         }
-        if (ImGui::BeginPopupModal("Подтверждение удаления", &show_delete_payment_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить этот платеж?\nЭто действие нельзя отменить.");
+        if (ImGui::BeginPopupModal("Подтверждение удаления",
+                                   &show_delete_payment_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить этот платеж?\nЭто "
+                        "действие нельзя отменить.");
             ImGui::Separator();
             if (ImGui::Button("Да", ImVec2(120, 0))) {
                 if (dbManager && payment_id_to_delete != -1) {
@@ -383,16 +291,20 @@ void PaymentsView::Render() {
             }
             ImGui::EndPopup();
         }
-        
+
         if (show_group_delete_popup) {
             ImGui::OpenPopup("Удалить все расшифровки?");
         }
-        if (ImGui::BeginPopupModal("Удалить все расшифровки?", &show_group_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить расшифровки для %zu платежей?", filtered_payments.size());
+        if (ImGui::BeginPopupModal("Удалить все расшифровки?",
+                                   &show_group_delete_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text(
+                "Вы уверены, что хотите удалить расшифровки для %zu платежей?",
+                m_filtered_payments.size());
             ImGui::Separator();
             if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (!filtered_payments.empty() && current_operation == NONE) {
-                    items_to_process = filtered_payments;
+                if (!m_filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_payments;
                     processed_items = 0;
                     current_operation = DELETE_DETAILS;
                 }
@@ -408,54 +320,69 @@ void PaymentsView::Render() {
             ImGui::EndPopup();
         }
 
-
         ImGui::Separator();
 
-        ImGui::InputText("Фильтр", filterText, sizeof(filterText));
+        bool filter_changed = false;
+        if (ImGui::InputText("Фильтр", filterText, sizeof(filterText))) {
+            filter_changed = true;
+        }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK)) {
             filterText[0] = '\0';
+            filter_changed = true;
         }
 
         ImGui::SameLine();
         float avail_width = ImGui::GetContentRegionAvail().x;
         ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
-        const char* filter_items[] = { "Все", "Без КОСГУ", "Без Договора", "Без Накладной", "Без расшифровок", "Подозрительные слова" };
-        ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index, filter_items, IM_ARRAYSIZE(filter_items));
+        const char *filter_items[] = {
+            "Все",           "Без КОСГУ",       "Без Договора",
+            "Без Накладной", "Без расшифровок", "Подозрительные слова"};
+        if (ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index,
+                     filter_items, IM_ARRAYSIZE(filter_items))) {
+            filter_changed = true;
+        }
         ImGui::PopItemWidth();
+
+        if (filter_changed) {
+            UpdateFilteredPayments();
+        }
 
         if (ImGui::CollapsingHeader("Групповые операции")) {
 
             if (ImGui::Button("Добавить расшифровку по КОСГУ")) {
-                 if (!filtered_payments.empty() && current_operation == NONE) {
+                if (!m_filtered_payments.empty() && current_operation == NONE) {
                     show_add_kosgu_popup = true;
                     groupKosguId = -1;
                     memset(groupKosguFilter, 0, sizeof(groupKosguFilter));
-                 }
+                }
             }
             ImGui::SameLine();
             if (ImGui::Button("Удалить расшифровки у отфильтрованных")) {
-                if (!filtered_payments.empty() && current_operation == NONE) {
+                if (!m_filtered_payments.empty() && current_operation == NONE) {
                     show_group_delete_popup = true;
                 }
             }
             ImGui::SameLine();
             if (ImGui::Button("Заменить")) {
-                if (!filtered_payments.empty() && current_operation == NONE) {
+                if (!m_filtered_payments.empty() && current_operation == NONE) {
                     show_replace_popup = true;
                     // Reset state for the popup
                     replacement_target = 0;
                     replacement_kosgu_id = -1;
                     replacement_contract_id = -1;
                     replacement_invoice_id = -1;
-                    memset(replacement_kosgu_filter, 0, sizeof(replacement_kosgu_filter));
-                    memset(replacement_contract_filter, 0, sizeof(replacement_contract_filter));
-                    memset(replacement_invoice_filter, 0, sizeof(replacement_invoice_filter));
+                    memset(replacement_kosgu_filter, 0,
+                           sizeof(replacement_kosgu_filter));
+                    memset(replacement_contract_filter, 0,
+                           sizeof(replacement_contract_filter));
+                    memset(replacement_invoice_filter, 0,
+                           sizeof(replacement_invoice_filter));
                 }
             }
             ImGui::SameLine();
             if (ImGui::Button("Определить по regex")) {
-                if (!filtered_payments.empty() && current_operation == NONE) {
+                if (!m_filtered_payments.empty() && current_operation == NONE) {
                     show_apply_regex_popup = true;
                     // Reset state
                     regex_target = 0;
@@ -475,12 +402,17 @@ void PaymentsView::Render() {
         if (show_apply_regex_popup) {
             ImGui::OpenPopup("Определить по regex");
         }
-        if (ImGui::BeginPopupModal("Определить по regex", &show_apply_regex_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Применить regex для %zu отфильтрованных платежей:", filtered_payments.size());
-            ImGui::Text("Будет обновлена первая расшифровка без установленного значения.");
-            
+        if (ImGui::BeginPopupModal("Определить по regex",
+                                   &show_apply_regex_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Применить regex для %zu отфильтрованных платежей:",
+                        m_filtered_payments.size());
+            ImGui::Text("Будет обновлена первая расшифровка без установленного "
+                        "значения.");
+
             ImGui::Separator();
-            ImGui::RadioButton("Договор", &regex_target, 0); ImGui::SameLine();
+            ImGui::RadioButton("Договор", &regex_target, 0);
+            ImGui::SameLine();
             ImGui::RadioButton("Накладная", &regex_target, 1);
             ImGui::Separator();
 
@@ -488,12 +420,15 @@ void PaymentsView::Render() {
             for (const auto &r : regexesForDropdown) {
                 regexItems.push_back({r.id, r.name});
             }
-            CustomWidgets::ComboWithFilter("Выбор Regex", selected_regex_id, regexItems, regex_filter, sizeof(regex_filter), 0);
+            CustomWidgets::ComboWithFilter("Выбор Regex", selected_regex_id,
+                                           regexItems, regex_filter,
+                                           sizeof(regex_filter), 0);
 
             ImGui::Separator();
             if (ImGui::Button("Найти и проставить", ImVec2(120, 0))) {
-                 if (dbManager && selected_regex_id != -1 && !filtered_payments.empty() && current_operation == NONE) {
-                    items_to_process = filtered_payments;
+                if (dbManager && selected_regex_id != -1 &&
+                    !m_filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_payments;
                     processed_items = 0;
                     current_operation = APPLY_REGEX;
                 }
@@ -508,22 +443,28 @@ void PaymentsView::Render() {
             ImGui::EndPopup();
         }
 
-
-        if (ImGui::BeginPopupModal("Добавление расшифровки по КОСГУ", &show_add_kosgu_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Добавить расшифровку с КОСГУ для %zu отфильтрованных платежей:", filtered_payments.size());
+        if (ImGui::BeginPopupModal("Добавление расшифровки по КОСГУ",
+                                   &show_add_kosgu_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Добавить расшифровку с КОСГУ для %zu отфильтрованных "
+                        "платежей:",
+                        m_filtered_payments.size());
             ImGui::Separator();
 
             std::vector<CustomWidgets::ComboItem> kosguItems;
             for (const auto &k : kosguForDropdown) {
                 kosguItems.push_back({k.id, k.code + " " + k.name});
             }
-            CustomWidgets::ComboWithFilter("КОСГУ", groupKosguId, kosguItems, groupKosguFilter, sizeof(groupKosguFilter), 0);
-            
+            CustomWidgets::ComboWithFilter("КОСГУ", groupKosguId, kosguItems,
+                                           groupKosguFilter,
+                                           sizeof(groupKosguFilter), 0);
+
             ImGui::Separator();
 
             if (ImGui::Button("ОК", ImVec2(120, 0))) {
-                if (dbManager && groupKosguId != -1 && !filtered_payments.empty() && current_operation == NONE) {
-                    items_to_process = filtered_payments;
+                if (dbManager && groupKosguId != -1 &&
+                    !m_filtered_payments.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_payments;
                     processed_items = 0;
                     current_operation = ADD_KOSGU;
                 }
@@ -543,13 +484,18 @@ void PaymentsView::Render() {
             ImGui::OpenPopup("Замена в расшифровках");
         }
 
-        if (ImGui::BeginPopupModal("Замена в расшифровках", &show_replace_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Заменить во всех расшифровках для %zu отфильтрованных платежей:", filtered_payments.size());
-            
+        if (ImGui::BeginPopupModal("Замена в расшифровках", &show_replace_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Заменить во всех расшифровках для %zu отфильтрованных "
+                        "платежей:",
+                        m_filtered_payments.size());
+
             ImGui::Separator();
 
-            ImGui::RadioButton("КОСГУ", &replacement_target, 0); ImGui::SameLine();
-            ImGui::RadioButton("Договор", &replacement_target, 1); ImGui::SameLine();
+            ImGui::RadioButton("КОСГУ", &replacement_target, 0);
+            ImGui::SameLine();
+            ImGui::RadioButton("Договор", &replacement_target, 1);
+            ImGui::SameLine();
             ImGui::RadioButton("Накладную", &replacement_target, 2);
 
             ImGui::Separator();
@@ -559,33 +505,46 @@ void PaymentsView::Render() {
                 for (const auto &k : kosguForDropdown) {
                     kosguItems.push_back({k.id, k.code + " " + k.name});
                 }
-                CustomWidgets::ComboWithFilter("Новый КОСГУ", replacement_kosgu_id, kosguItems, replacement_kosgu_filter, sizeof(replacement_kosgu_filter), 0);
+                CustomWidgets::ComboWithFilter(
+                    "Новый КОСГУ", replacement_kosgu_id, kosguItems,
+                    replacement_kosgu_filter, sizeof(replacement_kosgu_filter),
+                    0);
             } else if (replacement_target == 1) {
                 std::vector<CustomWidgets::ComboItem> contractItems;
                 for (const auto &c : contractsForDropdown) {
                     contractItems.push_back({c.id, c.number + " " + c.date});
                 }
-                CustomWidgets::ComboWithFilter("Новый Договор", replacement_contract_id, contractItems, replacement_contract_filter, sizeof(replacement_contract_filter), 0);
+                CustomWidgets::ComboWithFilter(
+                    "Новый Договор", replacement_contract_id, contractItems,
+                    replacement_contract_filter,
+                    sizeof(replacement_contract_filter), 0);
             } else {
                 std::vector<CustomWidgets::ComboItem> invoiceItems;
                 for (const auto &i : invoicesForDropdown) {
                     invoiceItems.push_back({i.id, i.number + " " + i.date});
                 }
-                CustomWidgets::ComboWithFilter("Новая Накладная", replacement_invoice_id, invoiceItems, replacement_invoice_filter, sizeof(replacement_invoice_filter), 0);
+                CustomWidgets::ComboWithFilter(
+                    "Новая Накладная", replacement_invoice_id, invoiceItems,
+                    replacement_invoice_filter,
+                    sizeof(replacement_invoice_filter), 0);
             }
 
             ImGui::Separator();
 
             if (ImGui::Button("ОК", ImVec2(120, 0))) {
-                if (dbManager && !filtered_payments.empty() && current_operation == NONE) {
-                    
+                if (dbManager && !m_filtered_payments.empty() &&
+                    current_operation == NONE) {
+
                     int new_id = -1;
-                    if (replacement_target == 0) new_id = replacement_kosgu_id;
-                    else if (replacement_target == 1) new_id = replacement_contract_id;
-                    else new_id = replacement_invoice_id;
+                    if (replacement_target == 0)
+                        new_id = replacement_kosgu_id;
+                    else if (replacement_target == 1)
+                        new_id = replacement_contract_id;
+                    else
+                        new_id = replacement_invoice_id;
 
                     if (new_id != -1) {
-                        items_to_process = filtered_payments;
+                        items_to_process = m_filtered_payments;
                         processed_items = 0;
                         current_operation = REPLACE;
                     }
@@ -619,28 +578,32 @@ void PaymentsView::Render() {
             ImGui::TableSetupColumn("Сумма", 0, 0.0f, 2);
             ImGui::TableSetupColumn(
                 "Назначение", ImGuiTableColumnFlags_WidthFixed, 600.0f, 3);
-            ImGui::TableSetupColumn("Примечание", ImGuiTableColumnFlags_WidthFixed, 300.0f, 4);
+            ImGui::TableSetupColumn(
+                "Примечание", ImGuiTableColumnFlags_WidthFixed, 300.0f, 4);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortPayments(payments, sort_specs); // Sort original payments list
+                    SortPayments(payments,
+                                 sort_specs); // Sort original payments list
+                    UpdateFilteredPayments(); // <<< FIX: Re-apply filter after sorting
                     sort_specs->SpecsDirty = false;
                 }
             }
 
             ImGuiListClipper clipper;
-            clipper.Begin(filtered_payments.size());
+            clipper.Begin(m_filtered_payments.size());
             while (clipper.Step()) {
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-                    const auto& payment = filtered_payments[i];
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
+                     ++i) {
+                    const auto &payment = m_filtered_payments[i];
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
 
                     // Find the original index in the main 'payments' vector
                     int original_index = -1;
-                    for(size_t j = 0; j < payments.size(); ++j) {
-                        if(payments[j].id == payment.id) {
+                    for (size_t j = 0; j < payments.size(); ++j) {
+                        if (payments[j].id == payment.id) {
                             original_index = j;
                             break;
                         }
@@ -649,7 +612,9 @@ void PaymentsView::Render() {
                     bool is_selected = (selectedPaymentIndex == original_index);
                     char label[128];
                     sprintf(label, "%s##%d", payment.date.c_str(), payment.id);
-                    if (ImGui::Selectable(label, is_selected, ImGuiSelectableFlags_SpanAllColumns)) {
+                    if (ImGui::Selectable(
+                            label, is_selected,
+                            ImGuiSelectableFlags_SpanAllColumns)) {
                         if (selectedPaymentIndex != original_index) {
                             SaveChanges();
                             SaveDetailChanges();
@@ -660,7 +625,8 @@ void PaymentsView::Render() {
                             descriptionBuffer = selectedPayment.description;
                             noteBuffer = selectedPayment.note;
                             if (dbManager) {
-                                paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                                paymentDetails = dbManager->getPaymentDetails(
+                                    selectedPayment.id);
                             }
                             isAdding = false;
                             isDirty = false;
@@ -779,7 +745,7 @@ void PaymentsView::Render() {
                 extracted_number.clear();
                 extracted_date.clear();
                 existing_entity_id = -1;
-                
+
                 if (dbManager) {
                     regexesForCreatePopup = dbManager->getRegexes();
                 }
@@ -793,67 +759,93 @@ void PaymentsView::Render() {
             if (show_create_from_desc_popup) {
                 ImGui::OpenPopup("Создать из назначения платежа");
             }
-            // if (show_save_regex_popup) {
-                // ImGui::OpenPopup("Сохранить новое Regex выражение");
-            // }
 
+            if (ImGui::BeginPopupModal("Создать из назначения платежа",
+                                       &show_create_from_desc_popup,
+                                       ImGuiWindowFlags_AlwaysAutoResize)) {
 
-            if (ImGui::BeginPopupModal("Создать из назначения платежа", &show_create_from_desc_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-                
-            auto TestRegexAndExtract = [&](const char* pattern) {
-                if (pattern[0] != '\0' && dbManager) {
-                    try {
-                        std::regex re(pattern);
-                        std::smatch match;
-                        if (std::regex_search(selectedPayment.description, match, re) && match.size() > 2) {
-                            extracted_number = match[1].str();
-                            extracted_date = match[2].str();
-                            
-                            extracted_number.erase(extracted_number.find_last_not_of(" \n\r\t")+1);
-                            extracted_number.erase(0, extracted_number.find_first_not_of(" \n\r\t"));
-                            extracted_date.erase(extracted_date.find_last_not_of(" \n\r\t")+1);
-                            extracted_date.erase(0, extracted_date.find_first_not_of(" \n\r\t"));
+                auto TestRegexAndExtract = [&](const char *pattern) {
+                    if (pattern[0] != '\0' && dbManager) {
+                        try {
+                            std::regex re(pattern);
+                            std::smatch match;
+                            if (std::regex_search(selectedPayment.description,
+                                                  match, re) &&
+                                match.size() > 2) {
+                                extracted_number = match[1].str();
+                                extracted_date = match[2].str();
 
-                            if (entity_to_create == 0) {
-                                existing_entity_id = dbManager->getContractIdByNumberDate(extracted_number, extracted_date);
+                                extracted_number.erase(
+                                    extracted_number.find_last_not_of(
+                                        " \n\r\t") +
+                                    1);
+                                extracted_number.erase(
+                                    0, extracted_number.find_first_not_of(
+                                           " \n\r\t"));
+                                extracted_date.erase(
+                                    extracted_date.find_last_not_of(" \n\r\t") +
+                                    1);
+                                extracted_date.erase(
+                                    0, extracted_date.find_first_not_of(
+                                           " \n\r\t"));
+
+                                if (entity_to_create == 0) {
+                                    existing_entity_id =
+                                        dbManager->getContractIdByNumberDate(
+                                            extracted_number, extracted_date);
+                                } else {
+                                    existing_entity_id =
+                                        dbManager->getInvoiceIdByNumberDate(
+                                            extracted_number, extracted_date);
+                                }
+
                             } else {
-                                existing_entity_id = dbManager->getInvoiceIdByNumberDate(extracted_number, extracted_date);
+                                extracted_number = "Не найдено";
+                                extracted_date = "Не найдено";
+                                existing_entity_id = -1;
                             }
-
-                        } else {
-                            extracted_number = "Не найдено";
-                            extracted_date = "Не найдено";
+                        } catch (const std::regex_error &e) {
+                            extracted_number = "Ошибка Regex";
+                            extracted_date = e.what();
                             existing_entity_id = -1;
                         }
-                    } catch (const std::regex_error& e) {
-                         extracted_number = "Ошибка Regex";
-                         extracted_date = e.what();
-                         existing_entity_id = -1;
                     }
-                }
-            };
-                
-                ImGui::TextWrapped("Назначение: %s", selectedPayment.description.c_str());
+                };
+
+                ImGui::TextWrapped("Назначение: %s",
+                                   selectedPayment.description.c_str());
                 ImGui::Separator();
                 std::vector<CustomWidgets::ComboItem> regexItems;
                 for (const auto &r : regexesForCreatePopup) {
                     regexItems.push_back({r.id, r.name});
                 }
 
-                if (CustomWidgets::ComboWithFilter("Выбор Regex", selectedRegexIdForCreatePopup, regexItems, regexFilterForCreatePopup, sizeof(regexFilterForCreatePopup), 0)) {
-                    auto it = std::find_if(regexesForCreatePopup.begin(), regexesForCreatePopup.end(), [&](const Regex& r){ return r.id == selectedRegexIdForCreatePopup; });
+                if (CustomWidgets::ComboWithFilter(
+                        "Выбор Regex", selectedRegexIdForCreatePopup,
+                        regexItems, regexFilterForCreatePopup,
+                        sizeof(regexFilterForCreatePopup), 0)) {
+                    auto it = std::find_if(
+                        regexesForCreatePopup.begin(),
+                        regexesForCreatePopup.end(), [&](const Regex &r) {
+                            return r.id == selectedRegexIdForCreatePopup;
+                        });
                     if (it != regexesForCreatePopup.end()) {
-                        strncpy(editableRegexPatternForCreate, it->pattern.c_str(), sizeof(editableRegexPatternForCreate) - 1);
-                        editableRegexPatternForCreate[sizeof(editableRegexPatternForCreate) - 1] = '\0';
+                        strncpy(editableRegexPatternForCreate,
+                                it->pattern.c_str(),
+                                sizeof(editableRegexPatternForCreate) - 1);
+                        editableRegexPatternForCreate
+                            [sizeof(editableRegexPatternForCreate) - 1] = '\0';
                         TestRegexAndExtract(editableRegexPatternForCreate);
-                        selected_regex_name=it->name;
+                        selected_regex_name = it->name;
                     }
                 }
 
-                if (ImGui::InputText("Шаблон Regex", editableRegexPatternForCreate, sizeof(editableRegexPatternForCreate))) {
+                if (ImGui::InputText("Шаблон Regex",
+                                     editableRegexPatternForCreate,
+                                     sizeof(editableRegexPatternForCreate))) {
                     TestRegexAndExtract(editableRegexPatternForCreate);
                 }
-                
+
                 if (ImGui::Button("Сохранить как новый")) {
                     if (editableRegexPatternForCreate[0] != '\0') {
 
@@ -863,12 +855,13 @@ void PaymentsView::Render() {
                         newRegex.pattern = editableRegexPatternForCreate;
 
                         bool saved = dbManager->addRegex(newRegex);
-                        while (!saved) { 
+                        while (!saved) {
                             newRegex.name += "*";
                             if (newRegex.name.length() > 120) {
-                                saved = false; // Ensure we don't enter the success block
+                                saved = false; // Ensure we don't enter the
+                                               // success block
                                 break;
-                            }  
+                            }
                             saved = dbManager->addRegex(newRegex);
                         }
 
@@ -882,8 +875,9 @@ void PaymentsView::Render() {
                 }
 
                 ImGui::Separator();
-                
-                ImGui::RadioButton("Договор", &entity_to_create, 0); ImGui::SameLine();
+
+                ImGui::RadioButton("Договор", &entity_to_create, 0);
+                ImGui::SameLine();
                 ImGui::RadioButton("Накладная", &entity_to_create, 1);
                 ImGui::Separator();
 
@@ -891,21 +885,30 @@ void PaymentsView::Render() {
                 ImGui::Text("Дата:  %s", extracted_date.c_str());
 
                 if (existing_entity_id != -1) {
-                    ImGui::TextColored(ImVec4(1.0f, 1.0f, 0.0f, 1.0f), "Подсказка: Такой %s уже существует.", (entity_to_create == 0 ? "договор" : "документ"));
+                    ImGui::TextColored(
+                        ImVec4(1.0f, 1.0f, 0.0f, 1.0f),
+                        "Подсказка: Такой %s уже существует.",
+                        (entity_to_create == 0 ? "договор" : "документ"));
                 }
-                
-                if (ImGui::Button("Создать") && !extracted_number.empty() && !extracted_date.empty() && extracted_number != "Не найдено" && extracted_number != "Ошибка Regex") {
+
+                if (ImGui::Button("Создать") && !extracted_number.empty() &&
+                    !extracted_date.empty() &&
+                    extracted_number != "Не найдено" &&
+                    extracted_number != "Ошибка Regex") {
                     if (dbManager) {
                         int new_id = -1;
                         if (entity_to_create == 0) {
-                            Contract new_contract = {-1, extracted_number, extracted_date, selectedPayment.counterparty_id, 0.0};
+                            Contract new_contract = {
+                                -1, extracted_number, extracted_date,
+                                selectedPayment.counterparty_id, 0.0};
                             new_id = dbManager->addContract(new_contract);
                         } else {
-                            Invoice new_invoice = {-1, extracted_number, extracted_date, -1, 0.0};
+                            Invoice new_invoice = {-1, extracted_number,
+                                                   extracted_date, -1, 0.0};
                             new_id = dbManager->addInvoice(new_invoice);
                         }
                     }
-    
+
                     show_create_from_desc_popup = false;
                     ImGui::CloseCurrentPopup();
                 }
@@ -916,22 +919,8 @@ void PaymentsView::Render() {
                     ImGui::CloseCurrentPopup();
                 }
 
-                // ImGui::EndPopup();
-            // }
-
-                // ImGui::SameLine();
-                // if (ImGui::Button("Отмена")) {
-                //     show_save_regex_popup = false;
-                //     show_create_from_desc_popup = true;
-                //     ImGui::CloseCurrentPopup();
-                // }
-                //
-                // if (saveRegexStatusMsg && saveRegexStatusMsg[0] != '\0') {
-                //     ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "%s", saveRegexStatusMsg);
-                // }
                 ImGui::EndPopup();
             }
-
 
             if (!counterpartiesForDropdown.empty()) {
                 std::vector<CustomWidgets::ComboItem> counterpartyItems;
@@ -953,7 +942,7 @@ void PaymentsView::Render() {
         ImGui::SameLine();
 
         CustomWidgets::VerticalSplitter("v_splitter", &editor_width);
-        
+
         ImGui::SameLine();
 
         // --- Расшифровка платежа ---
@@ -961,16 +950,19 @@ void PaymentsView::Render() {
         if (show_delete_detail_popup) {
             ImGui::OpenPopup("Удалить расшифровку?");
         }
-        if (ImGui::BeginPopupModal("Удалить расшифровку?", &show_delete_detail_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::BeginPopupModal("Удалить расшифровку?",
+                                   &show_delete_detail_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Вы уверены, что хотите удалить эту расшифровку?");
             ImGui::Separator();
             if (ImGui::Button("Да", ImVec2(120, 0))) {
-                 if (dbManager && detail_id_to_delete != -1) {
+                if (dbManager && detail_id_to_delete != -1) {
                     dbManager->deletePaymentDetail(detail_id_to_delete);
-                    paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                    paymentDetails =
+                        dbManager->getPaymentDetails(selectedPayment.id);
                     selectedDetailIndex = -1;
                     isDetailDirty = false;
-                 }
+                }
                 detail_id_to_delete = -1;
                 show_delete_detail_popup = false;
                 ImGui::CloseCurrentPopup();
@@ -997,12 +989,13 @@ void PaymentsView::Render() {
 
                 // Calculate sum of existing payment details
                 double sum_of_existing_details = 0.0;
-                for (const auto& detail : paymentDetails) {
+                for (const auto &detail : paymentDetails) {
                     sum_of_existing_details += detail.amount;
                 }
 
                 // Calculate remaining amount
-                double remaining_amount = selectedPayment.amount - sum_of_existing_details;
+                double remaining_amount =
+                    selectedPayment.amount - sum_of_existing_details;
 
                 // Assign to selectedDetail.amount
                 selectedDetail.amount = remaining_amount;
@@ -1153,6 +1146,128 @@ void PaymentsView::Render() {
     ImGui::End();
 }
 
+
+void PaymentsView::UpdateFilteredPayments() {
+    // Create filtered list
+    std::vector<Payment> text_filtered_payments;
+    if (filterText[0] != '\0') {
+        std::string filter_str(filterText);
+        std::stringstream ss(filter_str);
+        std::string term;
+        std::vector<std::string> search_terms;
+        while (std::getline(ss, term, ',')) {
+            size_t first = term.find_first_not_of(" \t");
+            if (std::string::npos == first)
+                continue;
+            size_t last = term.find_last_not_of(" \t");
+            search_terms.push_back(term.substr(first, (last - first + 1)));
+        }
+
+        if (!search_terms.empty()) {
+            for (const auto &p : payments) {
+                bool all_terms_match = true;
+                for (const auto &current_term : search_terms) {
+                    bool term_found_in_payment = false;
+                    if (strcasestr(p.date.c_str(), current_term.c_str()) !=
+                        nullptr)
+                        term_found_in_payment = true;
+                    if (!term_found_in_payment &&
+                        strcasestr(p.doc_number.c_str(),
+                                    current_term.c_str()) != nullptr)
+                        term_found_in_payment = true;
+                    if (!term_found_in_payment &&
+                        strcasestr(p.description.c_str(),
+                                    current_term.c_str()) != nullptr)
+                        term_found_in_payment = true;
+                    if (!term_found_in_payment &&
+                        strcasestr(p.recipient.c_str(),
+                                    current_term.c_str()) != nullptr)
+                        term_found_in_payment = true;
+                    if (!term_found_in_payment) {
+                        char amount_str[32];
+                        snprintf(amount_str, sizeof(amount_str), "%.2f",
+                                    p.amount);
+                        if (strcasestr(amount_str, current_term.c_str()) !=
+                            nullptr)
+                            term_found_in_payment = true;
+                    }
+
+                    if (!term_found_in_payment) {
+                        all_terms_match = false;
+                        break;
+                    }
+                }
+                if (all_terms_match) {
+                    text_filtered_payments.push_back(p);
+                }
+            }
+        } else {
+            text_filtered_payments = payments;
+        }
+    } else {
+        text_filtered_payments = payments;
+    }
+
+    // Missing info filter
+    m_filtered_payments.clear();
+    if (missing_info_filter_index == 0) {
+        m_filtered_payments = text_filtered_payments;
+    } else if (missing_info_filter_index == 5) { // "Подозрительные слова"
+        if (!suspiciousWordsForFilter.empty()) {
+            for (const auto &p : text_filtered_payments) {
+                bool suspicious_found = false;
+                for (const auto &sw : suspiciousWordsForFilter) {
+                    if (strcasestr(p.description.c_str(),
+                                    sw.word.c_str()) != nullptr) {
+                        suspicious_found = true;
+                        break;
+                    }
+                }
+                if (suspicious_found) {
+                    m_filtered_payments.push_back(p);
+                }
+            }
+        }
+    } else {
+        std::map<int, std::vector<PaymentDetail>> details_by_payment;
+        if (dbManager) {
+            auto all_details = dbManager->getAllPaymentDetails();
+            for (const auto &detail : all_details) {
+                details_by_payment[detail.payment_id].push_back(detail);
+            }
+        }
+
+        for (const auto &p : text_filtered_payments) {
+            auto it = details_by_payment.find(p.id);
+
+            if (missing_info_filter_index == 4) {     // "Без расшифровок"
+                if (it == details_by_payment.end()) { // has no details
+                    m_filtered_payments.push_back(p);
+                }
+            } else { // Filters for missing info inside details (index 1, 2,
+                     // 3)
+                if (it != details_by_payment.end()) { // has details
+                    bool missing_found = false;
+                    for (const auto &detail : it->second) {
+                        if ((missing_info_filter_index == 1 &&
+                                detail.kosgu_id == -1) ||
+                            (missing_info_filter_index == 2 &&
+                                detail.contract_id == -1) ||
+                            (missing_info_filter_index == 3 &&
+                                detail.invoice_id == -1)) {
+                            missing_found = true;
+                            break;
+                        }
+                    }
+                    if (missing_found) {
+                        m_filtered_payments.push_back(p);
+                    }
+                }
+            }
+        }
+    }
+}
+
 void PaymentsView::ProcessGroupOperation() {
     if (!dbManager || current_operation == NONE || items_to_process.empty()) {
         return;
@@ -1161,112 +1276,134 @@ void PaymentsView::ProcessGroupOperation() {
     const int items_per_frame = 20;
     int processed_in_frame = 0;
 
-    while (processed_items < items_to_process.size() && processed_in_frame < items_per_frame) {
-        const auto& payment = items_to_process[processed_items];
+    while (processed_items < items_to_process.size() &&
+           processed_in_frame < items_per_frame) {
+        const auto &payment = items_to_process[processed_items];
 
         switch (current_operation) {
-            case ADD_KOSGU: {
-                auto details = dbManager->getPaymentDetails(payment.id);
-                double sum_of_details = 0.0;
-                for (const auto& detail : details) {
-                    sum_of_details += detail.amount;
-                }
-                double remaining_amount = payment.amount - sum_of_details;
-                if (remaining_amount > 0.009 && groupKosguId != -1) {
-                    PaymentDetail newDetail;
-                    newDetail.payment_id = payment.id;
-                    newDetail.amount = remaining_amount;
-                    newDetail.kosgu_id = groupKosguId;
-                    newDetail.contract_id = -1;
-                    newDetail.invoice_id = -1;
-                    dbManager->addPaymentDetail(newDetail);
-                }
-                break;
+        case ADD_KOSGU: {
+            auto details = dbManager->getPaymentDetails(payment.id);
+            double sum_of_details = 0.0;
+            for (const auto &detail : details) {
+                sum_of_details += detail.amount;
             }
-            case REPLACE: {
-                 std::string field_to_update;
-                 int new_id = -1;
-                 if (replacement_target == 0) { field_to_update = "kosgu_id"; new_id = replacement_kosgu_id; }
-                 else if (replacement_target == 1) { field_to_update = "contract_id"; new_id = replacement_contract_id; }
-                 else { field_to_update = "invoice_id"; new_id = replacement_invoice_id; }
-                
-                 if(new_id != -1) {
-                    // We can't use the bulk update here easily with chunking, 
-                    // so we update payment by payment.
-                    dbManager->bulkUpdatePaymentDetails({payment.id}, field_to_update, new_id);
-                 }
-                break;
+            double remaining_amount = payment.amount - sum_of_details;
+            if (remaining_amount > 0.009 && groupKosguId != -1) {
+                PaymentDetail newDetail;
+                newDetail.payment_id = payment.id;
+                newDetail.amount = remaining_amount;
+                newDetail.kosgu_id = groupKosguId;
+                newDetail.contract_id = -1;
+                newDetail.invoice_id = -1;
+                dbManager->addPaymentDetail(newDetail);
             }
-            case DELETE_DETAILS: {
-                dbManager->deleteAllPaymentDetails(payment.id);
-                break;
+            break;
+        }
+        case REPLACE: {
+            std::string field_to_update;
+            int new_id = -1;
+            if (replacement_target == 0) {
+                field_to_update = "kosgu_id";
+                new_id = replacement_kosgu_id;
+            } else if (replacement_target == 1) {
+                field_to_update = "contract_id";
+                new_id = replacement_contract_id;
+            } else {
+                field_to_update = "invoice_id";
+                new_id = replacement_invoice_id;
             }
-            case APPLY_REGEX: {
-                auto it = std::find_if(regexesForDropdown.begin(), regexesForDropdown.end(), [&](const Regex& r){ return r.id == selected_regex_id; });
-                if (it != regexesForDropdown.end()) {
-                    try {
-                        std::regex re(it->pattern);
-                        std::smatch match;
-                        if (std::regex_search(payment.description, match, re) && match.size() > 2) {
-                            std::string number = match[1].str();
-                            std::string date = match[2].str();
-                            
-                            number.erase(number.find_last_not_of(" \n\r\t")+1);
-                            number.erase(0, number.find_first_not_of(" \n\r\t"));
-                            date.erase(date.find_last_not_of(" \n\r\t")+1);
-                            date.erase(0, date.find_first_not_of(" \n\r\t"));
 
-                            int id_to_set = -1;
-                            if (regex_target == 0) { // Contract
-                                id_to_set = dbManager->getContractIdByNumberDate(number, date);
-                                if (id_to_set == -1) {
-                                    Contract new_contract = {-1, number, date, payment.counterparty_id, 0.0};
-                                    id_to_set = dbManager->addContract(new_contract);
-                                }
-                            } else { // Invoice
-                                id_to_set = dbManager->getInvoiceIdByNumberDate(number, date);
-                                if (id_to_set == -1) {
-                                    Invoice new_invoice = {-1, number, date, -1, 0.0}; 
-                                    id_to_set = dbManager->addInvoice(new_invoice);
-                                }
+            if (new_id != -1) {
+                // We can't use the bulk update here easily with chunking,
+                // so we update payment by payment.
+                dbManager->bulkUpdatePaymentDetails({payment.id},
+                                                    field_to_update, new_id);
+            }
+            break;
+        }
+        case DELETE_DETAILS: {
+            dbManager->deleteAllPaymentDetails(payment.id);
+            break;
+        }
+        case APPLY_REGEX: {
+            auto it = std::find_if(
+                regexesForDropdown.begin(), regexesForDropdown.end(),
+                [&](const Regex &r) { return r.id == selected_regex_id; });
+            if (it != regexesForDropdown.end()) {
+                try {
+                    std::regex re(it->pattern);
+                    std::smatch match;
+                    if (std::regex_search(payment.description, match, re) &&
+                        match.size() > 2) {
+                        std::string number = match[1].str();
+                        std::string date = match[2].str();
+
+                        number.erase(number.find_last_not_of(" \n\r\t") + 1);
+                        number.erase(0, number.find_first_not_of(" \n\r\t"));
+                        date.erase(date.find_last_not_of(" \n\r\t") + 1);
+                        date.erase(0, date.find_first_not_of(" \n\r\t"));
+
+                        int id_to_set = -1;
+                        if (regex_target == 0) { // Contract
+                            id_to_set = dbManager->getContractIdByNumberDate(
+                                number, date);
+                            if (id_to_set == -1) {
+                                Contract new_contract = {
+                                    -1, number, date, payment.counterparty_id,
+                                    0.0};
+                                id_to_set =
+                                    dbManager->addContract(new_contract);
                             }
+                        } else { // Invoice
+                            id_to_set = dbManager->getInvoiceIdByNumberDate(
+                                number, date);
+                            if (id_to_set == -1) {
+                                Invoice new_invoice = {-1, number, date, -1,
+                                                       0.0};
+                                id_to_set = dbManager->addInvoice(new_invoice);
+                            }
+                        }
 
-                            if (id_to_set != -1) {
-                                auto details = dbManager->getPaymentDetails(payment.id);
-                                if (details.empty()) {
-                                    PaymentDetail newDetail;
-                                    newDetail.payment_id = payment.id;
-                                    newDetail.amount = payment.amount;
-                                    if (regex_target == 0) newDetail.contract_id = id_to_set;
-                                    else newDetail.invoice_id = id_to_set;
-                                    dbManager->addPaymentDetail(newDetail);
-                                } else {
-                                    for (auto& detail : details) {
-                                        if (regex_target == 0) { // Target is Contract
-                                            // if (detail.contract_id == -1) {
-                                                detail.contract_id = id_to_set;
-                                                dbManager->updatePaymentDetail(detail);
-                                                break; 
-                                            // }
-                                        } else { // Target is Invoice
-                                            // if (detail.invoice_id == -1) {
-                                                detail.invoice_id = id_to_set;
-                                                dbManager->updatePaymentDetail(detail);
-                                                break;
-                                            // }
-                                        }
+                        if (id_to_set != -1) {
+                            auto details =
+                                dbManager->getPaymentDetails(payment.id);
+                            if (details.empty()) {
+                                PaymentDetail newDetail;
+                                newDetail.payment_id = payment.id;
+                                newDetail.amount = payment.amount;
+                                if (regex_target == 0)
+                                    newDetail.contract_id = id_to_set;
+                                else
+                                    newDetail.invoice_id = id_to_set;
+                                dbManager->addPaymentDetail(newDetail);
+                            } else {
+                                for (auto &detail : details) {
+                                    if (regex_target ==
+                                        0) { // Target is Contract
+                                             // if (detail.contract_id == -1) {
+                                        detail.contract_id = id_to_set;
+                                        dbManager->updatePaymentDetail(detail);
+                                        break;
+                                        // }
+                                    } else { // Target is Invoice
+                                             // if (detail.invoice_id == -1) {
+                                        detail.invoice_id = id_to_set;
+                                        dbManager->updatePaymentDetail(detail);
+                                        break;
+                                        // }
                                     }
                                 }
                             }
                         }
-                    } catch (const std::regex_error& e) {
-                        // Ignore regex errors in batch processing
                     }
+                } catch (const std::regex_error &e) {
+                    // Ignore regex errors in batch processing
                 }
-                break;
             }
-            case NONE:
-                break;
+            break;
+        }
+        case NONE:
+            break;
         }
 
         processed_items++;
@@ -1278,10 +1415,10 @@ void PaymentsView::ProcessGroupOperation() {
         current_operation = NONE;
         processed_items = 0;
         items_to_process.clear();
-        
+
         // Refresh details of currently selected payment if any
-        if(selectedPaymentIndex != -1) {
-             paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+        if (selectedPaymentIndex != -1) {
+            paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
         }
     }
 }

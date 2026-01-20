@@ -5,19 +5,19 @@
 #include <iostream>
 #include <string>
 
-#include "UIManager.h"
 #include "DatabaseManager.h"
+#include "IconsFontAwesome6.h"
 #include "ImGuiFileDialog.h"
 #include "ImportManager.h"
 #include "PdfReporter.h"
-#include "IconsFontAwesome6.h"
+#include "UIManager.h"
 
 // Функция обратного вызова для ошибок GLFW
-static void glfw_error_callback(int error, const char* description) {
+static void glfw_error_callback(int error, const char *description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
 }
 
-int main(int, char**) {
+int main(int, char **) {
     // Установка обработчика ошибок GLFW
     glfwSetErrorCallback(glfw_error_callback);
     if (!glfwInit()) {
@@ -26,14 +26,15 @@ int main(int, char**) {
     }
 
     // Задаём версию OpenGL (3.3 Core)
-    const char* glsl_version = "#version 330";
+    const char *glsl_version = "#version 330";
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Для macOS
 
     // Создание окна
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Financial Audit Application", nullptr, nullptr);
+    GLFWwindow *window = glfwCreateWindow(
+        1280, 720, "Financial Audit Application", nullptr, nullptr);
     if (window == nullptr) {
         std::cerr << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -45,30 +46,35 @@ int main(int, char**) {
     // --- Настройка ImGui ---
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Включить навигацию с клавиатуры
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;     // Включить докинг
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    io.ConfigFlags |=
+        ImGuiConfigFlags_NavEnableKeyboard; // Включить навигацию с клавиатуры
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Включить докинг
 
     // Установка стиля ImGui
     ImGui::StyleColorsDark();
 
     // Подсветка разделителей для докинга
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_Separator]        = ImVec4(0.70f, 0.50f, 0.00f, 1.00f);
-    style.Colors[ImGuiCol_SeparatorHovered] = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-    style.Colors[ImGuiCol_SeparatorActive]  = ImVec4(1.00f, 0.80f, 0.20f, 1.00f);
+    ImGuiStyle &style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_Separator] = ImVec4(0.70f, 0.50f, 0.00f, 1.00f);
+    style.Colors[ImGuiCol_SeparatorHovered] =
+        ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
+    style.Colors[ImGuiCol_SeparatorActive] = ImVec4(1.00f, 0.80f, 0.20f, 1.00f);
 
     // Загрузка шрифта с поддержкой кириллицы (Roboto)
     ImFontConfig font_cfg;
     font_cfg.FontDataOwnedByAtlas = false;
-    io.Fonts->AddFontFromFileTTF("data/Roboto-Regular.ttf", 16.0f, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
-    
+    io.Fonts->AddFontFromFileTTF("data/Roboto-Regular.ttf", 16.0f, &font_cfg,
+                                 io.Fonts->GetGlyphRangesCyrillic());
+
     // Объединение с иконочным шрифтом
     ImFontConfig config;
     config.MergeMode = true;
     config.PixelSnapH = true;
-    static const ImWchar icon_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
-    io.Fonts->AddFontFromFileTTF("data/fa-solid-900.otf", 16.0f, &config, icon_ranges);
+    static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
+    io.Fonts->AddFontFromFileTTF("data/fa-solid-900.otf", 16.0f, &config,
+                                 icon_ranges);
 
     // Инициализация бэкендов для GLFW и OpenGL
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -85,12 +91,11 @@ int main(int, char**) {
     uiManager.SetImportManager(&importManager);
     uiManager.SetWindow(window);
 
-
     // Главный цикл приложения
     while (!glfwWindowShouldClose(window)) {
         // Обработка событий
         glfwPollEvents();
-
+        // glfwWaitEventsTimeout(0.033); // ~30 FPS
         // Начало нового кадра ImGui
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -102,23 +107,33 @@ int main(int, char**) {
         // --- Рендеринг главного меню ---
         if (ImGui::BeginMainMenuBar()) {
             if (ImGui::BeginMenu(ICON_FA_FILE " Файл")) {
-                if (ImGui::MenuItem(ICON_FA_FILE_CIRCLE_PLUS " Создать новую базу")) {
-                    ImGuiFileDialog::Instance()->OpenDialog("ChooseDbFileDlgKey", "Выберите файл для новой базы", ".db");
+                if (ImGui::MenuItem(ICON_FA_FILE_CIRCLE_PLUS
+                                    " Создать новую базу")) {
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "ChooseDbFileDlgKey", "Выберите файл для новой базы",
+                        ".db");
                 }
-                if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Открыть базу данных")) {
-                    ImGuiFileDialog::Instance()->OpenDialog("OpenDbFileDlgKey", "Выберите файл базы данных", ".db");
+                if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN
+                                    " Открыть базу данных")) {
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "OpenDbFileDlgKey", "Выберите файл базы данных", ".db");
                 }
-                if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK " Сохранить базу как...")) {
+                if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK
+                                    " Сохранить базу как...")) {
                     if (!uiManager.currentDbPath.empty()) {
-                        ImGuiFileDialog::Instance()->OpenDialog("SaveDbAsFileDlgKey", "Сохранить базу как...", ".db");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "SaveDbAsFileDlgKey", "Сохранить базу как...",
+                            ".db");
                     }
                 }
-                if (ImGui::BeginMenu(ICON_FA_CLOCK_ROTATE_LEFT " Недавние файлы")) {
-                    for (const auto& path : uiManager.recentDbPaths) {
+                if (ImGui::BeginMenu(ICON_FA_CLOCK_ROTATE_LEFT
+                                     " Недавние файлы")) {
+                    for (const auto &path : uiManager.recentDbPaths) {
                         if (ImGui::MenuItem(path.c_str())) {
                             if (dbManager.open(path)) {
                                 uiManager.currentDbPath = path;
-                                uiManager.SetWindowTitle(uiManager.currentDbPath);
+                                uiManager.SetWindowTitle(
+                                    uiManager.currentDbPath);
                                 uiManager.AddRecentDbPath(path);
                             }
                         }
@@ -126,7 +141,8 @@ int main(int, char**) {
                     ImGui::EndMenu();
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem(ICON_FA_ARROW_RIGHT_FROM_BRACKET " Выход")) {
+                if (ImGui::MenuItem(ICON_FA_ARROW_RIGHT_FROM_BRACKET
+                                    " Выход")) {
                     glfwSetWindowShouldClose(window, true);
                 }
                 ImGui::EndMenu();
@@ -151,7 +167,9 @@ int main(int, char**) {
             }
             if (ImGui::BeginMenu(ICON_FA_FILE_IMPORT " Импорт")) {
                 if (ImGui::MenuItem(ICON_FA_TABLE_CELLS " Импорт из TSV")) {
-                    ImGuiFileDialog::Instance()->OpenDialog("ImportTsvFileDlgKey", "Выберите TSV файл для импорта", ".tsv");
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
+                        ".tsv");
                 }
                 ImGui::EndMenu();
             }
@@ -160,15 +178,16 @@ int main(int, char**) {
                     uiManager.CreateView<SqlQueryView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Экспорт в PDF")) {
-                    ImGuiFileDialog::Instance()->OpenDialog("SavePdfFileDlgKey", "Сохранить отчет в PDF", ".pdf");
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "SavePdfFileDlgKey", "Сохранить отчет в PDF", ".pdf");
                 }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(ICON_FA_GEAR " Сервис")) {
                 if (ImGui::MenuItem(ICON_FA_SLIDERS " Настройки")) {
                     bool found = false;
-                    for(const auto& view : uiManager.allViews) {
-                        if (dynamic_cast<SettingsView*>(view.get())) {
+                    for (const auto &view : uiManager.allViews) {
+                        if (dynamic_cast<SettingsView *>(view.get())) {
                             ImGui::SetWindowFocus(view->GetTitle());
                             found = true;
                             break;
@@ -178,7 +197,8 @@ int main(int, char**) {
                         uiManager.CreateView<SettingsView>();
                     }
                 }
-                if (ImGui::MenuItem(ICON_FA_SQUARE_ROOT_VARIABLE " Регулярные выражения")) {
+                if (ImGui::MenuItem(ICON_FA_SQUARE_ROOT_VARIABLE
+                                    " Регулярные выражения")) {
                     uiManager.CreateView<RegexesView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_EYE " Подозрительные слова")) {
@@ -187,8 +207,8 @@ int main(int, char**) {
                 ImGui::Separator();
                 if (ImGui::MenuItem(ICON_FA_ERASER " Очистка базы")) {
                     bool found = false;
-                    for(const auto& view : uiManager.allViews) {
-                        if (dynamic_cast<SelectiveCleanView*>(view.get())) {
+                    for (const auto &view : uiManager.allViews) {
+                        if (dynamic_cast<SelectiveCleanView *>(view.get())) {
                             ImGui::SetWindowFocus(view->GetTitle());
                             found = true;
                             break;
@@ -205,7 +225,6 @@ int main(int, char**) {
 
         // --- Обработка диалогов выбора файлов ---
         uiManager.HandleFileDialogs();
-
 
         // --- Рендеринг окон через UIManager ---
         uiManager.Render();
