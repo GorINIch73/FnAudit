@@ -72,7 +72,7 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "date TEXT NOT NULL,"
         "doc_number TEXT,"
-        "type TEXT NOT NULL CHECK(type IN ('income', 'expense')),"
+        "type INTEGER NOT NULL DEFAULT 0,"
         "amount REAL NOT NULL,"
         "recipient TEXT,"
         "description TEXT,"
@@ -930,7 +930,7 @@ bool DatabaseManager::addPayment(Payment &payment) {
     }
     sqlite3_bind_text(stmt, 1, payment.date.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, payment.doc_number.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, payment.type.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, payment.type ? 1 : 0);
     sqlite3_bind_double(stmt, 4, payment.amount);
     sqlite3_bind_text(stmt, 5, payment.recipient.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 6, payment.description.c_str(), -1, SQLITE_STATIC);
@@ -969,7 +969,7 @@ static int payment_select_callback(void *data, int argc, char **argv,
         else if (colName == "doc_number")
             p.doc_number = argv[i] ? argv[i] : "";
         else if (colName == "type")
-            p.type = argv[i] ? argv[i] : "";
+            p.type = (argv[i] && std::stoi(argv[i]) == 1);
         else if (colName == "amount")
             p.amount = argv[i] ? std::stod(argv[i]) : 0.0;
         else if (colName == "recipient")
@@ -1018,7 +1018,7 @@ bool DatabaseManager::updatePayment(const Payment &payment) {
     }
     sqlite3_bind_text(stmt, 1, payment.date.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, payment.doc_number.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_text(stmt, 3, payment.type.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 3, payment.type ? 1 : 0);
     sqlite3_bind_double(stmt, 4, payment.amount);
     sqlite3_bind_text(stmt, 5, payment.recipient.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 6, payment.description.c_str(), -1, SQLITE_STATIC);

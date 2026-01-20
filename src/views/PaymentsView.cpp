@@ -65,8 +65,9 @@ PaymentsView::GetDataAsStrings() {
     std::vector<std::vector<std::string>> rows; // Declared here
 
     for (const auto &p : payments) {
-        rows.push_back({p.date, p.doc_number, p.type, std::to_string(p.amount),
-                        p.recipient, p.description});
+        rows.push_back({p.date, p.doc_number,
+                        (p.type ? "поступление" : "расход"),
+                        std::to_string(p.amount), p.recipient, p.description});
     }
     return {headers, rows};
 }
@@ -229,7 +230,7 @@ void PaymentsView::Render() {
             isAdding = true;
             selectedPaymentIndex = -1;
             selectedPayment = Payment{};
-            selectedPayment.type = "expense";
+            selectedPayment.type = false; // false is 'expense' by default
 
             auto t = std::time(nullptr);
             auto tm = *std::localtime(&t);
@@ -682,35 +683,16 @@ void PaymentsView::Render() {
                 isDirty = true;
             }
 
-            char typeBuf[32];
-            snprintf(typeBuf, sizeof(typeBuf), "%s",
-                     selectedPayment.type.c_str());
-
-            const char *paymentTypes[] = {"income", "expense"};
-            int currentTypeIndex = -1;
-            for (int i = 0; i < IM_ARRAYSIZE(paymentTypes); i++) {
-                if (strcmp(selectedPayment.type.c_str(), paymentTypes[i]) ==
-                    0) {
-                    currentTypeIndex = i;
-                    break;
-                }
+            ImGui::Text("Тип:");
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Расход", !selectedPayment.type)) {
+                selectedPayment.type = false;
+                isDirty = true;
             }
-
-            if (ImGui::BeginCombo("Тип", currentTypeIndex >= 0
-                                             ? paymentTypes[currentTypeIndex]
-                                             : "")) {
-                for (int i = 0; i < IM_ARRAYSIZE(paymentTypes); i++) {
-                    const bool is_selected = (currentTypeIndex == i);
-                    if (ImGui::Selectable(paymentTypes[i], is_selected)) {
-                        selectedPayment.type = paymentTypes[i];
-                        currentTypeIndex = i;
-                        isDirty = true;
-                    }
-                    if (is_selected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-                ImGui::EndCombo();
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Поступление", selectedPayment.type)) {
+                selectedPayment.type = true;
+                isDirty = true;
             }
 
             if (ImGui::InputDouble("Сумма", &selectedPayment.amount)) {

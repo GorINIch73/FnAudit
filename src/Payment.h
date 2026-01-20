@@ -6,7 +6,7 @@ struct Payment {
     int id;
     std::string date;
     std::string doc_number;
-    std::string type;
+    bool type = false; // false for 'expense', true for 'income'
     double amount;
     std::string recipient;
     std::string description;

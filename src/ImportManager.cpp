@@ -121,7 +121,11 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
         payment.date =
             convertDateToDBFormat(get_value_from_row(row, mapping, "Дата"));
         payment.doc_number = get_value_from_row(row, mapping, "Номер док.");
-        payment.type = get_value_from_row(row, mapping, "Тип");
+        std::string type_str_from_file = get_value_from_row(row, mapping, "Тип");
+        std::transform(type_str_from_file.begin(), type_str_from_file.end(), type_str_from_file.begin(),
+            [](unsigned char c){ return std::tolower(c); });
+        payment.type = (type_str_from_file == "income" || type_str_from_file == "поступление" || type_str_from_file == "1");
+
         std::string local_payer_name =
             get_value_from_row(row, mapping, "Плательщик");
         payment.recipient = get_value_from_row(row, mapping, "Контрагент");
@@ -134,13 +138,9 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
         } catch (const std::exception &) {
             payment.amount = 0.0;
         }
-
-        if (payment.type.empty()) {
-            if (!payment.recipient.empty()) {
-                payment.type = "expense";
-            } else {
-                payment.type = "income";
-            }
+        
+        if (type_str_from_file.empty()) {
+            payment.type = payment.recipient.empty();
         }
 
         if (payment.date.empty() && payment.amount == 0.0) {
@@ -148,7 +148,7 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
         }
 
         Counterparty counterparty;
-        if (payment.type == "income") {
+        if (payment.type) { // true is income
             counterparty.name = local_payer_name;
         } else {
             counterparty.name = payment.recipient;
