@@ -23,6 +23,7 @@
 #include "views/RegexesView.h"
 #include "views/SelectiveCleanView.h"
 #include "views/SuspiciousWordsView.h"
+#include "views/SpecialQueryView.h"
 
 struct GLFWwindow;
 class ImportManager;
@@ -39,6 +40,8 @@ public:
     void AddRecentDbPath(std::string path);
     void HandleFileDialogs();
     void SetWindowTitle(const std::string& db_path);
+    SpecialQueryView* CreateSpecialQueryView(const std::string& title, const std::string& query);
+
 
     template<typename T>
     T* CreateView() {
@@ -47,7 +50,7 @@ public:
         view->SetDatabaseManager(dbManager);
         view->SetPdfReporter(pdfReporter);
 
-        if constexpr (std::is_same_v<T, ImportMapView>) {
+        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView>) {
             viewPtr->SetUIManager(this);
         }
 

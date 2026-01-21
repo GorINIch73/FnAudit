@@ -165,14 +165,6 @@ int main(int, char **) {
                 }
                 ImGui::EndMenu();
             }
-            if (ImGui::BeginMenu(ICON_FA_FILE_IMPORT " Импорт")) {
-                if (ImGui::MenuItem(ICON_FA_TABLE_CELLS " Импорт из TSV")) {
-                    ImGuiFileDialog::Instance()->OpenDialog(
-                        "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
-                        ".tsv");
-                }
-                ImGui::EndMenu();
-            }
             if (ImGui::BeginMenu(ICON_FA_FILE_PDF " Отчеты")) {
                 if (ImGui::MenuItem(ICON_FA_DATABASE " SQL Запрос")) {
                     uiManager.CreateView<SqlQueryView>();
@@ -184,6 +176,11 @@ int main(int, char **) {
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(ICON_FA_GEAR " Сервис")) {
+                if (ImGui::MenuItem(ICON_FA_TABLE_CELLS " Импорт из TSV")) {
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
+                        ".tsv");
+                }
                 if (ImGui::MenuItem(ICON_FA_SLIDERS " Настройки")) {
                     bool found = false;
                     for (const auto &view : uiManager.allViews) {

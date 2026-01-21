@@ -13,12 +13,15 @@
 #include "imgui.h"
 #include "CustomWidgets.h"
 
+class UIManager; 
+
 class PaymentsView : public BaseView {
 public:
     PaymentsView();
     void Render() override;
     void SetDatabaseManager(DatabaseManager* dbManager) override;
     void SetPdfReporter(PdfReporter* pdfReporter) override;
+    void SetUIManager(UIManager* uiManager);
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
     void OnDeactivate() override;
 
@@ -28,6 +31,7 @@ private:
     void SaveChanges();
     void SaveDetailChanges();
 
+    UIManager* uiManager = nullptr;
     std::vector<Payment> payments;
     std::vector<Payment> m_filtered_payments;
     void UpdateFilteredPayments();

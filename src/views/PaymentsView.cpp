@@ -12,6 +12,8 @@
 #include <sstream>
 #include <string>
 
+#include "../UIManager.h"
+
 PaymentsView::PaymentsView()
     : selectedPaymentIndex(-1),
       isAdding(false),
@@ -30,6 +32,8 @@ PaymentsView::PaymentsView()
     memset(groupInvoiceFilter, 0, sizeof(groupInvoiceFilter));
 }
 
+void PaymentsView::SetUIManager(UIManager *manager) { uiManager = manager; }
+
 void PaymentsView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
 }
@@ -41,7 +45,8 @@ void PaymentsView::SetPdfReporter(PdfReporter *reporter) {
 void PaymentsView::RefreshData() {
     if (dbManager) {
         payments = dbManager->getPayments();
-        UpdateFilteredPayments(); // Ensure the filter is applied to the new data
+        UpdateFilteredPayments(); // Ensure the filter is applied to the new
+                                  // data
         selectedPaymentIndex = -1;
         paymentDetails.clear();
         selectedDetailIndex = -1;
@@ -258,6 +263,22 @@ void PaymentsView::Render() {
             RefreshData();
             RefreshDropdownData();
         }
+        ImGui::SameLine();
+        if (ImGui::Button("Сверка с банком")) {
+            if (uiManager) {
+                // std::string query = "SELECT * FROM payments;"; // Placeholder
+                // /
+                std::string query =
+                    "SELECT STRFTIME('%Y', p.date) AS payment_year,k.code AS "
+                    "kosgu_code,k.name AS kosgu_name, SUM(pd.amount) AS "
+                    "total_amount FROM PaymentDetails AS pd JOIN Payments AS p "
+                    " ON pd.payment_id = p.id JOIN KOSGU AS k ON pd.kosgu_id = "
+                    "k.id WHERE k.code IS NOT NULL AND k.code != '' GROUP BY "
+                    "payment_year, kosgu_code, kosgu_name ORDER BY "
+                    "payment_year, kosgu_code;";
+                uiManager->CreateSpecialQueryView("Сверка с банком", query);
+            }
+        }
 
         // --- Delete Confirmation Popups ---
         if (show_delete_payment_popup) {
@@ -340,7 +361,7 @@ void PaymentsView::Render() {
             "Все",           "Без КОСГУ",       "Без Договора",
             "Без Накладной", "Без расшифровок", "Подозрительные слова"};
         if (ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index,
-                     filter_items, IM_ARRAYSIZE(filter_items))) {
+                         filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
         }
         ImGui::PopItemWidth();
@@ -392,6 +413,14 @@ void PaymentsView::Render() {
                     if (dbManager) {
                         regexesForDropdown = dbManager->getRegexes();
                     }
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Сверка с банком")) {
+                if (uiManager) {
+                    std::string query =
+                        "SELECT * FROM payments;"; // Placeholder
+                    uiManager->CreateSpecialQueryView("Сверка с банком", query);
                 }
             }
         }
@@ -587,7 +616,8 @@ void PaymentsView::Render() {
                 if (sort_specs->SpecsDirty) {
                     SortPayments(payments,
                                  sort_specs); // Sort original payments list
-                    UpdateFilteredPayments(); // <<< FIX: Re-apply filter after sorting
+                    UpdateFilteredPayments(); // <<< FIX: Re-apply filter after
+                                              // sorting
                     sort_specs->SpecsDirty = false;
                 }
             }
@@ -1128,7 +1158,6 @@ void PaymentsView::Render() {
     ImGui::End();
 }
 
-
 void PaymentsView::UpdateFilteredPayments() {
     // Create filtered list
     std::vector<Payment> text_filtered_payments;
@@ -1155,20 +1184,20 @@ void PaymentsView::UpdateFilteredPayments() {
                         term_found_in_payment = true;
                     if (!term_found_in_payment &&
                         strcasestr(p.doc_number.c_str(),
-                                    current_term.c_str()) != nullptr)
+                                   current_term.c_str()) != nullptr)
                         term_found_in_payment = true;
                     if (!term_found_in_payment &&
                         strcasestr(p.description.c_str(),
-                                    current_term.c_str()) != nullptr)
+                                   current_term.c_str()) != nullptr)
                         term_found_in_payment = true;
                     if (!term_found_in_payment &&
-                        strcasestr(p.recipient.c_str(),
-                                    current_term.c_str()) != nullptr)
+                        strcasestr(p.recipient.c_str(), current_term.c_str()) !=
+                            nullptr)
                         term_found_in_payment = true;
                     if (!term_found_in_payment) {
                         char amount_str[32];
                         snprintf(amount_str, sizeof(amount_str), "%.2f",
-                                    p.amount);
+                                 p.amount);
                         if (strcasestr(amount_str, current_term.c_str()) !=
                             nullptr)
                             term_found_in_payment = true;
@@ -1199,8 +1228,8 @@ void PaymentsView::UpdateFilteredPayments() {
             for (const auto &p : text_filtered_payments) {
                 bool suspicious_found = false;
                 for (const auto &sw : suspiciousWordsForFilter) {
-                    if (strcasestr(p.description.c_str(),
-                                    sw.word.c_str()) != nullptr) {
+                    if (strcasestr(p.description.c_str(), sw.word.c_str()) !=
+                        nullptr) {
                         suspicious_found = true;
                         break;
                     }
@@ -1232,11 +1261,11 @@ void PaymentsView::UpdateFilteredPayments() {
                     bool missing_found = false;
                     for (const auto &detail : it->second) {
                         if ((missing_info_filter_index == 1 &&
-                                detail.kosgu_id == -1) ||
+                             detail.kosgu_id == -1) ||
                             (missing_info_filter_index == 2 &&
-                                detail.contract_id == -1) ||
+                             detail.contract_id == -1) ||
                             (missing_info_filter_index == 3 &&
-                                detail.invoice_id == -1)) {
+                             detail.invoice_id == -1)) {
                             missing_found = true;
                             break;
                         }

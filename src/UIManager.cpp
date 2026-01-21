@@ -93,6 +93,18 @@ void UIManager::SetWindowTitle(const std::string& db_path) {
     glfwSetWindowTitle(window, title.c_str());
 }
 
+SpecialQueryView* UIManager::CreateSpecialQueryView(const std::string& title, const std::string& query) {
+    auto view = std::make_unique<SpecialQueryView>(title, query);
+    SpecialQueryView* viewPtr = view.get();
+    view->SetDatabaseManager(dbManager);
+
+    std::string newTitle = title + "###" + std::to_string(viewIdCounter++);
+    view->SetTitle(newTitle);
+    view->IsVisible = true;
+    allViews.push_back(std::move(view));
+    return viewPtr;
+}
+
 void UIManager::HandleFileDialogs() {
     if (ImGuiFileDialog::Instance()->Display("ChooseDbFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {

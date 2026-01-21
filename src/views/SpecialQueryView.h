@@ -1,0 +1,28 @@
+#pragma once
+
+#include "BaseView.h"
+#include <vector>
+#include <string>
+#include <utility>
+#include "imgui.h"
+
+class SpecialQueryView : public BaseView {
+public:
+    SpecialQueryView(const std::string& title, const std::string& query);
+    void Render() override;
+    void SetDatabaseManager(DatabaseManager* dbManager) override;
+    void SetPdfReporter(PdfReporter* pdfReporter) override;
+    std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
+
+private:
+    void ExecuteQuery();
+
+    std::string query;
+    struct QueryResult {
+        std::vector<std::string> columns;
+        std::vector<std::vector<std::string>> rows;
+    } queryResult;
+    
+    std::vector<std::vector<bool>> selected_cells;
+    ImVec2 last_clicked_cell = ImVec2(-1, -1);
+};
