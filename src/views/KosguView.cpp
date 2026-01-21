@@ -26,6 +26,7 @@ void KosguView::RefreshData() {
     if (dbManager) {
         kosguEntries = dbManager->getKosguEntries();
         selectedKosguIndex = -1;
+        UpdateFilteredKosgu(); 
     }
 }
 
@@ -34,7 +35,7 @@ std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 KosguView::GetDataAsStrings() {
     std::vector<std::string> headers = {"ID", "Код", "Наименование", "Сумма"};
     std::vector<std::vector<std::string>> rows;
-    for (const auto &entry : kosguEntries) {
+    for (const auto &entry : m_filtered_kosgu_entries) {
         rows.push_back({std::to_string(entry.id), entry.code, entry.name, std::to_string(entry.total_amount)});
     }
     return {headers, rows};
@@ -72,6 +73,70 @@ void KosguView::SaveChanges() {
 
     isDirty = false;
 }
+
+void KosguView::UpdateFilteredKosgu() {
+    // Text filter pass
+    std::vector<Kosgu> text_filtered_entries;
+    if (filterText[0] != '\0') {
+        for (const auto &entry : kosguEntries) {
+            bool kosgu_match = false;
+            // Search in KOSGU code and name
+            if (strcasestr(entry.code.c_str(), filterText) != nullptr || strcasestr(entry.name.c_str(), filterText) != nullptr) {
+                kosgu_match = true;
+            }
+
+            // Search in payment details
+            float filtered_amount = 0.0f;
+            bool payment_match = false;
+            if (dbManager) {
+                std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
+                for (const auto& detail : payment_details) {
+                    bool detail_match = false;
+                    if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
+                        strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
+                        strcasestr(detail.description.c_str(), filterText) != nullptr) {
+                        detail_match = true;
+                    }
+                    char amount_str[32];
+                    snprintf(amount_str, sizeof(amount_str), "%.2f", detail.amount);
+                    if (strcasestr(amount_str, filterText) != nullptr) {
+                        detail_match = true;
+                    }
+
+                    if (detail_match) {
+                        filtered_amount += detail.amount;
+                        payment_match = true;
+                    }
+                }
+            }
+
+            if (kosgu_match || payment_match) {
+                Kosgu filtered_entry = entry;
+                // If the KOSGU itself matched, show its total amount. If only payments matched, show the sum of filtered payments.
+                filtered_entry.total_amount = kosgu_match ? entry.total_amount : filtered_amount;
+                text_filtered_entries.push_back(filtered_entry);
+            }
+        }
+    } else {
+        text_filtered_entries = kosguEntries;
+    }
+
+    // Dropdown filter pass
+    m_filtered_kosgu_entries.clear();
+    if (m_filter_index == 0) { // "Все"
+        m_filtered_kosgu_entries = text_filtered_entries;
+    } else {
+        for (const auto& entry : text_filtered_entries) {
+            bool has_payments = (entry.total_amount > 0.001);
+            if (m_filter_index == 1 && has_payments) { // "С платежами"
+                 m_filtered_kosgu_entries.push_back(entry);
+            } else if (m_filter_index == 2 && !has_payments) { // "Без платежей"
+                 m_filtered_kosgu_entries.push_back(entry);
+            }
+        }
+    }
+}
+
 
 // Вспомогательная функция для сортировки
 static void SortKosgu(std::vector<Kosgu> &kosguEntries,
@@ -175,12 +240,30 @@ void KosguView::Render() {
         }
 
         ImGui::Separator();
-
-        ImGui::InputText("Фильтр", filterText,
-                         sizeof(filterText));
+        
+        bool filter_changed = false;
+        if (ImGui::InputText("Фильтр", filterText, sizeof(filterText))) {
+            filter_changed = true;
+        }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK)) {
-            filterText[0] = '\0';
+            if (filterText[0] != '\0') {
+                filterText[0] = '\0';
+                filter_changed = true;
+            }
+        }
+
+        ImGui::SameLine();
+        float avail_width = ImGui::GetContentRegionAvail().x;
+        ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
+        const char *filter_items[] = { "Все", "С платежами", "Без платежей" };
+        if (ImGui::Combo("##FilterCombo", &m_filter_index, filter_items, IM_ARRAYSIZE(filter_items))) {
+            filter_changed = true;
+        }
+        ImGui::PopItemWidth();
+
+        if (filter_changed) {
+            UpdateFilteredKosgu();
         }
 
         ImGui::BeginChild("KosguList", ImVec2(0, list_view_height), true,
@@ -198,87 +281,52 @@ void KosguView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortKosgu(kosguEntries, sort_specs);
+                    SortKosgu(m_filtered_kosgu_entries, sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
+            
+            ImGuiListClipper clipper;
+            clipper.Begin(m_filtered_kosgu_entries.size());
+            while(clipper.Step()){
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-            std::vector<Kosgu> filtered_kosgu_entries;
-            if (filterText[0] != '\0') {
-                for (const auto &entry : kosguEntries) {
-                    bool kosgu_match = false;
-                    if (strcasestr(entry.code.c_str(), filterText) != nullptr || strcasestr(entry.name.c_str(), filterText) != nullptr) {
-                        kosgu_match = true;
-                    }
+                    // Find original index to maintain selection state
+                    auto original_it = std::find_if(kosguEntries.begin(), kosguEntries.end(), 
+                                                    [&](const Kosgu& k) { return k.id == m_filtered_kosgu_entries[i].id; });
+                    int original_index = std::distance(kosguEntries.begin(), original_it);
 
-                    float filtered_amount = 0.0f;
-                    bool payment_match = false;
-                    if (dbManager) {
-                        std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
-                        for (const auto& detail : payment_details) {
-                            if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
-                                strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
-                                strcasestr(detail.description.c_str(), filterText) != nullptr) {
-                                filtered_amount += detail.amount;
-                                payment_match = true;
-                                continue;
-                            }
-                            char amount_str[32];
-                            snprintf(amount_str, sizeof(amount_str), "%.2f", detail.amount);
-                            if (strcasestr(amount_str, filterText) != nullptr) {
-                                filtered_amount += detail.amount;
-                                payment_match = true;
+                    bool is_selected = (selectedKosguIndex == original_index);
+                    char label[256];
+                    sprintf(label, "%d##%d", m_filtered_kosgu_entries[i].id, i);
+                    if (ImGui::Selectable(label, is_selected,
+                                          ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (selectedKosguIndex != original_index) {
+                            SaveChanges();
+                            selectedKosguIndex = original_index;
+                            selectedKosgu = kosguEntries[original_index];
+                            originalKosgu = kosguEntries[original_index];
+                            isAdding = false;
+                            isDirty = false;
+                            if (dbManager) {
+                                payment_info = dbManager->getPaymentInfoForKosgu(
+                                    selectedKosgu.id);
                             }
                         }
                     }
-
-                    if (kosgu_match || payment_match) {
-                        Kosgu filtered_entry = entry;
-                        filtered_entry.total_amount = filtered_amount;
-                        filtered_kosgu_entries.push_back(filtered_entry);
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
                     }
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_kosgu_entries[i].code.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_kosgu_entries[i].name.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", m_filtered_kosgu_entries[i].total_amount);
                 }
-            } else {
-                filtered_kosgu_entries = kosguEntries;
-            }
-
-            for (int i = 0; i < filtered_kosgu_entries.size(); ++i) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-
-                // Find original index to maintain selection state
-                auto original_it = std::find_if(kosguEntries.begin(), kosguEntries.end(), 
-                                                [&](const Kosgu& k) { return k.id == filtered_kosgu_entries[i].id; });
-                int original_index = std::distance(kosguEntries.begin(), original_it);
-
-                bool is_selected = (selectedKosguIndex == original_index);
-                char label[256];
-                sprintf(label, "%d##%d", filtered_kosgu_entries[i].id, i);
-                if (ImGui::Selectable(label, is_selected,
-                                      ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedKosguIndex != original_index) {
-                        SaveChanges();
-                        selectedKosguIndex = original_index;
-                        selectedKosgu = kosguEntries[original_index];
-                        originalKosgu = kosguEntries[original_index];
-                        isAdding = false;
-                        isDirty = false;
-                        if (dbManager) {
-                            payment_info = dbManager->getPaymentInfoForKosgu(
-                                selectedKosgu.id);
-                        }
-                    }
-                }
-                if (is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
-
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", filtered_kosgu_entries[i].code.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", filtered_kosgu_entries[i].name.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", filtered_kosgu_entries[i].total_amount);
             }
             ImGui::EndTable();
         }
@@ -297,9 +345,11 @@ void KosguView::Render() {
             char codeBuf[256];
             char nameBuf[256];
 
-            snprintf(codeBuf, sizeof(codeBuf), "%s",
+            snprintf(codeBuf, sizeof(codeBuf),
+                     "%s",
                      selectedKosgu.code.c_str());
-            snprintf(nameBuf, sizeof(nameBuf), "%s",
+            snprintf(nameBuf, sizeof(nameBuf),
+                     "%s",
                      selectedKosgu.name.c_str());
 
             if (ImGui::InputText("Код", codeBuf, sizeof(codeBuf))) {

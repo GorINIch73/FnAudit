@@ -29,6 +29,11 @@ private:
     int kosgu_id_to_delete = -1;
     std::vector<ContractPaymentInfo> payment_info;
     char filterText[256];
+    
+    std::vector<Kosgu> m_filtered_kosgu_entries;
+    void UpdateFilteredKosgu();
+    int m_filter_index = 0;
+
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
 };
