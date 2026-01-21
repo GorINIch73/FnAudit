@@ -444,16 +444,21 @@ void KosguView::Render() {
                 ImGui::TableSetupColumn("Назначение");
                 ImGui::TableHeadersRow();
 
-                for (const auto &info : filtered_payment_info) {
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", info.date.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", info.doc_number.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%.2f", info.amount);
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", info.description.c_str());
+                ImGuiListClipper clipper;
+                clipper.Begin(filtered_payment_info.size());
+                while (clipper.Step()) {
+                    for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                        const auto &info = filtered_payment_info[i];
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", info.date.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", info.doc_number.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%.2f", info.amount);
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", info.description.c_str());
+                    }
                 }
                 ImGui::EndTable();
             }

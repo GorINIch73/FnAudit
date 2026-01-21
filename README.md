@@ -20,10 +20,10 @@ This project uses CMake.
 From the `build` directory: `./FinancialAudit`
 
 ## Current Development Status:
-*   Payments Add/Update/Delete (including auto date) - **Completed**
+*   Payments Form (including filters, group operations, and regex processing) - **Completed**
+*   KOSGU Form (including filters and performance optimizations) - **Completed**
 *   PDF Export for Payments, KOSGU, SQL Query - **Completed**
 *   Counterparties CRUD UI (including robust import logic) - **Completed**
 *   TSV Import (parsing Contracts and Invoices from description) - **Completed**
 *   Contracts CRUD UI - **Completed**
 *   Invoices CRUD UI - **Completed**
-*   Refactor Payments Form with dropdowns - **Completed**
