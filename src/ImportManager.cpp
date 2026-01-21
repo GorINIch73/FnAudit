@@ -218,8 +218,9 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                     Invoice invoice_obj{-1, invoice_number,
                                         invoice_date_db_format,
                                         current_contract_id};
-                    if (dbManager->addInvoice(invoice_obj)) {
-                        current_invoice_id = invoice_obj.id;
+                    int new_invoice_id = dbManager->addInvoice(invoice_obj);
+                    if (new_invoice_id != -1) {
+                        current_invoice_id = new_invoice_id;
                     }
                 }
             }
