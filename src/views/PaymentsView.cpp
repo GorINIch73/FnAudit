@@ -270,12 +270,13 @@ void PaymentsView::Render() {
                 // /
                 std::string query =
                     "SELECT STRFTIME('%Y', p.date) AS payment_year,k.code AS "
-                    "kosgu_code,k.name AS kosgu_name, SUM(pd.amount) AS "
-                    "total_amount FROM PaymentDetails AS pd JOIN Payments AS p "
-                    " ON pd.payment_id = p.id JOIN KOSGU AS k ON pd.kosgu_id = "
-                    "k.id WHERE k.code IS NOT NULL AND k.code != '' GROUP BY "
-                    "payment_year, kosgu_code, kosgu_name ORDER BY "
-                    "payment_year, kosgu_code;";
+                    "kosgu_code,p.type AS payment_type, k.name AS kosgu_name, "
+                    "SUM(pd.amount) AS total_amount FROM PaymentDetails AS pd "
+                    "JOIN Payments AS p  ON pd.payment_id = p.id JOIN KOSGU AS "
+                    "k ON pd.kosgu_id = k.id WHERE k.code IS NOT NULL AND "
+                    "k.code != '' GROUP BY payment_year, payment_type, "
+                    "kosgu_code, kosgu_name ORDER BY payment_year, "
+                    "payment_type, kosgu_code;";
                 uiManager->CreateSpecialQueryView("Сверка с банком", query);
             }
         }

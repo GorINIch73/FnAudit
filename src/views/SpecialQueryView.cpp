@@ -63,15 +63,11 @@ void SpecialQueryView::Render() {
                     if (!first_row) {
                         ss << "\n";
                     }
-                    bool first_col = true;
                     for (size_t j = 0; j < queryResult.columns.size(); ++j) {
-                        if (!first_col) {
+                        if (j > 0) {
                             ss << "\t";
                         }
-                        if (selected_cells[i][j]) {
-                            ss << queryResult.rows[i][j];
-                        }
-                        first_col = false;
+                        ss << queryResult.rows[i][j];
                     }
                     first_row = false;
                 }
