@@ -196,8 +196,9 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                     Contract contract_obj{-1, contract_number,
                                           contract_date_db_format,
                                           counterparty_id};
-                    if (dbManager->addContract(contract_obj)) {
-                        current_contract_id = contract_obj.id;
+                    int new_contract_id = dbManager->addContract(contract_obj);
+                    if (new_contract_id != -1) {
+                        current_contract_id = new_contract_id;
                     }
                 }
             }
