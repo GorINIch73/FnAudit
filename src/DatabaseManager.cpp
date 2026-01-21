@@ -1184,6 +1184,49 @@ std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
     return results;
 }
 
+static int contract_payment_detail_info_select_callback(void *data, int argc, char **argv,
+                                            char **azColName) {
+    auto *results = static_cast<std::vector<ContractPaymentInfo> *>(data);
+    ContractPaymentInfo info;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "contract_id") {
+            info.contract_id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "date") {
+            info.date = argv[i] ? argv[i] : "";
+        } else if (colName == "doc_number") {
+            info.doc_number = argv[i] ? argv[i] : "";
+        } else if (colName == "amount") {
+            info.amount = argv[i] ? std::stod(argv[i]) : 0.0;
+        } else if (colName == "description") {
+            info.description = argv[i] ? argv[i] : "";
+        }
+    }
+    results->push_back(info);
+    return 0;
+}
+
+std::vector<ContractPaymentInfo> DatabaseManager::getAllContractPaymentInfo() {
+    std::vector<ContractPaymentInfo> results;
+    if (!db)
+        return results;
+
+    std::string sql =
+        "SELECT pd.contract_id, p.date, p.doc_number, pd.amount, p.description "
+        "FROM PaymentDetails pd "
+        "JOIN Payments p ON pd.payment_id = p.id "
+        "WHERE pd.contract_id IS NOT NULL;";
+
+    char *errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(), contract_payment_detail_info_select_callback, &results, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select getAllContractPaymentInfo: " << errmsg
+                  << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return results;
+}
+
 // PaymentDetail CRUD
 bool DatabaseManager::addPaymentDetail(PaymentDetail &detail) {
     if (!db)

@@ -27,6 +27,7 @@ void ContractsView::RefreshData() {
     if (dbManager) {
         contracts = dbManager->getContracts();
         selectedContractIndex = -1;
+        UpdateFilteredContracts();
     }
 }
 
@@ -200,10 +201,20 @@ void ContractsView::Render() {
 
         ImGui::Separator();
 
-        ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText));
+        bool filter_changed = false;
+        if (ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText))) {
+            filter_changed = true;
+        }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK "##clear_filter_contract")) {
-            filterText[0] = '\0';
+            if (filterText[0] != '\0') {
+                filterText[0] = '\0';
+                filter_changed = true;
+            }
+        }
+        
+        if (filter_changed) {
+            UpdateFilteredContracts();
         }
 
         // Таблица со списком
@@ -229,31 +240,29 @@ void ContractsView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortContracts(contracts, sort_specs);
+                    SortContracts(m_filtered_contracts, sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
 
-            for (int i = 0; i < contracts.size(); ++i) {
-                if (filterText[0] != '\0' &&
-                    strcasestr(contracts[i].number.c_str(), filterText) ==
-                        nullptr) {
-                    continue;
-                }
-
+            for (int i = 0; i < m_filtered_contracts.size(); ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                bool is_selected = (selectedContractIndex == i);
+                auto original_it = std::find_if(contracts.begin(), contracts.end(), 
+                                                [&](const Contract& c) { return c.id == m_filtered_contracts[i].id; });
+                int original_index = (original_it == contracts.end()) ? -1 : std::distance(contracts.begin(), original_it);
+
+                bool is_selected = (selectedContractIndex == original_index);
                 char label[256];
-                sprintf(label, "%d##%d", contracts[i].id, i);
+                sprintf(label, "%d##%d", m_filtered_contracts[i].id, i);
                 if (ImGui::Selectable(label, is_selected,
                                       ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedContractIndex != i) {
+                    if (selectedContractIndex != original_index && original_index != -1) {
                         SaveChanges();
-                        selectedContractIndex = i;
-                        selectedContract = contracts[i];
-                        originalContract = contracts[i];
+                        selectedContractIndex = original_index;
+                        selectedContract = contracts[original_index];
+                        originalContract = contracts[original_index];
                         isAdding = false;
                         isDirty = false;
                         if (dbManager) {
@@ -267,34 +276,34 @@ void ContractsView::Render() {
                 }
 
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", contracts[i].number.c_str());
+                ImGui::Text("%s", m_filtered_contracts[i].number.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", contracts[i].date.c_str());
+                ImGui::Text("%s", m_filtered_contracts[i].date.c_str());
                 ImGui::TableNextColumn();
                 const char *counterpartyName = "N/A";
                 for (const auto &cp : counterpartiesForDropdown) {
-                    if (cp.id == contracts[i].counterparty_id) {
+                    if (cp.id == m_filtered_contracts[i].counterparty_id) {
                         counterpartyName = cp.name.c_str();
                         break;
                     }
                 }
                 ImGui::Text("%s", counterpartyName);
                 ImGui::TableNextColumn();
-                ImGui::Text("%.2f", contracts[i].contract_amount);
+                ImGui::Text("%.2f", m_filtered_contracts[i].contract_amount);
                 ImGui::TableNextColumn();
-                ImGui::Text("%.2f", contracts[i].total_amount);
+                ImGui::Text("%.2f", m_filtered_contracts[i].total_amount);
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", contracts[i].end_date.c_str());
+                ImGui::Text("%s", m_filtered_contracts[i].end_date.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", contracts[i].procurement_code.c_str());
+                ImGui::Text("%s", m_filtered_contracts[i].procurement_code.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", contracts[i].note.c_str());
+                ImGui::Text("%s", m_filtered_contracts[i].note.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text(contracts[i].is_for_checking ? "Да" : "Нет");
+                ImGui::Text(m_filtered_contracts[i].is_for_checking ? "Да" : "Нет");
                 ImGui::TableNextColumn();
-                ImGui::Text(contracts[i].is_for_special_control ? "Да" : "Нет");
+                ImGui::Text(m_filtered_contracts[i].is_for_special_control ? "Да" : "Нет");
                 ImGui::TableNextColumn();
-                ImGui::Text(contracts[i].is_found ? "Да" : "Нет");
+                ImGui::Text(m_filtered_contracts[i].is_found ? "Да" : "Нет");
             }
             ImGui::EndTable();
         }
@@ -424,4 +433,72 @@ void ContractsView::Render() {
     }
 
     ImGui::End();
+}
+
+void ContractsView::UpdateFilteredContracts() {
+    if (!dbManager) return;
+
+    // 1. Fetch all payment info once
+    auto all_payment_info = dbManager->getAllContractPaymentInfo();
+    m_contract_details_map.clear();
+    for(const auto& info : all_payment_info) {
+        m_contract_details_map[info.contract_id].push_back(info);
+    }
+
+    // 2. Text filter pass
+    m_filtered_contracts.clear();
+    if (filterText[0] != '\0') {
+        for (const auto &entry : contracts) {
+            bool contract_match = false;
+            if (strcasestr(entry.number.c_str(), filterText) != nullptr || 
+                strcasestr(entry.date.c_str(), filterText) != nullptr ||
+                strcasestr(entry.end_date.c_str(), filterText) != nullptr ||
+                strcasestr(entry.procurement_code.c_str(), filterText) != nullptr ||
+                strcasestr(entry.note.c_str(), filterText) != nullptr) {
+                contract_match = true;
+            }
+
+            char amount_str[32];
+            snprintf(amount_str, sizeof(amount_str), "%.2f", entry.contract_amount);
+            if (strcasestr(amount_str, filterText) != nullptr) {
+                contract_match = true;
+            }
+
+            // Check counterparty name
+            for (const auto &cp : counterpartiesForDropdown) {
+                if (cp.id == entry.counterparty_id) {
+                    if (strcasestr(cp.name.c_str(), filterText) != nullptr) {
+                        contract_match = true;
+                        break;
+                    }
+                }
+            }
+
+
+            bool payment_detail_match = false;
+            auto it = m_contract_details_map.find(entry.id);
+            if (it != m_contract_details_map.end()) {
+                for (const auto& detail : it->second) {
+                    if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
+                        strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
+                        strcasestr(detail.description.c_str(), filterText) != nullptr) {
+                        payment_detail_match = true;
+                        break;
+                    }
+                    char detail_amount_str[32];
+                    snprintf(detail_amount_str, sizeof(detail_amount_str), "%.2f", detail.amount);
+                    if (strcasestr(detail_amount_str, filterText) != nullptr) {
+                        payment_detail_match = true;
+                        break;
+                    }
+                }
+            }
+
+            if (contract_match || payment_detail_match) {
+                m_filtered_contracts.push_back(entry);
+            }
+        }
+    } else {
+        m_filtered_contracts = contracts;
+    }
 }

@@ -2,6 +2,7 @@
 
 #include "BaseView.h"
 #include <vector>
+#include <map> // Added for std::map
 #include "../Contract.h"
 #include "../Counterparty.h"
 #include "../Payment.h"
@@ -36,4 +37,8 @@ private:
     char counterpartyFilter[256];
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
+
+    std::vector<Contract> m_filtered_contracts;
+    void UpdateFilteredContracts();
+    std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
 };

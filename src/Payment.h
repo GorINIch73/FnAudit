@@ -15,6 +15,7 @@ struct Payment {
 };
 
 struct ContractPaymentInfo {
+    int contract_id;
     std::string date;
     std::string doc_number;
     double amount;
