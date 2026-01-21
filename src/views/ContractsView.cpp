@@ -209,16 +209,22 @@ void ContractsView::Render() {
         // Таблица со списком
         ImGui::BeginChild("ContractsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("contracts_table", 5,
+        if (ImGui::BeginTable("contracts_table", 12,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable)) {
             ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
             ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
-            ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort,
-                                    0.0f, 2);
+            ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort, 0.0f, 2);
             ImGui::TableSetupColumn("Контрагент", 0, 0.0f, 3);
-            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 4);
+            ImGui::TableSetupColumn("Сумма договора", 0, 0.0f, 4);
+            ImGui::TableSetupColumn("Сумма платежей", 0, 0.0f, 5);
+            ImGui::TableSetupColumn("Дата окончания", 0, 0.0f, 6);
+            ImGui::TableSetupColumn("ИКЗ", 0, 0.0f, 7);
+            ImGui::TableSetupColumn("Примечание", 0, 0.0f, 8);
+            ImGui::TableSetupColumn("Проверка", 0, 0.0f, 9);
+            ImGui::TableSetupColumn("Контроль", 0, 0.0f, 10);
+            ImGui::TableSetupColumn("Найден", 0, 0.0f, 11);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -274,7 +280,21 @@ void ContractsView::Render() {
                 }
                 ImGui::Text("%s", counterpartyName);
                 ImGui::TableNextColumn();
+                ImGui::Text("%.2f", contracts[i].contract_amount);
+                ImGui::TableNextColumn();
                 ImGui::Text("%.2f", contracts[i].total_amount);
+                ImGui::TableNextColumn();
+                ImGui::Text("%s", contracts[i].end_date.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text("%s", contracts[i].procurement_code.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text("%s", contracts[i].note.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text(contracts[i].is_for_checking ? "Да" : "Нет");
+                ImGui::TableNextColumn();
+                ImGui::Text(contracts[i].is_for_special_control ? "Да" : "Нет");
+                ImGui::TableNextColumn();
+                ImGui::Text(contracts[i].is_found ? "Да" : "Нет");
             }
             ImGui::EndTable();
         }
@@ -322,6 +342,45 @@ void ContractsView::Render() {
                     isDirty = true;
                 }
             }
+
+            ImGui::SetNextItemWidth(150.0f);
+            if (ImGui::InputDouble("Сумма договора", &selectedContract.contract_amount)) {
+                isDirty = true;
+            }
+
+            char endDateBuf[12];
+            snprintf(endDateBuf, sizeof(endDateBuf), "%s", selectedContract.end_date.c_str());
+            ImGui::SetNextItemWidth(100.0f);
+            if (ImGui::InputText("Дата окончания", endDateBuf, sizeof(endDateBuf))) {
+                selectedContract.end_date = endDateBuf;
+                isDirty = true;
+            }
+
+            char procurementCodeBuf[256];
+            snprintf(procurementCodeBuf, sizeof(procurementCodeBuf), "%s", selectedContract.procurement_code.c_str());
+            ImGui::SetNextItemWidth(100.0f);
+            if (ImGui::InputText("ИКЗ", procurementCodeBuf, sizeof(procurementCodeBuf))) {
+                selectedContract.procurement_code = procurementCodeBuf;
+                isDirty = true;
+            }
+
+            char noteBuf[512];
+            snprintf(noteBuf, sizeof(noteBuf), "%s", selectedContract.note.c_str());
+            if (ImGui::InputTextMultiline("Примечание", noteBuf, sizeof(noteBuf))) {
+                selectedContract.note = noteBuf;
+                isDirty = true;
+            }
+
+            if (ImGui::Checkbox("Для проверки", &selectedContract.is_for_checking)) {
+                isDirty = true;
+            }
+            if (ImGui::Checkbox("Усиленный контроль", &selectedContract.is_for_special_control)) {
+                isDirty = true;
+            }
+            if (ImGui::Checkbox("Найден", &selectedContract.is_found)) {
+                isDirty = true;
+            }
+            
             ImGui::EndChild();
             ImGui::SameLine();
 
