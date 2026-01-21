@@ -20,3 +20,11 @@ struct ContractPaymentInfo {
     double amount;
     std::string description;
 };
+
+struct KosguPaymentDetailInfo {
+    int kosgu_id;
+    std::string date;
+    std::string doc_number;
+    double amount;
+    std::string description;
+};

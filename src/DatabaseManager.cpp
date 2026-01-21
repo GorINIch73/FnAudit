@@ -1102,6 +1102,38 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
     return results;
 }
 
+std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
+    std::vector<KosguPaymentDetailInfo> results;
+    if (!db) return results;
+
+    std::string sql = "SELECT pd.kosgu_id, p.date, p.doc_number, pd.amount, p.description "
+                      "FROM PaymentDetails pd "
+                      "JOIN Payments p ON pd.payment_id = p.id "
+                      "WHERE pd.kosgu_id IS NOT NULL;";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for getAllKosguPaymentInfo: " << sqlite3_errmsg(db) << std::endl;
+        return results;
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        KosguPaymentDetailInfo info;
+        info.kosgu_id = sqlite3_column_int(stmt, 0);
+        const unsigned char* date_text = sqlite3_column_text(stmt, 1);
+        info.date = date_text ? (const char*)date_text : "";
+        const unsigned char* doc_num_text = sqlite3_column_text(stmt, 2);
+        info.doc_number = doc_num_text ? (const char*)doc_num_text : "";
+        info.amount = sqlite3_column_double(stmt, 3);
+        const unsigned char* desc_text = sqlite3_column_text(stmt, 4);
+        info.description = desc_text ? (const char*)desc_text : "";
+        results.push_back(info);
+    }
+
+    sqlite3_finalize(stmt);
+    return results;
+}
+
 // PaymentDetail CRUD
 bool DatabaseManager::addPaymentDetail(PaymentDetail &detail) {
     if (!db)

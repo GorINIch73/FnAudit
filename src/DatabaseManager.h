@@ -63,6 +63,7 @@ public:
     bool updatePayment(const Payment& payment);
     bool deletePayment(int id);
     std::vector<ContractPaymentInfo> getPaymentInfoForKosgu(int kosgu_id);
+    std::vector<KosguPaymentDetailInfo> getAllKosguPaymentInfo();
 
     bool addPaymentDetail(PaymentDetail& detail);
     std::vector<PaymentDetail> getPaymentDetails(int payment_id);

@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <map>
 
 KosguView::KosguView()
     : selectedKosguIndex(-1),
@@ -76,22 +77,29 @@ void KosguView::SaveChanges() {
 }
 
 void KosguView::UpdateFilteredKosgu() {
-    // Text filter pass
+    if (!dbManager) return;
+
+    // 1. Fetch all payment info once
+    auto all_payment_info = dbManager->getAllKosguPaymentInfo();
+    std::map<int, std::vector<KosguPaymentDetailInfo>> details_by_kosgu;
+    for(const auto& info : all_payment_info) {
+        details_by_kosgu[info.kosgu_id].push_back(info);
+    }
+
+    // 2. Text filter pass
     std::vector<Kosgu> text_filtered_entries;
     if (filterText[0] != '\0') {
         for (const auto &entry : kosguEntries) {
             bool kosgu_match = false;
-            // Search in KOSGU code and name
             if (strcasestr(entry.code.c_str(), filterText) != nullptr || strcasestr(entry.name.c_str(), filterText) != nullptr) {
                 kosgu_match = true;
             }
 
-            // Search in payment details
             float filtered_amount = 0.0f;
             bool payment_match = false;
-            if (dbManager) {
-                std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
-                for (const auto& detail : payment_details) {
+            auto it = details_by_kosgu.find(entry.id);
+            if (it != details_by_kosgu.end()) {
+                for (const auto& detail : it->second) {
                     bool detail_match = false;
                     if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
                         strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
@@ -113,7 +121,6 @@ void KosguView::UpdateFilteredKosgu() {
 
             if (kosgu_match || payment_match) {
                 Kosgu filtered_entry = entry;
-                // If the KOSGU itself matched, show its total amount. If only payments matched, show the sum of filtered payments.
                 filtered_entry.total_amount = kosgu_match ? entry.total_amount : filtered_amount;
                 text_filtered_entries.push_back(filtered_entry);
             }
@@ -122,37 +129,37 @@ void KosguView::UpdateFilteredKosgu() {
         text_filtered_entries = kosguEntries;
     }
 
-    // Dropdown filter pass
+    // 3. Dropdown filter pass
     m_filtered_kosgu_entries.clear();
     if (m_filter_index == 0) { // "Все"
         m_filtered_kosgu_entries = text_filtered_entries;
     } else if (m_filter_index == 3) { // "Подозрительные слова"
-        if (!suspiciousWordsForFilter.empty() && dbManager) {
+        if (!suspiciousWordsForFilter.empty()) {
             for (const auto &entry : text_filtered_entries) {
                 bool suspicious_found = false;
-                std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
-                for (const auto& detail : payment_details) {
-                    for (const auto &sw : suspiciousWordsForFilter) {
-                        if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
-                            suspicious_found = true;
-                            break;
+                auto it = details_by_kosgu.find(entry.id);
+                if (it != details_by_kosgu.end()) {
+                    for (const auto& detail : it->second) {
+                        for (const auto &sw : suspiciousWordsForFilter) {
+                            if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
+                                suspicious_found = true;
+                                break;
+                            }
                         }
+                        if (suspicious_found) break;
                     }
-                    if (suspicious_found) break;
                 }
-
                 if (suspicious_found) {
                     m_filtered_kosgu_entries.push_back(entry);
                 }
             }
         }
-    }
-    else {
+    } else { // "С платежами" или "Без платежей"
         for (const auto& entry : text_filtered_entries) {
             bool has_payments = (entry.total_amount > 0.001);
-            if (m_filter_index == 1 && has_payments) { // "С платежами"
+            if (m_filter_index == 1 && has_payments) {
                  m_filtered_kosgu_entries.push_back(entry);
-            } else if (m_filter_index == 2 && !has_payments) { // "Без платежей"
+            } else if (m_filter_index == 2 && !has_payments) {
                  m_filtered_kosgu_entries.push_back(entry);
             }
         }
@@ -315,17 +322,16 @@ void KosguView::Render() {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
 
-                    // Find original index to maintain selection state
                     auto original_it = std::find_if(kosguEntries.begin(), kosguEntries.end(), 
                                                     [&](const Kosgu& k) { return k.id == m_filtered_kosgu_entries[i].id; });
-                    int original_index = std::distance(kosguEntries.begin(), original_it);
+                    int original_index = (original_it == kosguEntries.end()) ? -1 : std::distance(kosguEntries.begin(), original_it);
 
                     bool is_selected = (selectedKosguIndex == original_index);
                     char label[256];
                     sprintf(label, "%d##%d", m_filtered_kosgu_entries[i].id, i);
                     if (ImGui::Selectable(label, is_selected,
                                           ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedKosguIndex != original_index) {
+                        if (selectedKosguIndex != original_index && original_index != -1) {
                             SaveChanges();
                             selectedKosguIndex = original_index;
                             selectedKosgu = kosguEntries[original_index];
@@ -333,8 +339,7 @@ void KosguView::Render() {
                             isAdding = false;
                             isDirty = false;
                             if (dbManager) {
-                                payment_info = dbManager->getPaymentInfoForKosgu(
-                                    selectedKosgu.id);
+                                payment_info = dbManager->getPaymentInfoForKosgu(selectedKosgu.id);
                             }
                         }
                     }
@@ -367,12 +372,8 @@ void KosguView::Render() {
             char codeBuf[256];
             char nameBuf[256];
 
-            snprintf(codeBuf, sizeof(codeBuf),
-                     "%s",
-                     selectedKosgu.code.c_str());
-            snprintf(nameBuf, sizeof(nameBuf),
-                     "%s",
-                     selectedKosgu.name.c_str());
+            snprintf(codeBuf, sizeof(codeBuf), "%s", selectedKosgu.code.c_str());
+            snprintf(nameBuf, sizeof(nameBuf), "%s", selectedKosgu.name.c_str());
 
             if (ImGui::InputText("Код", codeBuf, sizeof(codeBuf))) {
                 selectedKosgu.code = codeBuf;
@@ -392,10 +393,7 @@ void KosguView::Render() {
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
             ImGui::Text("Расшифровки платежей:");
 
-            // Base list of details to show, potentially filtered by the combo box
             std::vector<ContractPaymentInfo> details_to_show = payment_info;
-
-            // Apply the combobox filter if it's 'suspicious words'
             if (m_filter_index == 3 && !suspiciousWordsForFilter.empty()) {
                 std::vector<ContractPaymentInfo> suspicious_details;
                 for (const auto& info : payment_info) {
@@ -413,7 +411,6 @@ void KosguView::Render() {
                 details_to_show = suspicious_details;
             }
 
-            // Now, apply the text filter on the result of the combo filter
             std::vector<ContractPaymentInfo> filtered_payment_info;
             if (filterText[0] != '\0') {
                 for (const auto& info : details_to_show) {
