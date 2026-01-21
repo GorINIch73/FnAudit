@@ -4,6 +4,7 @@
 #include <vector>
 #include "../Kosgu.h"
 #include "../Payment.h"
+#include "../SuspiciousWord.h"
 
 class KosguView : public BaseView {
 public:
@@ -33,6 +34,7 @@ private:
     std::vector<Kosgu> m_filtered_kosgu_entries;
     void UpdateFilteredKosgu();
     int m_filter_index = 0;
+    std::vector<SuspiciousWord> suspiciousWordsForFilter;
 
     float list_view_height = 200.0f;
     float editor_width = 400.0f;

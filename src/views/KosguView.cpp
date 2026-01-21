@@ -25,6 +25,7 @@ void KosguView::SetPdfReporter(PdfReporter *reporter) {
 void KosguView::RefreshData() {
     if (dbManager) {
         kosguEntries = dbManager->getKosguEntries();
+        suspiciousWordsForFilter = dbManager->getSuspiciousWords();
         selectedKosguIndex = -1;
         UpdateFilteredKosgu(); 
     }
@@ -125,7 +126,28 @@ void KosguView::UpdateFilteredKosgu() {
     m_filtered_kosgu_entries.clear();
     if (m_filter_index == 0) { // "Все"
         m_filtered_kosgu_entries = text_filtered_entries;
-    } else {
+    } else if (m_filter_index == 3) { // "Подозрительные слова"
+        if (!suspiciousWordsForFilter.empty() && dbManager) {
+            for (const auto &entry : text_filtered_entries) {
+                bool suspicious_found = false;
+                std::vector<ContractPaymentInfo> payment_details = dbManager->getPaymentInfoForKosgu(entry.id);
+                for (const auto& detail : payment_details) {
+                    for (const auto &sw : suspiciousWordsForFilter) {
+                        if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
+                            suspicious_found = true;
+                            break;
+                        }
+                    }
+                    if (suspicious_found) break;
+                }
+
+                if (suspicious_found) {
+                    m_filtered_kosgu_entries.push_back(entry);
+                }
+            }
+        }
+    }
+    else {
         for (const auto& entry : text_filtered_entries) {
             bool has_payments = (entry.total_amount > 0.001);
             if (m_filter_index == 1 && has_payments) { // "С платежами"
@@ -256,7 +278,7 @@ void KosguView::Render() {
         ImGui::SameLine();
         float avail_width = ImGui::GetContentRegionAvail().x;
         ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
-        const char *filter_items[] = { "Все", "С платежами", "Без платежей" };
+        const char *filter_items[] = { "Все", "С платежами", "Без платежей", "Подозрительные слова" };
         if (ImGui::Combo("##FilterCombo", &m_filter_index, filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
         }
@@ -370,9 +392,31 @@ void KosguView::Render() {
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
             ImGui::Text("Расшифровки платежей:");
 
+            // Base list of details to show, potentially filtered by the combo box
+            std::vector<ContractPaymentInfo> details_to_show = payment_info;
+
+            // Apply the combobox filter if it's 'suspicious words'
+            if (m_filter_index == 3 && !suspiciousWordsForFilter.empty()) {
+                std::vector<ContractPaymentInfo> suspicious_details;
+                for (const auto& info : payment_info) {
+                    bool found = false;
+                    for (const auto& word : suspiciousWordsForFilter) {
+                        if (strcasestr(info.description.c_str(), word.word.c_str()) != nullptr) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        suspicious_details.push_back(info);
+                    }
+                }
+                details_to_show = suspicious_details;
+            }
+
+            // Now, apply the text filter on the result of the combo filter
             std::vector<ContractPaymentInfo> filtered_payment_info;
             if (filterText[0] != '\0') {
-                for (const auto& info : payment_info) {
+                for (const auto& info : details_to_show) {
                     bool match = false;
                     if (strcasestr(info.date.c_str(), filterText) != nullptr ||
                         strcasestr(info.doc_number.c_str(), filterText) != nullptr ||
@@ -381,7 +425,7 @@ void KosguView::Render() {
                     }
                     char amount_str[32];
                     snprintf(amount_str, sizeof(amount_str), "%.2f", info.amount);
-                    if (strcasestr(amount_str, filterText) != nullptr) {
+                    if (!match && strcasestr(amount_str, filterText) != nullptr) {
                         match = true;
                     }
                     if (match) {
@@ -389,7 +433,7 @@ void KosguView::Render() {
                     }
                 }
             } else {
-                filtered_payment_info = payment_info;
+                filtered_payment_info = details_to_show;
             }
 
             if (ImGui::BeginTable(
