@@ -245,65 +245,69 @@ void ContractsView::Render() {
                 }
             }
 
-            for (int i = 0; i < m_filtered_contracts.size(); ++i) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+            ImGuiListClipper clipper;
+            clipper.Begin(m_filtered_contracts.size());
+            while(clipper.Step()){
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                auto original_it = std::find_if(contracts.begin(), contracts.end(), 
-                                                [&](const Contract& c) { return c.id == m_filtered_contracts[i].id; });
-                int original_index = (original_it == contracts.end()) ? -1 : std::distance(contracts.begin(), original_it);
+                    auto original_it = std::find_if(contracts.begin(), contracts.end(), 
+                                                    [&](const Contract& c) { return c.id == m_filtered_contracts[i].id; });
+                    int original_index = (original_it == contracts.end()) ? -1 : std::distance(contracts.begin(), original_it);
 
-                bool is_selected = (selectedContractIndex == original_index);
-                char label[256];
-                sprintf(label, "%d##%d", m_filtered_contracts[i].id, i);
-                if (ImGui::Selectable(label, is_selected,
-                                      ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedContractIndex != original_index && original_index != -1) {
-                        SaveChanges();
-                        selectedContractIndex = original_index;
-                        selectedContract = contracts[original_index];
-                        originalContract = contracts[original_index];
-                        isAdding = false;
-                        isDirty = false;
-                        if (dbManager) {
-                            payment_info = dbManager->getPaymentInfoForContract(
-                                selectedContract.id);
+                    bool is_selected = (selectedContractIndex == original_index);
+                    char label[256];
+                    sprintf(label, "%d##%d", m_filtered_contracts[i].id, i);
+                    if (ImGui::Selectable(label, is_selected,
+                                          ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (selectedContractIndex != original_index && original_index != -1) {
+                            SaveChanges();
+                            selectedContractIndex = original_index;
+                            selectedContract = contracts[original_index];
+                            originalContract = contracts[original_index];
+                            isAdding = false;
+                            isDirty = false;
+                            if (dbManager) {
+                                payment_info = dbManager->getPaymentInfoForContract(
+                                    selectedContract.id);
+                            }
                         }
                     }
-                }
-                if (is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
-
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", m_filtered_contracts[i].number.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", m_filtered_contracts[i].date.c_str());
-                ImGui::TableNextColumn();
-                const char *counterpartyName = "N/A";
-                for (const auto &cp : counterpartiesForDropdown) {
-                    if (cp.id == m_filtered_contracts[i].counterparty_id) {
-                        counterpartyName = cp.name.c_str();
-                        break;
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
                     }
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_contracts[i].number.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_contracts[i].date.c_str());
+                    ImGui::TableNextColumn();
+                    const char *counterpartyName = "N/A";
+                    for (const auto &cp : counterpartiesForDropdown) {
+                        if (cp.id == m_filtered_contracts[i].counterparty_id) {
+                            counterpartyName = cp.name.c_str();
+                            break;
+                        }
+                    }
+                    ImGui::Text("%s", counterpartyName);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", m_filtered_contracts[i].contract_amount);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", m_filtered_contracts[i].total_amount);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_contracts[i].end_date.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_contracts[i].procurement_code.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_contracts[i].note.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text(m_filtered_contracts[i].is_for_checking ? "Да" : "Нет");
+                    ImGui::TableNextColumn();
+                    ImGui::Text(m_filtered_contracts[i].is_for_special_control ? "Да" : "Нет");
+                    ImGui::TableNextColumn();
+                    ImGui::Text(m_filtered_contracts[i].is_found ? "Да" : "Нет");
                 }
-                ImGui::Text("%s", counterpartyName);
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", m_filtered_contracts[i].contract_amount);
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", m_filtered_contracts[i].total_amount);
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", m_filtered_contracts[i].end_date.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", m_filtered_contracts[i].procurement_code.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", m_filtered_contracts[i].note.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text(m_filtered_contracts[i].is_for_checking ? "Да" : "Нет");
-                ImGui::TableNextColumn();
-                ImGui::Text(m_filtered_contracts[i].is_for_special_control ? "Да" : "Нет");
-                ImGui::TableNextColumn();
-                ImGui::Text(m_filtered_contracts[i].is_found ? "Да" : "Нет");
             }
             ImGui::EndTable();
         }
