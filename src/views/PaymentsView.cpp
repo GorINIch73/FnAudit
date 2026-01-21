@@ -360,7 +360,7 @@ void PaymentsView::Render() {
         ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
         const char *filter_items[] = {
             "Все",           "Без КОСГУ",       "Без Договора",
-            "Без Накладной", "Без расшифровок", "Подозрительные слова"};
+            "Без Накладной", "Без расшифровок", "Подозрительные слова", "Поступления", "С примечанием"};
         if (ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index,
                          filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
@@ -1238,6 +1238,18 @@ void PaymentsView::UpdateFilteredPayments() {
                 if (suspicious_found) {
                     m_filtered_payments.push_back(p);
                 }
+            }
+        }
+    } else if (missing_info_filter_index == 6) { // "Поступления"
+        for (const auto &p : text_filtered_payments) {
+            if (p.type) { // If payment type is true (receipt)
+                m_filtered_payments.push_back(p);
+            }
+        }
+    } else if (missing_info_filter_index == 7) { // "С примечанием"
+        for (const auto &p : text_filtered_payments) {
+            if (!p.note.empty()) {
+                m_filtered_payments.push_back(p);
             }
         }
     } else {
