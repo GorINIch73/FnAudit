@@ -228,7 +228,7 @@ void ContractsView::Render() {
         ImGui::SameLine();
         ImGui::PushItemWidth(combo_width);
         const char *filter_items[] = {
-            "Все", "Для проверки", "Усиленный контроль", "Проблемные", "Подозрительное в платежах"};
+            "Все", "Для проверки", "Усиленный контроль", "С примечанием", "Подозрительное в платежах"};
         if (ImGui::Combo("Фильтр по статусу", &contract_filter_index,
                          filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
@@ -548,28 +548,10 @@ void ContractsView::UpdateFilteredContracts() {
                 }
             }
             break;
-        case 3: // Проблемные
+        case 3: // С примечанием
             for (const auto &contract : text_filtered_contracts) {
-                if (contract.is_for_checking) {
-                    bool note_is_present = !contract.note.empty();
-
-                    bool payment_has_suspicious = false;
-                    auto it = m_contract_details_map.find(contract.id);
-                    if (it != m_contract_details_map.end()) {
-                        for (const auto& detail : it->second) {
-                            for (const auto &sw : suspiciousWordsForFilter) {
-                                if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
-                                    payment_has_suspicious = true;
-                                    break;
-                                }
-                            }
-                            if (payment_has_suspicious) break;
-                        }
-                    }
-
-                    if (note_is_present || payment_has_suspicious) {
-                        m_filtered_contracts.push_back(contract);
-                    }
+                if (!contract.note.empty()) {
+                    m_filtered_contracts.push_back(contract);
                 }
             }
             break;
