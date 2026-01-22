@@ -26,9 +26,7 @@ void ContractsView::SetPdfReporter(PdfReporter *reporter) {
     pdfReporter = reporter;
 }
 
-void ContractsView::SetUIManager(UIManager* manager) {
-    uiManager = manager;
-}
+void ContractsView::SetUIManager(UIManager *manager) { uiManager = manager; }
 
 void ContractsView::RefreshData() {
     if (dbManager) {
@@ -45,10 +43,10 @@ void ContractsView::RefreshDropdownData() {
     }
 }
 
-
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 ContractsView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контрагент", "Сумма"};
+    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контрагент",
+                                        "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : contracts) {
         std::string counterpartyName = "N/A";
@@ -124,7 +122,7 @@ static void SortContracts(std::vector<Contract> &contracts,
                                                                             : 0;
                           break;
                       case 4:
-                            delta = (a.total_amount < b.total_amount)   ? -1
+                          delta = (a.total_amount < b.total_amount)   ? -1
                                   : (a.total_amount > b.total_amount) ? 1
                                                                       : 0;
                           break;
@@ -180,29 +178,137 @@ void ContractsView::Render() {
             RefreshDropdownData();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Отчет")) { // New button for report
+        if (ImGui::Button("Список по фильтру")) { // New button for report
             if (uiManager && !m_filtered_contracts.empty()) {
                 std::ostringstream oss;
-                oss << "SELECT * FROM Contracts WHERE id IN (";
+                oss << "SELECT c.id AS ID, c.number AS 'Номер договора'"
+                       ", c.date AS 'Дата договора', cp.name AS 'Контрагент'"
+                       ", COALESCE(ds.total_details_amount, 0.0) AS 'Всего "
+                       "сумма"
+                       "по расшифровкам'"
+                       ", COALESCE(ds.details_count, 0) AS 'Количество "
+                       "расшифровок'"
+                       ", CASE WHEN c.is_for_checking THEN 'Да'"
+                       " ELSE 'Нет'"
+                       " END AS 'Для проверки'"
+                       ", CASE WHEN c.is_for_special_control THEN 'Да'"
+                       " ELSE 'Нет'"
+                       " END AS 'Для контроля', c.note AS 'Примечание'"
+                       " FROM Contracts c LEFT JOIN Counterparties cp ON "
+                       "c.counterparty_id = cp.id LEFT JOIN (SELECT "
+                       "contract_id, SUM(amount) AS total_details_amount, "
+                       "COUNT(*) AS details_count FROM PaymentDetails "
+                       "GROUP "
+                       "BY contract_id) AS ds ON c.id = ds.contract_id "
+                       "WHERE contract_id IN (";
+
                 for (size_t i = 0; i < m_filtered_contracts.size(); ++i) {
                     oss << m_filtered_contracts[i].id;
                     if (i < m_filtered_contracts.size() - 1) {
                         oss << ", ";
                     }
                 }
-                oss << ");";
-                uiManager->CreateSpecialQueryView("Отчет по договорам", oss.str());
+                oss << ") "
+                       "ORDER "
+                       "BY c.date DESC ";
+                uiManager->CreateSpecialQueryView("Отчет по договорам",
+                                                  oss.str());
             } else if (uiManager && m_filtered_contracts.empty()) {
-                // If no contracts are filtered, show an empty report or a message
-                uiManager->CreateSpecialQueryView("Отчет по договорам", "SELECT * FROM Contracts WHERE 1=0;"); // Empty result
+                // If no contracts are filtered, show an empty report or a
+                // message
+                uiManager->CreateSpecialQueryView(
+                    "Отчет по договорам",
+                    "SELECT c.number AS 'Номер договора'"
+                    ", c.date AS 'Дата договора', cp.name AS 'Контрагент'"
+                    ", COALESCE(ds.total_details_amount, 0.0) AS 'Всего сумма"
+                    "по расшифровкам'"
+                    ", COALESCE(ds.details_count, 0) AS 'Количество "
+                    "расшифровок'"
+                    ", CASE WHEN c.is_for_checking THEN 'Да'"
+                    " ELSE 'Нет'"
+                    " END AS 'Для проверки'"
+                    ", CASE WHEN c.is_for_special_control THEN 'Да'"
+                    " ELSE 'Нет'"
+                    " END AS 'Для контроля', c.note AS 'Примечание'"
+                    " FROM Contracts c LEFT JOIN Counterparties cp ON "
+                    "c.counterparty_id = cp.id LEFT JOIN (SELECT "
+                    "contract_id, SUM(amount) AS total_details_amount, "
+                    "COUNT(*) AS details_count FROM PaymentDetails GROUP "
+                    "BY contract_id) AS ds ON c.id = ds.contract_id ORDER "
+                    "BY c.date DESC;"); // Empty result
             }
         }
 
+        ImGui::SameLine();
+        if (ImGui::Button("Подробный список")) { // New button for report
+            if (uiManager && !m_filtered_contracts.empty()) {
+                std::ostringstream oss;
+                // oss << "SELECT * FROM Contracts WHERE id IN (";
+                oss << "SELECT c.id AS ID, c.number AS 'Номер договора'"
+                       ", c.date AS 'Дата договора', cp.name AS 'Контрагент'"
+                       ", COALESCE(ds.total_details_amount, 0.0) AS 'Всего "
+                       "сумма"
+                       "по расшифровкам'"
+                       ", COALESCE(ds.details_count, 0) AS 'Количество "
+                       "расшифровок'"
+                       ", CASE WHEN c.is_for_checking THEN 'Да'"
+                       " ELSE 'Нет'"
+                       " END AS 'Для проверки'"
+                       ", CASE WHEN c.is_for_special_control THEN 'Да'"
+                       " ELSE 'Нет'"
+                       " END AS 'Для контроля', c.note AS 'Примечание'"
+                       " FROM Contracts c LEFT JOIN Counterparties cp ON "
+                       "c.counterparty_id = cp.id LEFT JOIN (SELECT "
+                       "contract_id, SUM(amount) AS total_details_amount, "
+                       "COUNT(*) AS details_count FROM PaymentDetails "
+                       "GROUP "
+                       "BY contract_id) AS ds ON c.id = ds.contract_id "
+                       "WHERE contract_id IN (";
+
+                for (size_t i = 0; i < m_filtered_contracts.size(); ++i) {
+                    oss << m_filtered_contracts[i].id;
+                    if (i < m_filtered_contracts.size() - 1) {
+                        oss << ", ";
+                    }
+                }
+                oss << ") "
+                       "ORDER "
+                       "BY c.date DESC ";
+                uiManager->CreateSpecialQueryView("Отчет по договорам",
+                                                  oss.str());
+            } else if (uiManager && m_filtered_contracts.empty()) {
+                // If no contracts are filtered, show an empty report or a
+                // message
+                uiManager->CreateSpecialQueryView(
+                    "Отчет по договорам",
+                    "SELECT c.number AS 'Номер договора'"
+                    ", c.date AS 'Дата договора', cp.name AS 'Контрагент'"
+                    ", COALESCE(ds.total_details_amount, 0.0) AS 'Всего сумма"
+                    "по расшифровкам'"
+                    ", COALESCE(ds.details_count, 0) AS 'Количество "
+                    "расшифровок'"
+                    ", CASE WHEN c.is_for_checking THEN 'Да'"
+                    " ELSE 'Нет'"
+                    " END AS 'Для проверки'"
+                    ", CASE WHEN c.is_for_special_control THEN 'Да'"
+                    " ELSE 'Нет'"
+                    " END AS 'Для контроля', c.note AS 'Примечание'"
+                    " FROM Contracts c LEFT JOIN Counterparties cp ON "
+                    "c.counterparty_id = cp.id LEFT JOIN (SELECT "
+                    "contract_id, SUM(amount) AS total_details_amount, "
+                    "COUNT(*) AS details_count FROM PaymentDetails GROUP "
+                    "BY contract_id) AS ds ON c.id = ds.contract_id ORDER "
+                    "BY c.date DESC;"); // Empty result
+            }
+        }
         if (show_delete_popup) {
             ImGui::OpenPopup("Подтверждение удаления##Contract");
         }
-        if (ImGui::BeginPopupModal("Подтверждение удаления##Contract", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить этот договор?\nЭто действие нельзя отменить.");
+        if (ImGui::BeginPopupModal("Подтверждение удаления##Contract",
+                                   &show_delete_popup,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Вы уверены, что хотите удалить этот договор?\nЭто "
+                        "действие нельзя отменить.");
             ImGui::Separator();
             if (ImGui::Button("Да", ImVec2(120, 0))) {
                 if (dbManager && contract_id_to_delete != -1) {
@@ -228,12 +334,15 @@ void ContractsView::Render() {
         ImGui::Separator();
 
         bool filter_changed = false;
-        
+
         float combo_width = 220.0f;
-        // Estimate the width of the clear button. A simple square button is usually FrameHeight.
-        float clear_button_width = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x; 
+        // Estimate the width of the clear button. A simple square button is
+        // usually FrameHeight.
+        float clear_button_width =
+            ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x;
         float spacing = ImGui::GetStyle().ItemSpacing.x;
-        float input_width = ImGui::GetContentRegionAvail().x - combo_width - clear_button_width - spacing;
+        float input_width = ImGui::GetContentRegionAvail().x - combo_width -
+                            clear_button_width - spacing;
 
         ImGui::PushItemWidth(input_width);
         if (ImGui::InputText("Фильтр", filterText, sizeof(filterText))) {
@@ -248,11 +357,15 @@ void ContractsView::Render() {
                 filter_changed = true;
             }
         }
-        
+
         ImGui::SameLine();
         ImGui::PushItemWidth(combo_width);
-        const char *filter_items[] = {
-            "Все", "Для проверки", "Усиленный контроль", "С примечанием", "Подозрительное в платежах", "Ненайденные"};
+        const char *filter_items[] = {"Все",
+                                      "Для проверки",
+                                      "Усиленный контроль",
+                                      "С примечанием",
+                                      "Подозрительное в платежах",
+                                      "Ненайденные"};
         if (ImGui::Combo("Фильтр по статусу", &contract_filter_index,
                          filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
@@ -272,7 +385,8 @@ void ContractsView::Render() {
                                   ImGuiTableFlags_Sortable)) {
             ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
             ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
-            ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort, 0.0f, 2);
+            ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort,
+                                    0.0f, 2);
             ImGui::TableSetupColumn("Контрагент", 0, 0.0f, 3);
             ImGui::TableSetupColumn("Сумма договора", 0, 0.0f, 4);
             ImGui::TableSetupColumn("Сумма платежей", 0, 0.0f, 5);
@@ -293,21 +407,31 @@ void ContractsView::Render() {
 
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_contracts.size());
-            while(clipper.Step()){
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+            while (clipper.Step()) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
+                     ++i) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
 
-                    auto original_it = std::find_if(contracts.begin(), contracts.end(),
-                                                    [&](const Contract& c) { return c.id == m_filtered_contracts[i].id; });
-                    int original_index = (original_it == contracts.end()) ? -1 : std::distance(contracts.begin(), original_it);
+                    auto original_it = std::find_if(
+                        contracts.begin(), contracts.end(),
+                        [&](const Contract &c) {
+                            return c.id == m_filtered_contracts[i].id;
+                        });
+                    int original_index =
+                        (original_it == contracts.end())
+                            ? -1
+                            : std::distance(contracts.begin(), original_it);
 
-                    bool is_selected = (selectedContractIndex == original_index);
+                    bool is_selected =
+                        (selectedContractIndex == original_index);
                     char label[256];
                     sprintf(label, "%d##%d", m_filtered_contracts[i].id, i);
-                    if (ImGui::Selectable(label, is_selected,
-                                          ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedContractIndex != original_index && original_index != -1) {
+                    if (ImGui::Selectable(
+                            label, is_selected,
+                            ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (selectedContractIndex != original_index &&
+                            original_index != -1) {
                             SaveChanges();
                             selectedContractIndex = original_index;
                             selectedContract = contracts[original_index];
@@ -315,8 +439,9 @@ void ContractsView::Render() {
                             isAdding = false;
                             isDirty = false;
                             if (dbManager) {
-                                payment_info = dbManager->getPaymentInfoForContract(
-                                    selectedContract.id);
+                                payment_info =
+                                    dbManager->getPaymentInfoForContract(
+                                        selectedContract.id);
                             }
                         }
                     }
@@ -338,21 +463,27 @@ void ContractsView::Render() {
                     }
                     ImGui::Text("%s", counterpartyName);
                     ImGui::TableNextColumn();
-                    ImGui::Text("%.2f", m_filtered_contracts[i].contract_amount);
+                    ImGui::Text("%.2f",
+                                m_filtered_contracts[i].contract_amount);
                     ImGui::TableNextColumn();
                     ImGui::Text("%.2f", m_filtered_contracts[i].total_amount);
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", m_filtered_contracts[i].end_date.c_str());
                     ImGui::TableNextColumn();
-                    ImGui::Text("%s", m_filtered_contracts[i].procurement_code.c_str());
+                    ImGui::Text(
+                        "%s", m_filtered_contracts[i].procurement_code.c_str());
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", m_filtered_contracts[i].note.c_str());
                     ImGui::TableNextColumn();
-                    ImGui::Text(m_filtered_contracts[i].is_for_checking ? "Да" : "Нет");
+                    ImGui::Text(
+                        m_filtered_contracts[i].is_for_checking ? "Да" : "Нет");
                     ImGui::TableNextColumn();
-                    ImGui::Text(m_filtered_contracts[i].is_for_special_control ? "Да" : "Нет");
+                    ImGui::Text(m_filtered_contracts[i].is_for_special_control
+                                    ? "Да"
+                                    : "Нет");
                     ImGui::TableNextColumn();
-                    ImGui::Text(m_filtered_contracts[i].is_found ? "Да" : "Нет");
+                    ImGui::Text(m_filtered_contracts[i].is_found ? "Да"
+                                                                 : "Нет");
                 }
             }
             ImGui::EndTable();
@@ -403,37 +534,46 @@ void ContractsView::Render() {
             }
 
             ImGui::SetNextItemWidth(150.0f);
-            if (ImGui::InputDouble("Сумма договора", &selectedContract.contract_amount)) {
+            if (ImGui::InputDouble("Сумма договора",
+                                   &selectedContract.contract_amount)) {
                 isDirty = true;
             }
 
             char endDateBuf[12];
-            snprintf(endDateBuf, sizeof(endDateBuf), "%s", selectedContract.end_date.c_str());
+            snprintf(endDateBuf, sizeof(endDateBuf), "%s",
+                     selectedContract.end_date.c_str());
             ImGui::SetNextItemWidth(100.0f);
-            if (ImGui::InputText("Дата окончания", endDateBuf, sizeof(endDateBuf))) {
+            if (ImGui::InputText("Дата окончания", endDateBuf,
+                                 sizeof(endDateBuf))) {
                 selectedContract.end_date = endDateBuf;
                 isDirty = true;
             }
 
             char procurementCodeBuf[256];
-            snprintf(procurementCodeBuf, sizeof(procurementCodeBuf), "%s", selectedContract.procurement_code.c_str());
+            snprintf(procurementCodeBuf, sizeof(procurementCodeBuf), "%s",
+                     selectedContract.procurement_code.c_str());
             ImGui::SetNextItemWidth(100.0f);
-            if (ImGui::InputText("ИКЗ", procurementCodeBuf, sizeof(procurementCodeBuf))) {
+            if (ImGui::InputText("ИКЗ", procurementCodeBuf,
+                                 sizeof(procurementCodeBuf))) {
                 selectedContract.procurement_code = procurementCodeBuf;
                 isDirty = true;
             }
 
             char noteBuf[512];
-            snprintf(noteBuf, sizeof(noteBuf), "%s", selectedContract.note.c_str());
-            if (ImGui::InputTextMultiline("Примечание", noteBuf, sizeof(noteBuf))) {
+            snprintf(noteBuf, sizeof(noteBuf), "%s",
+                     selectedContract.note.c_str());
+            if (ImGui::InputTextMultiline("Примечание", noteBuf,
+                                          sizeof(noteBuf))) {
                 selectedContract.note = noteBuf;
                 isDirty = true;
             }
 
-            if (ImGui::Checkbox("Для проверки", &selectedContract.is_for_checking)) {
+            if (ImGui::Checkbox("Для проверки",
+                                &selectedContract.is_for_checking)) {
                 isDirty = true;
             }
-            if (ImGui::Checkbox("Усиленный контроль", &selectedContract.is_for_special_control)) {
+            if (ImGui::Checkbox("Усиленный контроль",
+                                &selectedContract.is_for_special_control)) {
                 isDirty = true;
             }
             if (ImGui::Checkbox("Найден", &selectedContract.is_found)) {
@@ -486,12 +626,13 @@ void ContractsView::Render() {
 }
 
 void ContractsView::UpdateFilteredContracts() {
-    if (!dbManager) return;
+    if (!dbManager)
+        return;
 
     // 1. Fetch all payment info once
     auto all_payment_info = dbManager->getAllContractPaymentInfo();
     m_contract_details_map.clear();
-    for(const auto& info : all_payment_info) {
+    for (const auto &info : all_payment_info) {
         m_contract_details_map[info.contract_id].push_back(info);
     }
 
@@ -503,13 +644,15 @@ void ContractsView::UpdateFilteredContracts() {
             if (strcasestr(entry.number.c_str(), filterText) != nullptr ||
                 strcasestr(entry.date.c_str(), filterText) != nullptr ||
                 strcasestr(entry.end_date.c_str(), filterText) != nullptr ||
-                strcasestr(entry.procurement_code.c_str(), filterText) != nullptr ||
+                strcasestr(entry.procurement_code.c_str(), filterText) !=
+                    nullptr ||
                 strcasestr(entry.note.c_str(), filterText) != nullptr) {
                 contract_match = true;
             }
 
             char amount_str[32];
-            snprintf(amount_str, sizeof(amount_str), "%.2f", entry.contract_amount);
+            snprintf(amount_str, sizeof(amount_str), "%.2f",
+                     entry.contract_amount);
             if (strcasestr(amount_str, filterText) != nullptr) {
                 contract_match = true;
             }
@@ -524,19 +667,22 @@ void ContractsView::UpdateFilteredContracts() {
                 }
             }
 
-
             bool payment_detail_match = false;
             auto it = m_contract_details_map.find(entry.id);
             if (it != m_contract_details_map.end()) {
-                for (const auto& detail : it->second) {
-                    if (strcasestr(detail.date.c_str(), filterText) != nullptr ||
-                        strcasestr(detail.doc_number.c_str(), filterText) != nullptr ||
-                        strcasestr(detail.description.c_str(), filterText) != nullptr) {
+                for (const auto &detail : it->second) {
+                    if (strcasestr(detail.date.c_str(), filterText) !=
+                            nullptr ||
+                        strcasestr(detail.doc_number.c_str(), filterText) !=
+                            nullptr ||
+                        strcasestr(detail.description.c_str(), filterText) !=
+                            nullptr) {
                         payment_detail_match = true;
                         break;
                     }
                     char detail_amount_str[32];
-                    snprintf(detail_amount_str, sizeof(detail_amount_str), "%.2f", detail.amount);
+                    snprintf(detail_amount_str, sizeof(detail_amount_str),
+                             "%.2f", detail.amount);
                     if (strcasestr(detail_amount_str, filterText) != nullptr) {
                         payment_detail_match = true;
                         break;
@@ -554,57 +700,59 @@ void ContractsView::UpdateFilteredContracts() {
 
     // 3. Category filter pass
     m_filtered_contracts.clear();
-    switch(contract_filter_index) {
-        case 0: // Все
-            m_filtered_contracts = text_filtered_contracts;
-            break;
-        case 1: // Для проверки
-            for (const auto &contract : text_filtered_contracts) {
-                if (contract.is_for_checking) {
-                    m_filtered_contracts.push_back(contract);
-                }
+    switch (contract_filter_index) {
+    case 0: // Все
+        m_filtered_contracts = text_filtered_contracts;
+        break;
+    case 1: // Для проверки
+        for (const auto &contract : text_filtered_contracts) {
+            if (contract.is_for_checking) {
+                m_filtered_contracts.push_back(contract);
             }
-            break;
-        case 2: // Усиленный контроль
-            for (const auto &contract : text_filtered_contracts) {
-                if (contract.is_for_special_control) {
-                    m_filtered_contracts.push_back(contract);
-                }
+        }
+        break;
+    case 2: // Усиленный контроль
+        for (const auto &contract : text_filtered_contracts) {
+            if (contract.is_for_special_control) {
+                m_filtered_contracts.push_back(contract);
             }
-            break;
-        case 3: // С примечанием
-            for (const auto &contract : text_filtered_contracts) {
-                if (!contract.note.empty()) {
-                    m_filtered_contracts.push_back(contract);
-                }
+        }
+        break;
+    case 3: // С примечанием
+        for (const auto &contract : text_filtered_contracts) {
+            if (!contract.note.empty()) {
+                m_filtered_contracts.push_back(contract);
             }
-            break;
-        case 4: // Подозрительное в платежах
-            for (const auto &contract : text_filtered_contracts) {
-                bool payment_has_suspicious = false;
-                auto it = m_contract_details_map.find(contract.id);
-                if (it != m_contract_details_map.end()) {
-                    for (const auto& detail : it->second) {
-                        for (const auto &sw : suspiciousWordsForFilter) {
-                            if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
-                                payment_has_suspicious = true;
-                                break;
-                            }
+        }
+        break;
+    case 4: // Подозрительное в платежах
+        for (const auto &contract : text_filtered_contracts) {
+            bool payment_has_suspicious = false;
+            auto it = m_contract_details_map.find(contract.id);
+            if (it != m_contract_details_map.end()) {
+                for (const auto &detail : it->second) {
+                    for (const auto &sw : suspiciousWordsForFilter) {
+                        if (strcasestr(detail.description.c_str(),
+                                       sw.word.c_str()) != nullptr) {
+                            payment_has_suspicious = true;
+                            break;
                         }
-                        if (payment_has_suspicious) break;
                     }
-                }
-                if (payment_has_suspicious) {
-                    m_filtered_contracts.push_back(contract);
-                }
-            }
-            break;
-        case 5: // Ненайденные
-            for (const auto &contract : text_filtered_contracts) {
-                if (contract.is_for_checking && !contract.is_found) {
-                    m_filtered_contracts.push_back(contract);
+                    if (payment_has_suspicious)
+                        break;
                 }
             }
-            break;
+            if (payment_has_suspicious) {
+                m_filtered_contracts.push_back(contract);
+            }
+        }
+        break;
+    case 5: // Ненайденные
+        for (const auto &contract : text_filtered_contracts) {
+            if (contract.is_for_checking && !contract.is_found) {
+                m_filtered_contracts.push_back(contract);
+            }
+        }
+        break;
     }
 }
