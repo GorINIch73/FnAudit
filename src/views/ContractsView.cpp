@@ -1,6 +1,7 @@
 #include "ContractsView.h"
 #include "../CustomWidgets.h"
 #include "../IconsFontAwesome6.h"
+#include "../SuspiciousWord.h"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -34,6 +35,7 @@ void ContractsView::RefreshData() {
 void ContractsView::RefreshDropdownData() {
     if (dbManager) {
         counterpartiesForDropdown = dbManager->getCounterparties();
+        suspiciousWordsForFilter = dbManager->getSuspiciousWords();
     }
 }
 
@@ -202,9 +204,19 @@ void ContractsView::Render() {
         ImGui::Separator();
 
         bool filter_changed = false;
-        if (ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText))) {
+        
+        float combo_width = 220.0f;
+        // Estimate the width of the clear button. A simple square button is usually FrameHeight.
+        float clear_button_width = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemSpacing.x; 
+        float spacing = ImGui::GetStyle().ItemSpacing.x;
+        float input_width = ImGui::GetContentRegionAvail().x - combo_width - clear_button_width - spacing;
+
+        ImGui::PushItemWidth(input_width);
+        if (ImGui::InputText("Фильтр", filterText, sizeof(filterText))) {
             filter_changed = true;
         }
+        ImGui::PopItemWidth();
+
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK "##clear_filter_contract")) {
             if (filterText[0] != '\0') {
@@ -213,6 +225,16 @@ void ContractsView::Render() {
             }
         }
         
+        ImGui::SameLine();
+        ImGui::PushItemWidth(combo_width);
+        const char *filter_items[] = {
+            "Все", "Для проверки", "Усиленный контроль", "Проблемные", "Подозрительное в платежах"};
+        if (ImGui::Combo("Фильтр по статусу", &contract_filter_index,
+                         filter_items, IM_ARRAYSIZE(filter_items))) {
+            filter_changed = true;
+        }
+        ImGui::PopItemWidth();
+
         if (filter_changed) {
             UpdateFilteredContracts();
         }
@@ -252,7 +274,7 @@ void ContractsView::Render() {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
 
-                    auto original_it = std::find_if(contracts.begin(), contracts.end(), 
+                    auto original_it = std::find_if(contracts.begin(), contracts.end(),
                                                     [&](const Contract& c) { return c.id == m_filtered_contracts[i].id; });
                     int original_index = (original_it == contracts.end()) ? -1 : std::distance(contracts.begin(), original_it);
 
@@ -393,7 +415,7 @@ void ContractsView::Render() {
             if (ImGui::Checkbox("Найден", &selectedContract.is_found)) {
                 isDirty = true;
             }
-            
+
             ImGui::EndChild();
             ImGui::SameLine();
 
@@ -450,11 +472,11 @@ void ContractsView::UpdateFilteredContracts() {
     }
 
     // 2. Text filter pass
-    m_filtered_contracts.clear();
+    std::vector<Contract> text_filtered_contracts;
     if (filterText[0] != '\0') {
         for (const auto &entry : contracts) {
             bool contract_match = false;
-            if (strcasestr(entry.number.c_str(), filterText) != nullptr || 
+            if (strcasestr(entry.number.c_str(), filterText) != nullptr ||
                 strcasestr(entry.date.c_str(), filterText) != nullptr ||
                 strcasestr(entry.end_date.c_str(), filterText) != nullptr ||
                 strcasestr(entry.procurement_code.c_str(), filterText) != nullptr ||
@@ -499,10 +521,77 @@ void ContractsView::UpdateFilteredContracts() {
             }
 
             if (contract_match || payment_detail_match) {
-                m_filtered_contracts.push_back(entry);
+                text_filtered_contracts.push_back(entry);
             }
         }
     } else {
-        m_filtered_contracts = contracts;
+        text_filtered_contracts = contracts;
+    }
+
+    // 3. Category filter pass
+    m_filtered_contracts.clear();
+    switch(contract_filter_index) {
+        case 0: // Все
+            m_filtered_contracts = text_filtered_contracts;
+            break;
+        case 1: // Для проверки
+            for (const auto &contract : text_filtered_contracts) {
+                if (contract.is_for_checking) {
+                    m_filtered_contracts.push_back(contract);
+                }
+            }
+            break;
+        case 2: // Усиленный контроль
+            for (const auto &contract : text_filtered_contracts) {
+                if (contract.is_for_special_control) {
+                    m_filtered_contracts.push_back(contract);
+                }
+            }
+            break;
+        case 3: // Проблемные
+            for (const auto &contract : text_filtered_contracts) {
+                if (contract.is_for_checking) {
+                    bool note_is_present = !contract.note.empty();
+
+                    bool payment_has_suspicious = false;
+                    auto it = m_contract_details_map.find(contract.id);
+                    if (it != m_contract_details_map.end()) {
+                        for (const auto& detail : it->second) {
+                            for (const auto &sw : suspiciousWordsForFilter) {
+                                if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
+                                    payment_has_suspicious = true;
+                                    break;
+                                }
+                            }
+                            if (payment_has_suspicious) break;
+                        }
+                    }
+
+                    if (note_is_present || payment_has_suspicious) {
+                        m_filtered_contracts.push_back(contract);
+                    }
+                }
+            }
+            break;
+        case 4: // Подозрительное в платежах
+            for (const auto &contract : text_filtered_contracts) {
+                bool payment_has_suspicious = false;
+                auto it = m_contract_details_map.find(contract.id);
+                if (it != m_contract_details_map.end()) {
+                    for (const auto& detail : it->second) {
+                        for (const auto &sw : suspiciousWordsForFilter) {
+                            if (strcasestr(detail.description.c_str(), sw.word.c_str()) != nullptr) {
+                                payment_has_suspicious = true;
+                                break;
+                            }
+                        }
+                        if (payment_has_suspicious) break;
+                    }
+                }
+                if (payment_has_suspicious) {
+                    m_filtered_contracts.push_back(contract);
+                }
+            }
+            break;
     }
 }

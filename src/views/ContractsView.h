@@ -38,6 +38,9 @@ private:
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
 
+    int contract_filter_index = 0;
+    std::vector<SuspiciousWord> suspiciousWordsForFilter;
+
     std::vector<Contract> m_filtered_contracts;
     void UpdateFilteredContracts();
     std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
