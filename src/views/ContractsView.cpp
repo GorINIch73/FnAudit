@@ -228,7 +228,7 @@ void ContractsView::Render() {
         ImGui::SameLine();
         ImGui::PushItemWidth(combo_width);
         const char *filter_items[] = {
-            "Все", "Для проверки", "Усиленный контроль", "С примечанием", "Подозрительное в платежах"};
+            "Все", "Для проверки", "Усиленный контроль", "С примечанием", "Подозрительное в платежах", "Ненайденные"};
         if (ImGui::Combo("Фильтр по статусу", &contract_filter_index,
                          filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
@@ -571,6 +571,13 @@ void ContractsView::UpdateFilteredContracts() {
                     }
                 }
                 if (payment_has_suspicious) {
+                    m_filtered_contracts.push_back(contract);
+                }
+            }
+            break;
+        case 5: // Ненайденные
+            for (const auto &contract : text_filtered_contracts) {
+                if (contract.is_for_checking && !contract.is_found) {
                     m_filtered_contracts.push_back(contract);
                 }
             }
