@@ -2,10 +2,12 @@
 
 #include "BaseView.h"
 #include <vector>
-#include <map> // Added for std::map
+#include <map>
 #include "../Contract.h"
 #include "../Counterparty.h"
 #include "../Payment.h"
+
+class UIManager; // Forward declaration
 
 class ContractsView : public BaseView {
 public:
@@ -13,6 +15,7 @@ public:
     void Render() override;
     void SetDatabaseManager(DatabaseManager* dbManager) override;
     void SetPdfReporter(PdfReporter* pdfReporter) override;
+    void SetUIManager(UIManager* manager);
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
     void OnDeactivate() override;
 
@@ -44,4 +47,5 @@ private:
     std::vector<Contract> m_filtered_contracts;
     void UpdateFilteredContracts();
     std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
+    UIManager* uiManager = nullptr;
 };

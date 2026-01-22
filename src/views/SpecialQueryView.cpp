@@ -20,6 +20,10 @@ void SpecialQueryView::SetPdfReporter(PdfReporter* reporter) {
     // Not used in this view
 }
 
+void SpecialQueryView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
+}
+
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> SpecialQueryView::GetDataAsStrings() {
     return {queryResult.columns, queryResult.rows};
 }

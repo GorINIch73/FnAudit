@@ -2,9 +2,11 @@
 #include "../CustomWidgets.h"
 #include "../IconsFontAwesome6.h"
 #include "../SuspiciousWord.h"
+#include "../UIManager.h" // Added include for UIManager
 #include <algorithm>
 #include <cstring>
 #include <iostream>
+#include <sstream> // For std::ostringstream
 
 ContractsView::ContractsView()
     : selectedContractIndex(-1),
@@ -22,6 +24,10 @@ void ContractsView::SetDatabaseManager(DatabaseManager *manager) {
 
 void ContractsView::SetPdfReporter(PdfReporter *reporter) {
     pdfReporter = reporter;
+}
+
+void ContractsView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
 }
 
 void ContractsView::RefreshData() {
@@ -172,6 +178,24 @@ void ContractsView::Render() {
             SaveChanges();
             RefreshData();
             RefreshDropdownData();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Отчет")) { // New button for report
+            if (uiManager && !m_filtered_contracts.empty()) {
+                std::ostringstream oss;
+                oss << "SELECT * FROM Contracts WHERE id IN (";
+                for (size_t i = 0; i < m_filtered_contracts.size(); ++i) {
+                    oss << m_filtered_contracts[i].id;
+                    if (i < m_filtered_contracts.size() - 1) {
+                        oss << ", ";
+                    }
+                }
+                oss << ");";
+                uiManager->CreateSpecialQueryView("Отчет по договорам", oss.str());
+            } else if (uiManager && m_filtered_contracts.empty()) {
+                // If no contracts are filtered, show an empty report or a message
+                uiManager->CreateSpecialQueryView("Отчет по договорам", "SELECT * FROM Contracts WHERE 1=0;"); // Empty result
+            }
         }
 
         if (show_delete_popup) {

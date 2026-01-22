@@ -6,12 +6,15 @@
 #include <utility>
 #include "imgui.h"
 
+class UIManager; // Forward declaration
+
 class SpecialQueryView : public BaseView {
 public:
     SpecialQueryView(const std::string& title, const std::string& query);
     void Render() override;
     void SetDatabaseManager(DatabaseManager* dbManager) override;
     void SetPdfReporter(PdfReporter* pdfReporter) override;
+    void SetUIManager(UIManager* manager); // Added SetUIManager method
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
 
 private:
@@ -25,4 +28,5 @@ private:
     
     std::vector<std::vector<bool>> selected_cells;
     ImVec2 last_clicked_cell = ImVec2(-1, -1);
+    UIManager* uiManager = nullptr; // Added UIManager pointer
 };

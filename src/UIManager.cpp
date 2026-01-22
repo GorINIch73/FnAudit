@@ -97,6 +97,7 @@ SpecialQueryView* UIManager::CreateSpecialQueryView(const std::string& title, co
     auto view = std::make_unique<SpecialQueryView>(title, query);
     SpecialQueryView* viewPtr = view.get();
     view->SetDatabaseManager(dbManager);
+    view->SetUIManager(this); // Set UIManager for SpecialQueryView
 
     std::string newTitle = title + "###" + std::to_string(viewIdCounter++);
     view->SetTitle(newTitle);
