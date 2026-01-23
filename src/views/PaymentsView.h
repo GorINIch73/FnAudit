@@ -127,4 +127,7 @@ private:
 
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
+
+    double total_filtered_amount = 0.0;
+    double total_filtered_details_amount = 0.0;
 };

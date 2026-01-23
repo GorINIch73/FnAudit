@@ -139,12 +139,15 @@ bool ComboWithFilter(const char *label, int &current_id,
 
     // Find the current item for preview
     std::string preview = "Не выбрано";
-    auto current_it =
-        std::find_if(items.begin(), items.end(),
-                     [&](const ComboItem &i) { return i.id == current_id; });
-    if (current_it != items.end()) {
-        preview = current_it->name;
+    if (current_id != -1) {
+        auto current_it =
+            std::find_if(items.begin(), items.end(),
+                         [&](const ComboItem &i) { return i.id == current_id; });
+        if (current_it != items.end()) {
+            preview = current_it->name;
+        }
     }
+
 
     ImGui::PushID(label);
 
@@ -160,7 +163,8 @@ bool ComboWithFilter(const char *label, int &current_id,
                              ImGuiInputTextFlags_EnterReturnsTrue)) {
             if (!items.empty()) {
                 if (search_buffer[0] == '\0') {
-                    current_id = items[0].id;
+                    // Let user select explicitly, don't default to first item
+                    // current_id = items[0].id;
                 } else {
                     auto it = std::find_if(
                         items.begin(), items.end(), [&](const ComboItem &item) {
@@ -169,6 +173,8 @@ bool ComboWithFilter(const char *label, int &current_id,
                         });
                     if (it != items.end()) {
                         current_id = it->id;
+                    } else {
+                        current_id = -1; // Not found
                     }
                 }
                 changed = true;
@@ -188,6 +194,19 @@ bool ComboWithFilter(const char *label, int &current_id,
         if (ImGui::BeginListBox(
                 "##list",
                 ImVec2(-FLT_MIN, ImGui::GetTextLineHeightWithSpacing() * 8))) {
+
+            if (search_buffer[0] == '\0') {
+                bool is_none_selected = (current_id == -1);
+                if (ImGui::Selectable("Не выбрано", is_none_selected)) {
+                    current_id = -1;
+                    changed = true;
+                    ImGui::CloseCurrentPopup();
+                }
+                if (is_none_selected) {
+                    ImGui::SetScrollHereY(0.0f);
+                }
+            }
+            
             for (auto item : filtered_items) {
                 bool is_selected = (current_id == item->id);
                 if (ImGui::Selectable(
@@ -288,8 +307,8 @@ bool InputDate(const char *label, std::string &date) {
     const std::string pattern = "YYYY-MM-DD";
     constexpr size_t buf_size = 11; // "YYYY-MM-DD" + null terminator
 
-    // ImGui::TextUnformatted(label);
-    // ImGui::SameLine();
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine();
 
     // 1. Проверяем текущее значение на соответствие шаблону
     if (date.empty()) {
@@ -390,8 +409,6 @@ bool InputDate(const char *label, std::string &date) {
     }
     ImGui::PopItemWidth();
 
-    ImGui::SameLine();
-    ImGui::TextUnformatted(label);
     // 9. Подсказка
     if (ImGui::IsItemHovered()) {
         ImGui::SetTooltip("Формат: YYYY-MM-DD");

@@ -592,6 +592,14 @@ void PaymentsView::Render() {
             ImGui::EndPopup();
         }
 
+        // --- Totals Display ---
+        ImGui::Separator();
+        ImGui::Text("Отобрано платежей: %zu", m_filtered_payments.size());
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 450);
+        ImGui::Text("Сумма по платежам: %.2f", total_filtered_amount);
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 200);
+        ImGui::Text("Сумма по расшифровкам: %.2f", total_filtered_details_amount);
+        
         // --- Список платежей ---
         ImGui::BeginChild("PaymentsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
@@ -1156,6 +1164,17 @@ void PaymentsView::Render() {
 }
 
 void PaymentsView::UpdateFilteredPayments() {
+    total_filtered_amount = 0.0;
+    total_filtered_details_amount = 0.0;
+
+    std::map<int, std::vector<PaymentDetail>> details_by_payment;
+    if (dbManager) {
+        auto all_details = dbManager->getAllPaymentDetails();
+        for (const auto &detail : all_details) {
+            details_by_payment[detail.payment_id].push_back(detail);
+        }
+    }
+
     // Create filtered list
     std::vector<Payment> text_filtered_payments;
     if (filterText[0] != '\0') {
@@ -1249,14 +1268,6 @@ void PaymentsView::UpdateFilteredPayments() {
             }
         }
     } else {
-        std::map<int, std::vector<PaymentDetail>> details_by_payment;
-        if (dbManager) {
-            auto all_details = dbManager->getAllPaymentDetails();
-            for (const auto &detail : all_details) {
-                details_by_payment[detail.payment_id].push_back(detail);
-            }
-        }
-
         for (const auto &p : text_filtered_payments) {
             auto it = details_by_payment.find(p.id);
 
@@ -1283,6 +1294,17 @@ void PaymentsView::UpdateFilteredPayments() {
                         m_filtered_payments.push_back(p);
                     }
                 }
+            }
+        }
+    }
+
+    // Calculate totals for the final filtered list
+    for (const auto &payment : m_filtered_payments) {
+        total_filtered_amount += payment.amount;
+        auto it = details_by_payment.find(payment.id);
+        if (it != details_by_payment.end()) {
+            for (const auto &detail : it->second) {
+                total_filtered_details_amount += detail.amount;
             }
         }
     }
