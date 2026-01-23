@@ -698,11 +698,7 @@ void PaymentsView::Render() {
                             selectedPayment.id);
             }
 
-            char dateBuf[12];
-            snprintf(dateBuf, sizeof(dateBuf), "%s",
-                     selectedPayment.date.c_str());
-            if (ImGui::InputText("Дата", dateBuf, sizeof(dateBuf))) {
-                selectedPayment.date = dateBuf;
+            if (CustomWidgets::InputDate("Дата", selectedPayment.date)) {
                 isDirty = true;
             }
 

@@ -305,8 +305,7 @@ void InvoicesView::Render() {
                 selectedInvoice.number = numberBuf;
                 isDirty = true;
             }
-            if (ImGui::InputText("Дата", dateBuf, sizeof(dateBuf))) {
-                selectedInvoice.date = dateBuf;
+            if (CustomWidgets::InputDate("Дата", selectedInvoice.date)) {
                 isDirty = true;
             }
 

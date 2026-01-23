@@ -511,8 +511,7 @@ void ContractsView::Render() {
                 selectedContract.number = numberBuf;
                 isDirty = true;
             }
-            if (ImGui::InputText("Дата", dateBuf, sizeof(dateBuf))) {
-                selectedContract.date = dateBuf;
+            if (CustomWidgets::InputDate("Дата", selectedContract.date)) {
                 isDirty = true;
             }
 
@@ -536,12 +535,10 @@ void ContractsView::Render() {
             }
 
             char endDateBuf[12];
-            snprintf(endDateBuf, sizeof(endDateBuf), "%s",
-                     selectedContract.end_date.c_str());
+            // snprintf(endDateBuf, sizeof(endDateBuf), "%s",
+            //          selectedContract.end_date.c_str()); // This is no longer needed
             ImGui::SetNextItemWidth(100.0f);
-            if (ImGui::InputText("Дата окончания", endDateBuf,
-                                 sizeof(endDateBuf))) {
-                selectedContract.end_date = endDateBuf;
+            if (CustomWidgets::InputDate("Дата окончания", selectedContract.end_date)) {
                 isDirty = true;
             }
 
