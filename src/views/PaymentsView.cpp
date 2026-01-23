@@ -360,7 +360,8 @@ void PaymentsView::Render() {
         ImGui::PushItemWidth(avail_width - ImGui::GetStyle().ItemSpacing.x);
         const char *filter_items[] = {
             "Все",           "Без КОСГУ",       "Без Договора",
-            "Без Накладной", "Без расшифровок", "Подозрительные слова", "Поступления", "С примечанием"};
+            "Без Накладной", "Без расшифровок", "Подозрительные слова",
+            "Поступления",   "С примечанием"};
         if (ImGui::Combo("Фильтр по расшифровкам", &missing_info_filter_index,
                          filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
@@ -381,12 +382,6 @@ void PaymentsView::Render() {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Удалить расшифровки у отфильтрованных")) {
-                if (!m_filtered_payments.empty() && current_operation == NONE) {
-                    show_group_delete_popup = true;
-                }
-            }
-            ImGui::SameLine();
             if (ImGui::Button("Заменить")) {
                 if (!m_filtered_payments.empty() && current_operation == NONE) {
                     show_replace_popup = true;
@@ -404,7 +399,7 @@ void PaymentsView::Render() {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Определить по regex")) {
+            if (ImGui::Button("Определить по regex и проставить")) {
                 if (!m_filtered_payments.empty() && current_operation == NONE) {
                     show_apply_regex_popup = true;
                     // Reset state
@@ -417,11 +412,9 @@ void PaymentsView::Render() {
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Сверка с банком")) {
-                if (uiManager) {
-                    std::string query =
-                        "SELECT * FROM payments;"; // Placeholder
-                    uiManager->CreateSpecialQueryView("Сверка с банком", query);
+            if (ImGui::Button("Удалить расшифровки")) {
+                if (!m_filtered_payments.empty() && current_operation == NONE) {
+                    show_group_delete_popup = true;
                 }
             }
         }
@@ -595,11 +588,12 @@ void PaymentsView::Render() {
         // --- Totals Display ---
         ImGui::Separator();
         ImGui::Text("Отобрано платежей: %zu", m_filtered_payments.size());
-        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 450);
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 650);
         ImGui::Text("Сумма по платежам: %.2f", total_filtered_amount);
-        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 200);
-        ImGui::Text("Сумма по расшифровкам: %.2f", total_filtered_details_amount);
-        
+        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 300);
+        ImGui::Text("Сумма по расшифровкам: %.2f",
+                    total_filtered_details_amount);
+
         // --- Список платежей ---
         ImGui::BeginChild("PaymentsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
@@ -994,9 +988,20 @@ void PaymentsView::Render() {
             ImGui::EndPopup();
         }
 
-        ImGui::Text("Расшифровка платежа");
+        ImGui::Text("Расшифровки: ");
 
         if (selectedPaymentIndex != -1) {
+            double details_sum = 0.0;
+            for (const auto &detail : paymentDetails) {
+                details_sum += detail.amount;
+            }
+            ImGui::SameLine();
+            ImGui::Text("Сумма: %.2f", details_sum);
+            ImGui::SameLine();
+            ImGui::TextDisabled("(Платеж: %.2f / Разница: %.2f)",
+                                selectedPayment.amount,
+                                selectedPayment.amount - details_sum);
+
             if (ImGui::Button(ICON_FA_PLUS " Добавить деталь")) {
                 SaveDetailChanges();
                 isAddingDetail = true;
