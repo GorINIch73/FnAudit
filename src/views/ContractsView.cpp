@@ -244,26 +244,24 @@ void ContractsView::Render() {
             if (uiManager && !m_filtered_contracts.empty()) {
                 std::ostringstream oss;
                 // oss << "SELECT * FROM Contracts WHERE id IN (";
-                oss << "SELECT c.id AS ID, c.number AS 'Номер договора'"
-                       ", c.date AS 'Дата договора', cp.name AS 'Контрагент'"
-                       ", COALESCE(ds.total_details_amount, 0.0) AS 'Всего "
-                       "сумма"
-                       "по расшифровкам'"
-                       ", COALESCE(ds.details_count, 0) AS 'Количество "
-                       "расшифровок'"
-                       ", CASE WHEN c.is_for_checking THEN 'Да'"
-                       " ELSE 'Нет'"
-                       " END AS 'Для проверки'"
-                       ", CASE WHEN c.is_for_special_control THEN 'Да'"
-                       " ELSE 'Нет'"
-                       " END AS 'Для контроля', c.note AS 'Примечание'"
-                       " FROM Contracts c LEFT JOIN Counterparties cp ON "
-                       "c.counterparty_id = cp.id LEFT JOIN (SELECT "
-                       "contract_id, SUM(amount) AS total_details_amount, "
-                       "COUNT(*) AS details_count FROM PaymentDetails "
-                       "GROUP "
-                       "BY contract_id) AS ds ON c.id = ds.contract_id "
-                       "WHERE contract_id IN (";
+                oss << "SELECT c.number AS 'Номер договора'"
+                       ", c.date AS 'Дата договора'"
+                       ", cp.name AS 'Контрагент по договору'"
+                       ", p.date AS 'Дата платежа'"
+                       ", p.doc_number AS 'Номер платежа' "
+                       ", pd.amount AS 'Сумма по расшифровке' "
+                       ", k.code AS 'КОСГУ' "
+                       ", p.description AS 'Назначение платежа' "
+                       ", c.note AS 'Примечание' "
+                       " FROM PaymentDetails pd"
+                       " JOIN "
+                       "Payments p ON pd.payment_id = p.id JOIN Contracts c ON "
+                       " pd.contract_id = "
+                       " c.id LEFT JOIN Counterparties cp ON c.counterparty_id "
+                       "= "
+                       " cp.id LEFT JOIN KOSGU k ON pd.kosgu_id = k.id WHERE "
+                       "pd.contract_id IS NOT NULL AND "
+                       "contract_id IN (";
 
                 for (size_t i = 0; i < m_filtered_contracts.size(); ++i) {
                     oss << m_filtered_contracts[i].id;
@@ -271,11 +269,9 @@ void ContractsView::Render() {
                         oss << ", ";
                     }
                 }
-                oss << ") "
-                       "ORDER "
-                       "BY c.date DESC ";
-                uiManager->CreateSpecialQueryView("Отчет по договорам",
-                                                  oss.str());
+                oss << ") ORDER BY c.date DESC, p.date DESC ";
+                uiManager->CreateSpecialQueryView(
+                    "Отчет по договорам подробный", oss.str());
             } else if (uiManager && m_filtered_contracts.empty()) {
                 // If no contracts are filtered, show an empty report or a
                 // message
