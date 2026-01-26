@@ -54,7 +54,7 @@ int main(int, char **) {
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable; // Включить докинг
 
     // Установка стиля ImGui
-    ImGui::StyleColorsDark();
+    // ImGui::StyleColorsDark(); // This will be set by the theme loader
 
     // Подсветка разделителей для докинга
     ImGuiStyle &style = ImGui::GetStyle();
@@ -63,19 +63,7 @@ int main(int, char **) {
         ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
     style.Colors[ImGuiCol_SeparatorActive] = ImVec4(1.00f, 0.80f, 0.20f, 1.00f);
 
-    // Загрузка шрифта с поддержкой кириллицы (Roboto)
-    ImFontConfig font_cfg;
-    font_cfg.FontDataOwnedByAtlas = false;
-    io.Fonts->AddFontFromFileTTF("data/Roboto-Regular.ttf", 16.0f, &font_cfg,
-                                 io.Fonts->GetGlyphRangesCyrillic());
-
-    // Объединение с иконочным шрифтом
-    ImFontConfig config;
-    config.MergeMode = true;
-    config.PixelSnapH = true;
-    static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
-    io.Fonts->AddFontFromFileTTF("data/fa-solid-900.otf", 16.0f, &config,
-                                 icon_ranges);
+    // Загрузка шрифта будет обработана UIManager
 
     // Инициализация бэкендов для GLFW и OpenGL
     ImGui_ImplGlfw_InitForOpenGL(window, true);
@@ -98,6 +86,7 @@ int main(int, char **) {
     } else {
         Settings initialSettings = dbManager.getSettings();
         uiManager.ApplyTheme(initialSettings.theme);
+        uiManager.ApplyFont(initialSettings.font_size);
     }
 
     // Установка стиля ImGui

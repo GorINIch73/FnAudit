@@ -10,8 +10,13 @@
 #include "ImportManager.h"
 #include "PdfReporter.h"
 #include "views/BaseView.h"
+#include "imgui.h"
+#include "IconsFontAwesome6.h"
 
 #include <filesystem>
+
+// Forward declaration
+struct ImGuiIO;
 
 const size_t MAX_RECENT_PATHS = 10;
 const std::string RECENT_PATHS_FILE = ".recent_dbs.txt";
@@ -92,6 +97,7 @@ bool UIManager::LoadDatabase(const std::string& path) {
         // Load settings and apply theme from the newly opened database
         Settings settings = dbManager->getSettings();
         ApplyTheme(settings.theme);
+        ApplyFont(settings.font_size);
 
         return true;
     }
@@ -126,6 +132,29 @@ void UIManager::ApplyTheme(int theme_index) {
         case 2: ImGui::StyleColorsClassic(); break;
         default: ImGui::StyleColorsDark(); break; // Default to dark
     }
+}
+
+void UIManager::ApplyFont(int font_size) {
+    ImGuiIO& io = ImGui::GetIO();
+    io.Fonts->Clear();
+
+    ImFontConfig font_cfg;
+    font_cfg.FontDataOwnedByAtlas = false;
+    io.Fonts->AddFontFromFileTTF("data/Roboto-Regular.ttf", (float)font_size, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
+
+    ImFontConfig config;
+    config.MergeMode = true;
+    config.PixelSnapH = true;
+    static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
+    io.Fonts->AddFontFromFileTTF("data/fa-solid-900.otf", (float)font_size, &config, icon_ranges);
+
+    // After changing fonts, the font texture needs to be rebuilt
+    // This is handled by ImGui_ImplOpenGL3_NewFrame() or ImGui_ImplDX11_NewFrame() etc.
+    // We just need to signal that the font texture is invalid.
+    io.Fonts->Build();
+    
+    // For some backends, you might need to explicitly recreate the device objects
+    // e.g., ImGui_ImplOpenGL3_CreateDeviceObjects();
 }
 
 void UIManager::HandleFileDialogs() {

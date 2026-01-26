@@ -10,4 +10,5 @@ struct Settings {
     std::string note;
     int import_preview_lines;
     int theme = 0; // 0: Dark, 1: Light, 2: Classic
+    int font_size = 24;
 };

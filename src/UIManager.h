@@ -43,6 +43,7 @@ public:
     void SetWindowTitle(const std::string& db_path);
     SpecialQueryView* CreateSpecialQueryView(const std::string& title, const std::string& query);
     void ApplyTheme(int theme_index);
+    void ApplyFont(int font_size);
 
 
     template<typename T>

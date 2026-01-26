@@ -1,16 +1,12 @@
 #include "SettingsView.h"
 #include "../CustomWidgets.h"
+#include "../UIManager.h" // Added UIManager include
 #include "imgui.h"
 #include <iostream>
-#include "../UIManager.h" // Added UIManager include
 
-SettingsView::SettingsView() {
-    Title = "Настройки";
-}
+SettingsView::SettingsView() { Title = "Настройки"; }
 
-void SettingsView::SetUIManager(UIManager* manager) {
-    uiManager = manager;
-}
+void SettingsView::SetUIManager(UIManager *manager) { uiManager = manager; }
 
 void SettingsView::LoadSettings() {
     if (dbManager) {
@@ -24,6 +20,10 @@ void SettingsView::SaveChanges() {
     if (dbManager) {
         if (dbManager->updateSettings(currentSettings)) {
             std::cout << "DEBUG: Settings saved successfully." << std::endl;
+            // если все ОК меняем шрифт
+            if (uiManager) {
+                uiManager->ApplyFont(currentSettings.font_size);
+            }
         } else {
             std::cout << "ERROR: Failed to save settings." << std::endl;
         }
@@ -75,12 +75,24 @@ void SettingsView::Render() {
         }
 
         // Theme selection UI
-        const char* themes[] = { "Dark", "Light", "Classic" };
-        if (ImGui::Combo("Тема оформления", &currentSettings.theme, themes, IM_ARRAYSIZE(themes))) {
+        const char *themes[] = {"Dark", "Light", "Classic"};
+        if (ImGui::Combo("Тема оформления", &currentSettings.theme, themes,
+                         IM_ARRAYSIZE(themes))) {
             isDirty = true;
             if (uiManager) {
                 uiManager->ApplyTheme(currentSettings.theme);
             }
+        }
+
+        if (ImGui::InputInt("Размер шрифта", &currentSettings.font_size)) {
+            isDirty = true;
+            // if (uiManager) {
+            //     uiManager->ApplyFont(currentSettings.font_size);
+            // }
+        }
+        //  Подсказка
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Требуется перезапуск.");
         }
     }
     ImGui::End();

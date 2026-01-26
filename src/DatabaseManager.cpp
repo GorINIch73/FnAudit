@@ -136,7 +136,8 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "period_end_date TEXT,"
         "note TEXT,"
         "import_preview_lines INTEGER DEFAULT 20,"
-        "theme INTEGER DEFAULT 0"
+        "theme INTEGER DEFAULT 0,"
+        "font_size INTEGER DEFAULT 24"
         ");";
     if (!execute(create_settings_table_sql)) {
         close();
@@ -146,8 +147,8 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
     std::string insert_default_settings =
         "INSERT OR IGNORE INTO Settings (id, organization_name, "
         "period_start_date, period_end_date, note, import_preview_lines, "
-        "theme) "
-        "VALUES (1, '', '', '', '', 20, 0);";
+        "theme, font_size) "
+        "VALUES (1, '', '', '', '', 20, 0, 24);";
     if (!execute(insert_default_settings)) {
         close();
         return false;
@@ -1771,13 +1772,14 @@ bool DatabaseManager::executeSelect(
 
 // Settings
 Settings DatabaseManager::getSettings() {
-    Settings settings = {1, "", "", "", "", 20, 0}; // Default settings
+    Settings settings = {1, "", "", "", "", 20, 0, 24}; // Default settings
     if (!db)
         return settings;
 
-    std::string sql = "SELECT organization_name, period_start_date, "
-                      "period_end_date, note, import_preview_lines, theme FROM "
-                      "Settings WHERE id = 1;";
+    std::string sql =
+        "SELECT organization_name, period_start_date, "
+        "period_end_date, note, import_preview_lines, theme, font_size FROM "
+        "Settings WHERE id = 1;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -1795,6 +1797,8 @@ Settings DatabaseManager::getSettings() {
 
         settings.theme = sqlite3_column_int(stmt, 5);
 
+        settings.font_size = sqlite3_column_int(stmt, 6);
+
         settings.organization_name = org_name ? (const char *)org_name : "";
         settings.period_start_date = start_date ? (const char *)start_date : "";
         settings.period_end_date = end_date ? (const char *)end_date : "";
@@ -1808,9 +1812,11 @@ Settings DatabaseManager::getSettings() {
 bool DatabaseManager::updateSettings(const Settings &settings) {
     if (!db)
         return false;
+
     std::string sql =
         "UPDATE Settings SET organization_name = ?, period_start_date = ?, "
-        "period_end_date = ?, note = ?, import_preview_lines = ?, theme = ? "
+        "period_end_date = ?, note = ?, import_preview_lines = ?, theme = ?, "
+        "font_size = ? "
         "WHERE id = 1;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -1828,8 +1834,9 @@ bool DatabaseManager::updateSettings(const Settings &settings) {
                       SQLITE_STATIC);
     sqlite3_bind_text(stmt, 4, settings.note.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 5, settings.import_preview_lines);
-
     sqlite3_bind_int(stmt, 6, settings.theme);
+
+    sqlite3_bind_int(stmt, 7, settings.font_size);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
