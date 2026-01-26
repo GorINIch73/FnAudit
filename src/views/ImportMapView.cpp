@@ -346,3 +346,8 @@ void ImportMapView::Render() {
     }
     ImGui::End();
 }
+
+std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> ImportMapView::GetDataAsStrings() {
+    // This view doesn't present tabular data for export, so return empty.
+    return {};
+}

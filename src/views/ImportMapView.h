@@ -21,8 +21,8 @@ public:
     // Implementing pure virtual functions from BaseView
     void SetDatabaseManager(DatabaseManager* manager) override { dbManager = manager; }
     void SetPdfReporter(PdfReporter* reporter) override { /* Not used */ }
-    void SetUIManager(UIManager* manager);
-    std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override { return {}; }
+    void SetUIManager(UIManager* manager) override;
+    std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
 
 private:
     void Reset();

@@ -83,7 +83,20 @@ void UIManager::SetWindow(GLFWwindow* w) {
     window = w;
 }
 
+bool UIManager::LoadDatabase(const std::string& path) {
+    if (dbManager->open(path)) {
+        currentDbPath = path;
+        SetWindowTitle(currentDbPath);
+        AddRecentDbPath(path);
 
+        // Load settings and apply theme from the newly opened database
+        Settings settings = dbManager->getSettings();
+        ApplyTheme(settings.theme);
+
+        return true;
+    }
+    return false;
+}
 
 void UIManager::SetWindowTitle(const std::string& db_path) {
     std::string title = "Financial Audit Application";
@@ -106,14 +119,22 @@ SpecialQueryView* UIManager::CreateSpecialQueryView(const std::string& title, co
     return viewPtr;
 }
 
+void UIManager::ApplyTheme(int theme_index) {
+    switch (theme_index) {
+        case 0: ImGui::StyleColorsDark(); break;
+        case 1: ImGui::StyleColorsLight(); break;
+        case 2: ImGui::StyleColorsClassic(); break;
+        default: ImGui::StyleColorsDark(); break; // Default to dark
+    }
+}
+
 void UIManager::HandleFileDialogs() {
     if (ImGuiFileDialog::Instance()->Display("ChooseDbFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
             if (dbManager->createDatabase(filePathName)) {
-                currentDbPath = filePathName;
-                SetWindowTitle(currentDbPath);
-                AddRecentDbPath(filePathName);
+                // Also treat creation as loading
+                LoadDatabase(filePathName);
             }
         }
         ImGuiFileDialog::Instance()->Close();
@@ -122,11 +143,7 @@ void UIManager::HandleFileDialogs() {
     if (ImGuiFileDialog::Instance()->Display("OpenDbFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
             std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            if (dbManager->open(filePathName)) {
-                currentDbPath = filePathName;
-                SetWindowTitle(currentDbPath);
-                AddRecentDbPath(filePathName);
-            }
+            LoadDatabase(filePathName);
         }
         ImGuiFileDialog::Instance()->Close();
     }

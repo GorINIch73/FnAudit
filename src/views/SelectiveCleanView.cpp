@@ -93,6 +93,10 @@ void SelectiveCleanView::SetDatabaseManager(DatabaseManager* manager) {
     this->dbManager = manager;
 }
 
+void SelectiveCleanView::SetUIManager(UIManager* manager) {
+    this->uiManager = manager;
+}
+
 void SelectiveCleanView::SetPdfReporter(PdfReporter* reporter) {
     this->pdfReporter = reporter;
 }

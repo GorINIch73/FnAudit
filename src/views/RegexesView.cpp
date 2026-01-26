@@ -13,6 +13,10 @@ RegexesView::RegexesView()
     memset(filterText, 0, sizeof(filterText));
 }
 
+void RegexesView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
+}
+
 void RegexesView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
     RefreshData();

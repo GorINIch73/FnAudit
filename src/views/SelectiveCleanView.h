@@ -14,6 +14,7 @@ public:
     void Render() override;
     void SetDatabaseManager(DatabaseManager* manager) override;
     void SetPdfReporter(PdfReporter* reporter) override;
+    void SetUIManager(UIManager* manager) override;
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
 
 

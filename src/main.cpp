@@ -11,6 +11,7 @@
 #include "ImportManager.h"
 #include "PdfReporter.h"
 #include "UIManager.h"
+#include "Settings.h" // Include Settings.h
 
 // Функция обратного вызова для ошибок GLFW
 static void glfw_error_callback(int error, const char *description) {
@@ -91,6 +92,17 @@ int main(int, char **) {
     uiManager.SetImportManager(&importManager);
     uiManager.SetWindow(window);
 
+    // Load initial settings and apply theme
+    if (!uiManager.recentDbPaths.empty()) {
+        uiManager.LoadDatabase(uiManager.recentDbPaths.front());
+    } else {
+        Settings initialSettings = dbManager.getSettings();
+        uiManager.ApplyTheme(initialSettings.theme);
+    }
+
+    // Установка стиля ImGui
+    // ImGui::StyleColorsDark(); // Removed hardcoded theme setting
+
     // Главный цикл приложения
     while (!glfwWindowShouldClose(window)) {
         // Обработка событий
@@ -130,12 +142,7 @@ int main(int, char **) {
                                      " Недавние файлы")) {
                     for (const auto &path : uiManager.recentDbPaths) {
                         if (ImGui::MenuItem(path.c_str())) {
-                            if (dbManager.open(path)) {
-                                uiManager.currentDbPath = path;
-                                uiManager.SetWindowTitle(
-                                    uiManager.currentDbPath);
-                                uiManager.AddRecentDbPath(path);
-                            }
+                            uiManager.LoadDatabase(path);
                         }
                     }
                     ImGui::EndMenu();

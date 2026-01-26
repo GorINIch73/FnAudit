@@ -15,6 +15,10 @@ KosguView::KosguView()
     memset(filterText, 0, sizeof(filterText));
 }
 
+void KosguView::SetUIManager(UIManager *manager) {
+    uiManager = manager;
+}
+
 void KosguView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
 }

@@ -12,6 +12,7 @@ public:
     const char* GetTitle() override;
     void SetDatabaseManager(DatabaseManager* dbManager) override;
     void SetPdfReporter(PdfReporter* pdfReporter) override;
+    void SetUIManager(UIManager* manager) override;
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
 private:
     std::vector<SuspiciousWord> suspiciousWords;

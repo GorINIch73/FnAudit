@@ -2,9 +2,14 @@
 #include "../CustomWidgets.h"
 #include "imgui.h"
 #include <iostream>
+#include "../UIManager.h" // Added UIManager include
 
 SettingsView::SettingsView() {
     Title = "Настройки";
+}
+
+void SettingsView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
 }
 
 void SettingsView::LoadSettings() {
@@ -67,6 +72,15 @@ void SettingsView::Render() {
         if (ImGui::InputInt("Строк предпросмотра",
                             &currentSettings.import_preview_lines)) {
             isDirty = true;
+        }
+
+        // Theme selection UI
+        const char* themes[] = { "Dark", "Light", "Classic" };
+        if (ImGui::Combo("Тема оформления", &currentSettings.theme, themes, IM_ARRAYSIZE(themes))) {
+            isDirty = true;
+            if (uiManager) {
+                uiManager->ApplyTheme(currentSettings.theme);
+            }
         }
     }
     ImGui::End();

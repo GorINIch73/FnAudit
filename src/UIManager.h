@@ -37,10 +37,12 @@ public:
     void SetPdfReporter(PdfReporter* pdfReporter);
     void SetImportManager(ImportManager* importManager);
     void SetWindow(GLFWwindow* window);
+    bool LoadDatabase(const std::string& path); // New method
     void AddRecentDbPath(std::string path);
     void HandleFileDialogs();
     void SetWindowTitle(const std::string& db_path);
     SpecialQueryView* CreateSpecialQueryView(const std::string& title, const std::string& query);
+    void ApplyTheme(int theme_index);
 
 
     template<typename T>
@@ -50,7 +52,7 @@ public:
         view->SetDatabaseManager(dbManager);
         view->SetPdfReporter(pdfReporter);
 
-        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView>) {
+        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, SettingsView>) {
             viewPtr->SetUIManager(this);
         }
 

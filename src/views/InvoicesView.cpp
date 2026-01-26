@@ -15,6 +15,10 @@ InvoicesView::InvoicesView()
     memset(contractFilter, 0, sizeof(contractFilter));
 }
 
+void InvoicesView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
+}
+
 void InvoicesView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
 }

@@ -135,7 +135,8 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "period_start_date TEXT,"
         "period_end_date TEXT,"
         "note TEXT,"
-        "import_preview_lines INTEGER DEFAULT 20"
+        "import_preview_lines INTEGER DEFAULT 20,"
+        "theme INTEGER DEFAULT 0"
         ");";
     if (!execute(create_settings_table_sql)) {
         close();
@@ -144,8 +145,9 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
 
     std::string insert_default_settings =
         "INSERT OR IGNORE INTO Settings (id, organization_name, "
-        "period_start_date, period_end_date, note, import_preview_lines) "
-        "VALUES (1, '', '', '', '', 20);";
+        "period_start_date, period_end_date, note, import_preview_lines, "
+        "theme) "
+        "VALUES (1, '', '', '', '', 20, 0);";
     if (!execute(insert_default_settings)) {
         close();
         return false;
@@ -1184,8 +1186,9 @@ std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
     return results;
 }
 
-static int contract_payment_detail_info_select_callback(void *data, int argc, char **argv,
-                                            char **azColName) {
+static int contract_payment_detail_info_select_callback(void *data, int argc,
+                                                        char **argv,
+                                                        char **azColName) {
     auto *results = static_cast<std::vector<ContractPaymentInfo> *>(data);
     ContractPaymentInfo info;
     for (int i = 0; i < argc; i++) {
@@ -1218,7 +1221,9 @@ std::vector<ContractPaymentInfo> DatabaseManager::getAllContractPaymentInfo() {
         "WHERE pd.contract_id IS NOT NULL;";
 
     char *errmsg = nullptr;
-    int rc = sqlite3_exec(db, sql.c_str(), contract_payment_detail_info_select_callback, &results, &errmsg);
+    int rc = sqlite3_exec(db, sql.c_str(),
+                          contract_payment_detail_info_select_callback,
+                          &results, &errmsg);
     if (rc != SQLITE_OK) {
         std::cerr << "Failed to select getAllContractPaymentInfo: " << errmsg
                   << std::endl;
@@ -1766,12 +1771,12 @@ bool DatabaseManager::executeSelect(
 
 // Settings
 Settings DatabaseManager::getSettings() {
-    Settings settings = {1, "", "", "", "", 20}; // Default settings
+    Settings settings = {1, "", "", "", "", 20, 0}; // Default settings
     if (!db)
         return settings;
 
     std::string sql = "SELECT organization_name, period_start_date, "
-                      "period_end_date, note, import_preview_lines FROM "
+                      "period_end_date, note, import_preview_lines, theme FROM "
                       "Settings WHERE id = 1;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -1788,6 +1793,8 @@ Settings DatabaseManager::getSettings() {
         const unsigned char *note = sqlite3_column_text(stmt, 3);
         settings.import_preview_lines = sqlite3_column_int(stmt, 4);
 
+        settings.theme = sqlite3_column_int(stmt, 5);
+
         settings.organization_name = org_name ? (const char *)org_name : "";
         settings.period_start_date = start_date ? (const char *)start_date : "";
         settings.period_end_date = end_date ? (const char *)end_date : "";
@@ -1803,7 +1810,8 @@ bool DatabaseManager::updateSettings(const Settings &settings) {
         return false;
     std::string sql =
         "UPDATE Settings SET organization_name = ?, period_start_date = ?, "
-        "period_end_date = ?, note = ?, import_preview_lines = ? WHERE id = 1;";
+        "period_end_date = ?, note = ?, import_preview_lines = ?, theme = ? "
+        "WHERE id = 1;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -1820,6 +1828,8 @@ bool DatabaseManager::updateSettings(const Settings &settings) {
                       SQLITE_STATIC);
     sqlite3_bind_text(stmt, 4, settings.note.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 5, settings.import_preview_lines);
+
+    sqlite3_bind_int(stmt, 6, settings.theme);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

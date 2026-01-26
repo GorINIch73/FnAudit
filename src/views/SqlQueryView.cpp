@@ -8,6 +8,10 @@ SqlQueryView::SqlQueryView() {
     memset(queryInputBuffer, 0, sizeof(queryInputBuffer));
 }
 
+void SqlQueryView::SetUIManager(UIManager *manager) {
+    uiManager = manager;
+}
+
 void SqlQueryView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
 }

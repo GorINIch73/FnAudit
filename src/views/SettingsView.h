@@ -3,6 +3,8 @@
 #include "BaseView.h"
 #include "../Settings.h"
 
+class UIManager;
+
 class SettingsView : public BaseView {
 public:
     SettingsView();
@@ -13,6 +15,7 @@ public:
     void SetPdfReporter(PdfReporter* reporter) override { /* Not used in this view */ }
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override { return {}; }
     void OnDeactivate() override;
+    void SetUIManager(UIManager* manager) override; // Declare override here
 
 private:
     void LoadSettings();

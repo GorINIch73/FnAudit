@@ -4,6 +4,10 @@
 
 SuspiciousWordsView::SuspiciousWordsView() {}
 
+void SuspiciousWordsView::SetUIManager(UIManager* manager) {
+    uiManager = manager;
+}
+
 void SuspiciousWordsView::Render() {
     if (!IsVisible) {
         return;

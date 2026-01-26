@@ -14,6 +14,10 @@ CounterpartiesView::CounterpartiesView()
     memset(filterText, 0, sizeof(filterText));
 }
 
+void CounterpartiesView::SetUIManager(UIManager *manager) {
+    uiManager = manager;
+}
+
 void CounterpartiesView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
 }
