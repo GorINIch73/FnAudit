@@ -1,39 +1,94 @@
 #include "UIManager.h"
+#include <algorithm>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
-#include <fstream>
-#include <algorithm>
 #include <vector>
 
-#include <GLFW/glfw3.h>
+#include "IconsFontAwesome6.h"
 #include "ImGuiFileDialog.h"
 #include "ImportManager.h"
 #include "PdfReporter.h"
-#include "views/BaseView.h"
 #include "imgui.h"
-#include "IconsFontAwesome6.h"
+#include "views/BaseView.h"
+#include <GLFW/glfw3.h>
 
-#include <filesystem>
+#ifdef __linux__
+#include <limits.h> // для PATH_MAX
+#include <unistd.h> // для readlink
+#endif
 
 // Forward declaration
 struct ImGuiIO;
+
+// --- Поиск ресурсов ---
+// Функция для поиска правильного пути к ресурсам (например, шрифтам)
+std::string getAssetPath(const std::string &assetName) {
+    std::vector<std::filesystem::path> searchPaths;
+
+// 1. Путь для установленного приложения (наивысший приоритет)
+#ifdef INSTALL_DATA_DIR
+    searchPaths.push_back(std::filesystem::path(INSTALL_DATA_DIR) / assetName);
+#endif
+
+// 2. Пути для разработки (относительно исполняемого файла)
+#ifdef __linux__
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    if (count > 0) {
+        std::filesystem::path exePath =
+            std::filesystem::path(std::string(result, (size_t)count));
+        std::filesystem::path exeDir = exePath.parent_path();
+        // Для запуска из каталога 'build': <путь_к_exe>/../data/шрифт.ttf
+        searchPaths.push_back(exeDir / ".." / "data" / assetName);
+        // Для запуска из корня проекта (менее вероятно для сборок)
+        searchPaths.push_back(exeDir / "data" / assetName);
+    }
+#endif
+
+    // 3. Запасной вариант (относительно текущего рабочего каталога)
+    searchPaths.push_back(std::filesystem::current_path() / "data" / assetName);
+    searchPaths.push_back(std::filesystem::current_path() / ".." / "data" /
+                          assetName);
+
+    for (const auto &path : searchPaths) {
+        if (std::filesystem::exists(path)) {
+            // Возвращаем первый найденный путь, предварительно его очистив
+            return std::filesystem::canonical(path).string();
+        }
+    }
+
+    // Логирование, если ресурс не найден
+    std::cerr << "Ошибка: Ресурс не найден: " << assetName << std::endl;
+    std::cerr << "Поиск производился в следующих каталогах:" << std::endl;
+    for (const auto &path : searchPaths) {
+        // Выводим "очищенные" абсолютные пути для удобства отладки
+        std::cerr << " - \"" << std::filesystem::weakly_canonical(path).string()
+                  << "\"" << std::endl;
+    }
+
+    return ""; // Возвращаем пустую строку, если ничего не найдено
+}
+// --- /Поиск ресурсов ---
 
 const size_t MAX_RECENT_PATHS = 10;
 const std::string RECENT_PATHS_FILE = ".recent_dbs.txt";
 
 UIManager::UIManager()
-    : dbManager(nullptr), pdfReporter(nullptr), importManager(nullptr), window(nullptr) {
+    : dbManager(nullptr),
+      pdfReporter(nullptr),
+      importManager(nullptr),
+      window(nullptr) {
     LoadRecentDbPaths();
 }
 
-
-
-UIManager::~UIManager() {
-    SaveRecentDbPaths();
-}
+UIManager::~UIManager() { SaveRecentDbPaths(); }
 
 void UIManager::AddRecentDbPath(std::string path) {
-    recentDbPaths.erase(std::remove(recentDbPaths.begin(), recentDbPaths.end(), path), recentDbPaths.end());
+    recentDbPaths.erase(
+        std::remove(recentDbPaths.begin(), recentDbPaths.end(), path),
+        recentDbPaths.end());
     recentDbPaths.insert(recentDbPaths.begin(), path);
     if (recentDbPaths.size() > MAX_RECENT_PATHS) {
         recentDbPaths.resize(MAX_RECENT_PATHS);
@@ -43,7 +98,8 @@ void UIManager::AddRecentDbPath(std::string path) {
 
 void UIManager::LoadRecentDbPaths() {
     std::ifstream file(RECENT_PATHS_FILE);
-    if (!file.is_open()) return;
+    if (!file.is_open())
+        return;
 
     recentDbPaths.clear();
     std::string path;
@@ -60,35 +116,34 @@ void UIManager::LoadRecentDbPaths() {
 
 void UIManager::SaveRecentDbPaths() {
     std::ofstream file(RECENT_PATHS_FILE);
-    if (!file.is_open()) return;
-    for (const auto& path : recentDbPaths) {
+    if (!file.is_open())
+        return;
+    for (const auto &path : recentDbPaths) {
         file << path << std::endl;
     }
 }
 
-void UIManager::SetDatabaseManager(DatabaseManager* manager) {
+void UIManager::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
-    for (auto& view : allViews) {
+    for (auto &view : allViews) {
         view->SetDatabaseManager(manager);
     }
 }
 
-void UIManager::SetPdfReporter(PdfReporter* reporter) {
+void UIManager::SetPdfReporter(PdfReporter *reporter) {
     pdfReporter = reporter;
-    for (auto& view : allViews) {
+    for (auto &view : allViews) {
         view->SetPdfReporter(reporter);
     }
 }
 
-void UIManager::SetImportManager(ImportManager* manager) {
+void UIManager::SetImportManager(ImportManager *manager) {
     importManager = manager;
 }
 
-void UIManager::SetWindow(GLFWwindow* w) {
-    window = w;
-}
+void UIManager::SetWindow(GLFWwindow *w) { window = w; }
 
-bool UIManager::LoadDatabase(const std::string& path) {
+bool UIManager::LoadDatabase(const std::string &path) {
     if (dbManager->open(path)) {
         currentDbPath = path;
         SetWindowTitle(currentDbPath);
@@ -104,7 +159,7 @@ bool UIManager::LoadDatabase(const std::string& path) {
     return false;
 }
 
-void UIManager::SetWindowTitle(const std::string& db_path) {
+void UIManager::SetWindowTitle(const std::string &db_path) {
     std::string title = "Financial Audit Application";
     if (!db_path.empty()) {
         title += " - [" + db_path + "]";
@@ -112,9 +167,10 @@ void UIManager::SetWindowTitle(const std::string& db_path) {
     glfwSetWindowTitle(window, title.c_str());
 }
 
-SpecialQueryView* UIManager::CreateSpecialQueryView(const std::string& title, const std::string& query) {
+SpecialQueryView *UIManager::CreateSpecialQueryView(const std::string &title,
+                                                    const std::string &query) {
     auto view = std::make_unique<SpecialQueryView>(title, query);
-    SpecialQueryView* viewPtr = view.get();
+    SpecialQueryView *viewPtr = view.get();
     view->SetDatabaseManager(dbManager);
     view->SetUIManager(this); // Set UIManager for SpecialQueryView
 
@@ -127,40 +183,54 @@ SpecialQueryView* UIManager::CreateSpecialQueryView(const std::string& title, co
 
 void UIManager::ApplyTheme(int theme_index) {
     switch (theme_index) {
-        case 0: ImGui::StyleColorsDark(); break;
-        case 1: ImGui::StyleColorsLight(); break;
-        case 2: ImGui::StyleColorsClassic(); break;
-        default: ImGui::StyleColorsDark(); break; // Default to dark
+    case 0:
+        ImGui::StyleColorsDark();
+        break;
+    case 1:
+        ImGui::StyleColorsLight();
+        break;
+    case 2:
+        ImGui::StyleColorsClassic();
+        break;
+    default:
+        ImGui::StyleColorsDark();
+        break; // Default to dark
     }
 }
 
 void UIManager::ApplyFont(int font_size) {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     io.Fonts->Clear();
 
-    ImFontConfig font_cfg;
-    font_cfg.FontDataOwnedByAtlas = false;
-    io.Fonts->AddFontFromFileTTF("data/Roboto-Regular.ttf", (float)font_size, &font_cfg, io.Fonts->GetGlyphRangesCyrillic());
+    std::string robotoPath = getAssetPath("Roboto-Regular.ttf");
+    std::string faPath = getAssetPath("fa-solid-900.otf");
 
-    ImFontConfig config;
-    config.MergeMode = true;
-    config.PixelSnapH = true;
-    static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
-    io.Fonts->AddFontFromFileTTF("data/fa-solid-900.otf", (float)font_size, &config, icon_ranges);
+    if (!robotoPath.empty()) {
+        ImFontConfig font_cfg;
+        font_cfg.FontDataOwnedByAtlas =
+            false; // Важно, если вы управляете данными шрифта
+        io.Fonts->AddFontFromFileTTF(robotoPath.c_str(), (float)font_size,
+                                     &font_cfg,
+                                     io.Fonts->GetGlyphRangesCyrillic());
+    }
 
-    // After changing fonts, the font texture needs to be rebuilt
-    // This is handled by ImGui_ImplOpenGL3_NewFrame() or ImGui_ImplDX11_NewFrame() etc.
-    // We just need to signal that the font texture is invalid.
+    if (!faPath.empty()) {
+        ImFontConfig config;
+        config.MergeMode = true;
+        config.PixelSnapH = true;
+        static const ImWchar icon_ranges[] = {ICON_MIN_FA, ICON_MAX_FA, 0};
+        io.Fonts->AddFontFromFileTTF(faPath.c_str(), (float)font_size, &config,
+                                     icon_ranges);
+    }
+
     io.Fonts->Build();
-    
-    // For some backends, you might need to explicitly recreate the device objects
-    // e.g., ImGui_ImplOpenGL3_CreateDeviceObjects();
 }
 
 void UIManager::HandleFileDialogs() {
     if (ImGuiFileDialog::Instance()->Display("ChooseDbFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            std::string filePathName =
+                ImGuiFileDialog::Instance()->GetFilePathName();
             if (dbManager->createDatabase(filePathName)) {
                 // Also treat creation as loading
                 LoadDatabase(filePathName);
@@ -171,7 +241,8 @@ void UIManager::HandleFileDialogs() {
 
     if (ImGuiFileDialog::Instance()->Display("OpenDbFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            std::string filePathName =
+                ImGuiFileDialog::Instance()->GetFilePathName();
             LoadDatabase(filePathName);
         }
         ImGuiFileDialog::Instance()->Close();
@@ -179,16 +250,18 @@ void UIManager::HandleFileDialogs() {
 
     if (ImGuiFileDialog::Instance()->Display("SaveDbAsFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string newFilePath = ImGuiFileDialog::Instance()->GetFilePathName();
+            std::string newFilePath =
+                ImGuiFileDialog::Instance()->GetFilePathName();
             if (!currentDbPath.empty() && newFilePath != currentDbPath) {
                 try {
                     dbManager->backupTo(newFilePath);
                     currentDbPath = newFilePath;
-                     AddRecentDbPath(newFilePath);
+                    AddRecentDbPath(newFilePath);
                     SetWindowTitle(currentDbPath);
-                } catch (const std::filesystem::filesystem_error& e) {
+                } catch (const std::filesystem::filesystem_error &e) {
                     // TODO: Show error message to user
-                    std::cerr << "Error saving database: " << e.what() << std::endl;
+                    std::cerr << "Error saving database: " << e.what()
+                              << std::endl;
                 }
             }
         }
@@ -197,7 +270,8 @@ void UIManager::HandleFileDialogs() {
 
     if (ImGuiFileDialog::Instance()->Display("ImportTsvFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            std::string filePathName =
+                ImGuiFileDialog::Instance()->GetFilePathName();
             if (dbManager->is_open()) {
                 CreateView<ImportMapView>()->Open(filePathName);
             } else {
@@ -209,52 +283,57 @@ void UIManager::HandleFileDialogs() {
 
     if (ImGuiFileDialog::Instance()->Display("SavePdfFileDlgKey")) {
         if (ImGuiFileDialog::Instance()->IsOk()) {
-            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-            
-            BaseView* focusedView = nullptr;
-            for(const auto& view : allViews) {
-                if(view->IsVisible && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
-                   // This is tricky. We need to check if the window with the view's title is focused.
-                   // A simpler way for now is to find the last-focused window.
-                   // Let's find any visible window for now.
-                   focusedView = view.get();
-                   break;
+            std::string filePathName =
+                ImGuiFileDialog::Instance()->GetFilePathName();
+
+            BaseView *focusedView = nullptr;
+            for (const auto &view : allViews) {
+                if (view->IsVisible &&
+                    ImGui::IsWindowFocused(
+                        ImGuiFocusedFlags_RootAndChildWindows)) {
+                    // This is tricky. We need to check if the window with the
+                    // view's title is focused. A simpler way for now is to find
+                    // the last-focused window. Let's find any visible window
+                    // for now.
+                    focusedView = view.get();
+                    break;
                 }
             }
 
             if (focusedView) {
                 auto data = focusedView->GetDataAsStrings();
-                pdfReporter->generatePdfFromTable(filePathName, focusedView->GetTitle(), data.first, data.second);
+                pdfReporter->generatePdfFromTable(filePathName,
+                                                  focusedView->GetTitle(),
+                                                  data.first, data.second);
             }
         }
         ImGuiFileDialog::Instance()->Close();
     }
 }
 
-
 void UIManager::Render() {
     // Render all views
-    for (auto& view : allViews) {
+    for (auto &view : allViews) {
         view->Render();
     }
 
     // Remove closed views
-    allViews.erase(
-        std::remove_if(allViews.begin(), allViews.end(), [](const std::unique_ptr<BaseView>& view) {
-            if (!view->IsVisible) {
-                view->OnDeactivate();
-                return true;
-            }
-            return false;
-        }),
-        allViews.end()
-    );
+    allViews.erase(std::remove_if(allViews.begin(), allViews.end(),
+                                  [](const std::unique_ptr<BaseView> &view) {
+                                      if (!view->IsVisible) {
+                                          view->OnDeactivate();
+                                          return true;
+                                      }
+                                      return false;
+                                  }),
+                   allViews.end());
 
     if (isImporting) {
         ImGui::OpenPopup("Importing...");
     }
 
-    if (ImGui::BeginPopupModal("Importing...", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::BeginPopupModal("Importing...", NULL,
+                               ImGuiWindowFlags_AlwaysAutoResize)) {
         {
             std::lock_guard<std::mutex> lock(importMutex);
             ImGui::Text("%s", importMessage.c_str());

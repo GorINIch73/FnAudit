@@ -4,6 +4,13 @@ cmake_minimum_required(VERSION 3.20)
 # Определяем проект
 project(FinancialAudit LANGUAGES C CXX)
 
+# Устанавливаем префикс установки по умолчанию, если он не задан
+# Это гарантирует, что CMAKE_INSTALL_DATADIR будет абсолютным путем
+if(CMAKE_HOST_UNIX AND NOT DEFINED CMAKE_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "/usr/local" CACHE PATH "Default install path")
+endif()
+
+
 # Устанавливаем стандарт C++
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -95,3 +102,24 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     X11::X11
     imgui_lib
 )
+
+# --- Установка ---
+
+include(GNUInstallDirs)
+
+# Определяем путь для установки данных приложения (шрифтов)
+set(INSTALL_DATA_DIR ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME})
+
+# Установка исполняемого файла
+install(TARGETS ${PROJECT_NAME}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+# Установка каталога с данными (шрифтами)
+install(DIRECTORY data/
+    DESTINATION ${INSTALL_DATA_DIR}
+)
+
+# Передаём путь к данным в C++ код через макрос препроцессора
+set(INSTALL_DATA_DIR_DEFINE "INSTALL_DATA_DIR=\"/usr/local/share/FinancialAudit\"")
+target_compile_definitions(${PROJECT_NAME} PRIVATE ${INSTALL_DATA_DIR_DEFINE})
