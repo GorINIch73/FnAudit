@@ -12,12 +12,17 @@ This is a C++ application for financial auditing of a public sector organization
 
 ## Build Instructions:
 This project uses CMake.
-1.  Navigate to the `build` directory: `cd build`
-2.  Run CMake: `cmake ..`
-3.  Build the project: `make`
+1.   `mkdir build`  `cd build`
+2.   `cmake .. `
+3.   `cd ..`
+4.   `cmake --build build/ `
 
 ## Running the Application:
-From the `build` directory: `./FinancialAudit`
+ `build/FinancialAudit`
+
+## Install Application
+
+ `sudo cmake --install build `
 
 ## Current Development Status:
 *   Payments Form (including filters, group operations, and regex processing) - **Completed**
