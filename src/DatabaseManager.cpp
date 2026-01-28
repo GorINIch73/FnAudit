@@ -51,7 +51,8 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "CREATE TABLE IF NOT EXISTS KOSGU ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "code TEXT NOT NULL UNIQUE,"
-        "name TEXT NOT NULL);",
+        "name TEXT NOT NULL,"
+        "note TEXT);",
 
         // Справочник контрагентов
         "CREATE TABLE IF NOT EXISTS Counterparties ("
@@ -189,6 +190,8 @@ static int kosgu_select_callback(void *data, int argc, char **argv,
             entry.code = argv[i] ? argv[i] : "";
         } else if (colName == "name") {
             entry.name = argv[i] ? argv[i] : "";
+        } else if (colName == "note") {
+            entry.note = argv[i] ? argv[i] : "";
         } else if (colName == "total_amount") {
             entry.total_amount = argv[i] ? std::stod(argv[i]) : 0.0;
         }
@@ -202,11 +205,11 @@ std::vector<Kosgu> DatabaseManager::getKosguEntries() {
     if (!db)
         return entries;
 
-    std::string sql = "SELECT k.id, k.code, k.name, IFNULL(SUM(pd.amount), "
+    std::string sql = "SELECT k.id, k.code, k.name, k.note, IFNULL(SUM(pd.amount), "
                       "0.0) as total_amount "
                       "FROM KOSGU k "
                       "LEFT JOIN PaymentDetails pd ON k.id = pd.kosgu_id "
-                      "GROUP BY k.id, k.code, k.name;";
+                      "GROUP BY k.id, k.code, k.name, k.note;";
     char *errmsg = nullptr;
     int rc =
         sqlite3_exec(db, sql.c_str(), kosgu_select_callback, &entries, &errmsg);
@@ -220,7 +223,7 @@ std::vector<Kosgu> DatabaseManager::getKosguEntries() {
 bool DatabaseManager::addKosguEntry(const Kosgu &entry) {
     if (!db)
         return false;
-    std::string sql = "INSERT INTO KOSGU (code, name) VALUES (?, ?);";
+    std::string sql = "INSERT INTO KOSGU (code, name, note) VALUES (?, ?, ?);";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -230,6 +233,7 @@ bool DatabaseManager::addKosguEntry(const Kosgu &entry) {
     }
     sqlite3_bind_text(stmt, 1, entry.code.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, entry.name.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, entry.note.c_str(), -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -247,7 +251,7 @@ bool DatabaseManager::addKosguEntry(const Kosgu &entry) {
 bool DatabaseManager::updateKosguEntry(const Kosgu &entry) {
     if (!db)
         return false;
-    std::string sql = "UPDATE KOSGU SET code = ?, name = ? WHERE id = ?;";
+    std::string sql = "UPDATE KOSGU SET code = ?, name = ?, note = ? WHERE id = ?;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -257,7 +261,8 @@ bool DatabaseManager::updateKosguEntry(const Kosgu &entry) {
     }
     sqlite3_bind_text(stmt, 1, entry.code.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, entry.name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 3, entry.id);
+    sqlite3_bind_text(stmt, 3, entry.note.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_int(stmt, 4, entry.id);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

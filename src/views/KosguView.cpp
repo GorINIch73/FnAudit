@@ -39,10 +39,10 @@ void KosguView::RefreshData() {
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 KosguView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Код", "Наименование", "Сумма"};
+    std::vector<std::string> headers = {"ID", "Код", "Наименование", "Примечание", "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : m_filtered_kosgu_entries) {
-        rows.push_back({std::to_string(entry.id), entry.code, entry.name, std::to_string(entry.total_amount)});
+        rows.push_back({std::to_string(entry.id), entry.code, entry.name, entry.note, std::to_string(entry.total_amount)});
     }
     return {headers, rows};
 }
@@ -228,7 +228,7 @@ void KosguView::Render() {
             SaveChanges();
             isAdding = true;
             selectedKosguIndex = -1;
-            selectedKosgu = Kosgu{-1, "", ""};
+            selectedKosgu = Kosgu{-1, "", "", ""};
             originalKosgu = selectedKosgu;
             isDirty = false;
         }
@@ -385,6 +385,15 @@ void KosguView::Render() {
             }
             if (ImGui::InputText("Наименование", nameBuf, sizeof(nameBuf))) {
                 selectedKosgu.name = nameBuf;
+                isDirty = true;
+            }
+
+            // Используем вектор для динамического размера буфера
+            std::vector<char> noteBuf(selectedKosgu.note.begin(), selectedKosgu.note.end());
+            noteBuf.resize(noteBuf.size() + 1024); // Выделяем доп. место
+
+            if (ImGui::InputTextMultiline("Примечание", noteBuf.data(), noteBuf.size(), ImVec2(-1, ImGui::GetTextLineHeight() * 4))) {
+                selectedKosgu.note = noteBuf.data();
                 isDirty = true;
             }
             ImGui::EndChild();
