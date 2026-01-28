@@ -177,6 +177,30 @@ int main(int, char **) {
                         "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
                         ".tsv");
                 }
+                if (ImGui::BeginMenu(ICON_FA_DOWNLOAD " Экспорт справочников")) {
+                    if (ImGui::MenuItem("КОСГУ")) {
+                        ImGuiFileDialog::Instance()->OpenDialog("ExportKosguDlgKey", "Экспорт КОСГУ", ".csv");
+                    }
+                    if (ImGui::MenuItem("Подозрительные слова")) {
+                         ImGuiFileDialog::Instance()->OpenDialog("ExportSuspiciousWordsDlgKey", "Экспорт подозрительных слов", ".csv");
+                    }
+                    if (ImGui::MenuItem("REGEX выражения")) {
+                        ImGuiFileDialog::Instance()->OpenDialog("ExportRegexesDlgKey", "Экспорт REGEX выражений", ".csv");
+                    }
+                    ImGui::EndMenu();
+                }
+                if (ImGui::BeginMenu(ICON_FA_UPLOAD " Импорт справочников")) {
+                    if (ImGui::MenuItem("КОСГУ")) {
+                        ImGuiFileDialog::Instance()->OpenDialog("ImportKosguDlgKey", "Импорт КОСГУ", ".csv");
+                    }
+                    if (ImGui::MenuItem("Подозрительные слова")) {
+                        ImGuiFileDialog::Instance()->OpenDialog("ImportSuspiciousWordsDlgKey", "Импорт подозрительных слов", ".csv");
+                    }
+                    if (ImGui::MenuItem("REGEX выражения")) {
+                        ImGuiFileDialog::Instance()->OpenDialog("ImportRegexesDlgKey", "Импорт REGEX выражений", ".csv");
+                    }
+                    ImGui::EndMenu();
+                }
                 if (ImGui::MenuItem(ICON_FA_SLIDERS " Настройки")) {
                     bool found = false;
                     for (const auto &view : uiManager.allViews) {

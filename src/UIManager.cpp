@@ -309,6 +309,46 @@ void UIManager::HandleFileDialogs() {
         }
         ImGuiFileDialog::Instance()->Close();
     }
+
+    // Export Dialogs
+    if (ImGuiFileDialog::Instance()->Display("ExportKosguDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            ExportKosgu(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+    if (ImGuiFileDialog::Instance()->Display("ExportSuspiciousWordsDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            ExportSuspiciousWords(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+    if (ImGuiFileDialog::Instance()->Display("ExportRegexesDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            ExportRegexes(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    // Import Dialogs
+    if (ImGuiFileDialog::Instance()->Display("ImportKosguDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            ImportKosgu(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+    if (ImGuiFileDialog::Instance()->Display("ImportSuspiciousWordsDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            ImportSuspiciousWords(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+    if (ImGuiFileDialog::Instance()->Display("ImportRegexesDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            ImportRegexes(ImGuiFileDialog::Instance()->GetFilePathName());
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
 }
 
 void UIManager::Render() {
@@ -346,3 +386,185 @@ void UIManager::Render() {
         ImGui::EndPopup();
     }
 }
+
+void UIManager::ExportKosgu(const std::string& path) {
+    if (!dbManager) return;
+    auto entries = dbManager->getKosguEntries();
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for writing: " << path << std::endl;
+        return;
+    }
+
+    file << "\"code\",\"name\",\"note\"\n";
+    for (const auto& entry : entries) {
+        file << "\"" << entry.code << "\",\"" << entry.name << "\",\"" << entry.note << "\"\n";
+    }
+}
+
+void UIManager::ExportSuspiciousWords(const std::string& path) {
+    if (!dbManager) return;
+    auto entries = dbManager->getSuspiciousWords();
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for writing: " << path << std::endl;
+        return;
+    }
+
+    file << "\"word\"\n";
+    for (const auto& entry : entries) {
+        file << "\"" << entry.word << "\"\n";
+    }
+}
+
+void UIManager::ExportRegexes(const std::string& path) {
+    if (!dbManager) return;
+    auto entries = dbManager->getRegexes();
+    std::ofstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for writing: " << path << std::endl;
+        return;
+    }
+
+    file << "\"name\",\"pattern\"\n";
+    for (const auto& entry : entries) {
+        file << "\"" << entry.name << "\",\"" << entry.pattern << "\"\n";
+    }
+}
+
+#include <sstream>
+
+// Function to parse a single CSV line
+static std::vector<std::string> parse_csv_line(const std::string &line) {
+    std::vector<std::string> result;
+    std::stringstream ss(line);
+    std::string item;
+    char delimiter = ',';
+
+    while (ss.good()) {
+        char c = ss.get();
+        if (c == '"') { // Quoted field
+            std::string quoted_item;
+            while (ss.good()) {
+                char next_c = ss.get();
+                if (next_c == '"') {
+                    if (ss.peek() == '"') { // Escaped quote
+                        quoted_item += '"';
+                        ss.get(); // Skip the second quote
+                    } else { // End of quoted field
+                        break;
+                    }
+                } else if (next_c == std::char_traits<char>::eof()) {
+                    break;
+                } else {
+                    quoted_item += next_c;
+                }
+            }
+            result.push_back(quoted_item);
+            if (ss.peek() == delimiter) {
+                ss.get(); // Skip delimiter
+            }
+        } else { // Unquoted field
+            std::string unquoted_item;
+            unquoted_item += c;
+            std::getline(ss, item, delimiter);
+            unquoted_item += item;
+            result.push_back(unquoted_item);
+        }
+    }
+    return result;
+}
+
+void UIManager::ImportKosgu(const std::string& path) {
+    if (!dbManager) return;
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for reading: " << path << std::endl;
+        return;
+    }
+
+    std::string line;
+    std::getline(file, line); // Skip header
+
+    while (std::getline(file, line)) {
+        if (line.empty() || line.find_first_not_of(" \t\n\v\f\r") == std::string::npos) {
+            continue;
+        }
+        auto fields = parse_csv_line(line);
+        if (fields.size() < 3) continue;
+
+        Kosgu entry;
+        entry.code = fields[0];
+        entry.name = fields[1];
+        entry.note = fields[2];
+
+        int existing_id = dbManager->getKosguIdByCode(entry.code);
+        if (existing_id != -1) {
+            entry.id = existing_id;
+            dbManager->updateKosguEntry(entry);
+        } else {
+            dbManager->addKosguEntry(entry);
+        }
+    }
+}
+
+void UIManager::ImportSuspiciousWords(const std::string& path) {
+    if (!dbManager) return;
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for reading: " << path << std::endl;
+        return;
+    }
+
+    std::string line;
+    std::getline(file, line); // Skip header
+
+    while (std::getline(file, line)) {
+        if (line.empty() || line.find_first_not_of(" \t\n\v\f\r") == std::string::npos) {
+            continue;
+        }
+        auto fields = parse_csv_line(line);
+        if (fields.empty()) continue;
+
+        std::string word_str = fields[0];
+        
+        if (dbManager->getSuspiciousWordIdByWord(word_str) == -1) {
+            SuspiciousWord new_word;
+            new_word.word = word_str;
+            dbManager->addSuspiciousWord(new_word);
+        }
+    }
+}
+
+void UIManager::ImportRegexes(const std::string& path) {
+    if (!dbManager) return;
+
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file for reading: " << path << std::endl;
+        return;
+    }
+
+    std::string line;
+    std::getline(file, line); // Skip header
+
+    while (std::getline(file, line)) {
+        if (line.empty() || line.find_first_not_of(" \t\n\v\f\r") == std::string::npos) {
+            continue;
+        }
+        auto fields = parse_csv_line(line);
+        if (fields.size() < 2) continue;
+
+        Regex new_regex;
+        new_regex.name = fields[0];
+        new_regex.pattern = fields[1];
+
+        while (dbManager->getRegexIdByName(new_regex.name) != -1) {
+            new_regex.name += "*";
+        }
+        dbManager->addRegex(new_regex);
+    }
+}
+

@@ -1570,6 +1570,27 @@ bool DatabaseManager::deleteRegex(int id) {
     return rc == SQLITE_DONE;
 }
 
+int DatabaseManager::getRegexIdByName(const std::string &name) {
+    if (!db)
+        return -1;
+    std::string sql = "SELECT id FROM Regexes WHERE name = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for regex lookup by name: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, name.c_str(), -1, SQLITE_STATIC);
+
+    int id = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        id = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    return id;
+}
+
 // Suspicious Words CRUD
 static int suspicious_word_select_callback(void *data, int argc, char **argv,
                                            char **azColName) {
@@ -1664,6 +1685,27 @@ bool DatabaseManager::deleteSuspiciousWord(int id) {
     sqlite3_finalize(stmt);
 
     return rc == SQLITE_DONE;
+}
+
+int DatabaseManager::getSuspiciousWordIdByWord(const std::string& word) {
+    if (!db)
+        return -1;
+    std::string sql = "SELECT id FROM SuspiciousWords WHERE word = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for suspicious word lookup by word: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, word.c_str(), -1, SQLITE_STATIC);
+
+    int id = -1;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        id = sqlite3_column_int(stmt, 0);
+    }
+    sqlite3_finalize(stmt);
+    return id;
 }
 
 // Maintenance methods

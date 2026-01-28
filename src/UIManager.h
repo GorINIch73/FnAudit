@@ -45,6 +45,14 @@ public:
     void ApplyTheme(int theme_index);
     void ApplyFont(int font_size);
 
+    // Import/Export methods
+    void ExportKosgu(const std::string& path);
+    void ExportSuspiciousWords(const std::string& path);
+    void ExportRegexes(const std::string& path);
+    void ImportKosgu(const std::string& path);
+    void ImportSuspiciousWords(const std::string& path);
+    void ImportRegexes(const std::string& path);
+
 
     template<typename T>
     T* CreateView() {

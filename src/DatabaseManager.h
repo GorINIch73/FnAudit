@@ -79,12 +79,14 @@ public:
     bool addRegex(Regex& regex);
     bool updateRegex(const Regex& regex);
     bool deleteRegex(int id);
+    int getRegexIdByName(const std::string& name);
 
     // Suspicious Words CRUD
     std::vector<SuspiciousWord> getSuspiciousWords();
     bool addSuspiciousWord(SuspiciousWord& word);
     bool updateSuspiciousWord(const SuspiciousWord& word);
     bool deleteSuspiciousWord(int id);
+    int getSuspiciousWordIdByWord(const std::string& word);
 
     // Maintenance methods
     bool ClearPayments();
