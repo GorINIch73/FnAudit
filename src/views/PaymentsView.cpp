@@ -1280,26 +1280,47 @@ void PaymentsView::UpdateFilteredPayments() {
                 if (it == details_by_payment.end()) { // has no details
                     m_filtered_payments.push_back(p);
                 }
-            } else { // Filters for missing info inside details (index 1, 2,
-                     // 3)
-                if (it != details_by_payment.end()) { // has details
-                    bool missing_found = false;
-                    for (const auto &detail : it->second) {
-                        if ((missing_info_filter_index == 1 &&
-                             detail.kosgu_id == -1) ||
-                            (missing_info_filter_index == 2 &&
-                             detail.contract_id == -1) ||
-                            (missing_info_filter_index == 3 &&
-                             detail.invoice_id == -1)) {
-                            missing_found = true;
-                            break;
+                        } else { // Filters for missing info inside details (index 1, 2, 3)
+                            if (it != details_by_payment.end()) { // has details
+                                if (missing_info_filter_index == 2) { // "Без Договора"
+                                    bool has_detail_without_contract = false;
+                                    for (const auto& detail : it->second) {
+                                        if (detail.contract_id == -1) {
+                                            has_detail_without_contract = true;
+                                            break;
+                                        }
+                                    }
+            
+                                    if (has_detail_without_contract) {
+                                        auto cp_it = std::find_if(counterpartiesForDropdown.begin(), counterpartiesForDropdown.end(),
+                                                                  [&](const Counterparty& cp) { return cp.id == p.counterparty_id; });
+            
+                                        bool contract_is_required = true;
+                                        if (cp_it != counterpartiesForDropdown.end()) {
+                                            if (cp_it->is_contract_optional) {
+                                                contract_is_required = false;
+                                            }
+                                        }
+                                        
+                                        if (contract_is_required) {
+                                            m_filtered_payments.push_back(p);
+                                        }
+                                    }
+                                } else { // Handle other missing info filters
+                                    bool missing_found = false;
+                                    for (const auto &detail : it->second) {
+                                        if ((missing_info_filter_index == 1 && detail.kosgu_id == -1) ||
+                                            (missing_info_filter_index == 3 && detail.invoice_id == -1)) {
+                                            missing_found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (missing_found) {
+                                        m_filtered_payments.push_back(p);
+                                    }
+                                }
+                            }
                         }
-                    }
-                    if (missing_found) {
-                        m_filtered_payments.push_back(p);
-                    }
-                }
-            }
         }
     }
 
