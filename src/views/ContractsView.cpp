@@ -8,6 +8,8 @@
 #include <iostream>
 #include <sstream> // For std::ostringstream
 
+#include <cstdlib>
+
 ContractsView::ContractsView()
     : selectedContractIndex(-1),
       showEditModal(false),
@@ -572,6 +574,19 @@ void ContractsView::Render() {
             if (ImGui::Checkbox("Найден", &selectedContract.is_found)) {
                 isDirty = true;
             }
+
+            ImGui::BeginDisabled(selectedContract.number.empty() && selectedContract.procurement_code.empty());
+            if (ImGui::Button(ICON_FA_UP_RIGHT_FROM_SQUARE " Открыть на ГосЗакупках")) {
+                std::string url;
+                if (!selectedContract.procurement_code.empty()) {
+                    url = "https://zakupki.gov.ru/epz/contract/contractCard/common-info.html?reestrNumber=" + selectedContract.procurement_code;
+                } else {
+                    url = "https://zakupki.gov.ru/epz/contract/search/results.html?searchString=" + selectedContract.number;
+                }
+                std::string command = "xdg-open \"" + url + "\"";
+                system(command.c_str());
+            }
+            ImGui::EndDisabled();
 
             ImGui::EndChild();
             ImGui::SameLine();
