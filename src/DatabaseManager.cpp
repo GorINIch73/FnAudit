@@ -1256,6 +1256,52 @@ std::vector<ContractPaymentInfo> DatabaseManager::getAllContractPaymentInfo() {
     return results;
 }
 
+static int counterparty_payment_detail_info_select_callback(void *data, int argc,
+                                                        char **argv,
+                                                        char **azColName) {
+    auto *results = static_cast<std::vector<CounterpartyPaymentInfo> *>(data);
+    CounterpartyPaymentInfo info;
+    for (int i = 0; i < argc; i++) {
+        std::string colName = azColName[i];
+        if (colName == "counterparty_id") {
+            info.counterparty_id = argv[i] ? std::stoi(argv[i]) : -1;
+        } else if (colName == "date") {
+            info.date = argv[i] ? argv[i] : "";
+        } else if (colName == "doc_number") {
+            info.doc_number = argv[i] ? argv[i] : "";
+        } else if (colName == "amount") {
+            info.amount = argv[i] ? std::stod(argv[i]) : 0.0;
+        } else if (colName == "description") {
+            info.description = argv[i] ? argv[i] : "";
+        }
+    }
+    results->push_back(info);
+    return 0;
+}
+
+std::vector<CounterpartyPaymentInfo> DatabaseManager::getAllCounterpartyPaymentInfo() {
+    std::vector<CounterpartyPaymentInfo> results;
+    if (!db)
+        return results;
+
+    std::string sql =
+        "SELECT p.counterparty_id, p.date, p.doc_number, p.amount, p.description "
+        "FROM Payments p "
+        "WHERE p.counterparty_id IS NOT NULL;";
+
+    char *errmsg = nullptr;
+    int rc = sqlite3_exec(db, sql.c_str(),
+                          counterparty_payment_detail_info_select_callback,
+                          &results, &errmsg);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to select getAllCounterpartyPaymentInfo: " << errmsg
+                  << std::endl;
+        sqlite3_free(errmsg);
+    }
+    return results;
+}
+
+
 // PaymentDetail CRUD
 bool DatabaseManager::addPaymentDetail(PaymentDetail &detail) {
     if (!db)

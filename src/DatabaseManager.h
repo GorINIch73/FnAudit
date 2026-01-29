@@ -65,6 +65,7 @@ public:
     std::vector<ContractPaymentInfo> getPaymentInfoForKosgu(int kosgu_id);
     std::vector<KosguPaymentDetailInfo> getAllKosguPaymentInfo();
     std::vector<ContractPaymentInfo> getAllContractPaymentInfo();
+    std::vector<CounterpartyPaymentInfo> getAllCounterpartyPaymentInfo();
 
     bool addPaymentDetail(PaymentDetail& detail);
     std::vector<PaymentDetail> getPaymentDetails(int payment_id);

@@ -2,6 +2,7 @@
 
 #include "BaseView.h"
 #include <vector>
+#include <map>
 #include "../Counterparty.h"
 #include "../Payment.h"
 
@@ -18,8 +19,12 @@ public:
 private:
     void RefreshData();
     void SaveChanges();
+    void UpdateFilteredCounterparties();
 
     std::vector<Counterparty> counterparties;
+    std::vector<Counterparty> m_filtered_counterparties;
+    std::map<int, std::vector<CounterpartyPaymentInfo>> m_counterparty_details_map;
+
     Counterparty selectedCounterparty;
     Counterparty originalCounterparty;
     int selectedCounterpartyIndex;
