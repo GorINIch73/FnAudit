@@ -99,6 +99,7 @@ public:
 
 private:
     bool execute(const std::string& sql);
+    void checkAndUpdateDatabaseSchema();
     
     sqlite3* db;
 };

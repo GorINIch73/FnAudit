@@ -18,7 +18,16 @@ bool DatabaseManager::open(const std::string &filepath) {
         return false;
     }
 
+    checkAndUpdateDatabaseSchema();
+
     return true;
+}
+
+void DatabaseManager::checkAndUpdateDatabaseSchema() {
+    if (!db)
+        return;
+    // пока ничего не делает
+    // Потом возможно напишем проверку структуры и миграцию
 }
 
 void DatabaseManager::close() {
@@ -58,7 +67,8 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "CREATE TABLE IF NOT EXISTS Counterparties ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
         "name TEXT NOT NULL,"
-        "inn TEXT UNIQUE);",
+        "inn TEXT UNIQUE,"
+        "is_contract_optional INTEGER DEFAULT 0);",
         // Справочник договоров
         "CREATE TABLE IF NOT EXISTS Contracts ("
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -205,11 +215,12 @@ std::vector<Kosgu> DatabaseManager::getKosguEntries() {
     if (!db)
         return entries;
 
-    std::string sql = "SELECT k.id, k.code, k.name, k.note, IFNULL(SUM(pd.amount), "
-                      "0.0) as total_amount "
-                      "FROM KOSGU k "
-                      "LEFT JOIN PaymentDetails pd ON k.id = pd.kosgu_id "
-                      "GROUP BY k.id, k.code, k.name, k.note;";
+    std::string sql =
+        "SELECT k.id, k.code, k.name, k.note, IFNULL(SUM(pd.amount), "
+        "0.0) as total_amount "
+        "FROM KOSGU k "
+        "LEFT JOIN PaymentDetails pd ON k.id = pd.kosgu_id "
+        "GROUP BY k.id, k.code, k.name, k.note;";
     char *errmsg = nullptr;
     int rc =
         sqlite3_exec(db, sql.c_str(), kosgu_select_callback, &entries, &errmsg);
@@ -251,7 +262,8 @@ bool DatabaseManager::addKosguEntry(const Kosgu &entry) {
 bool DatabaseManager::updateKosguEntry(const Kosgu &entry) {
     if (!db)
         return false;
-    std::string sql = "UPDATE KOSGU SET code = ?, name = ?, note = ? WHERE id = ?;";
+    std::string sql =
+        "UPDATE KOSGU SET code = ?, name = ?, note = ? WHERE id = ?;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -328,7 +340,8 @@ int DatabaseManager::getKosguIdByCode(const std::string &code) {
 bool DatabaseManager::addCounterparty(Counterparty &counterparty) {
     if (!db)
         return false;
-    std::string sql = "INSERT INTO Counterparties (name, inn) VALUES (?, ?);";
+    std::string sql = "INSERT INTO Counterparties (name, inn, "
+                      "is_contract_optional) VALUES (?, ?, ?);";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -342,6 +355,7 @@ bool DatabaseManager::addCounterparty(Counterparty &counterparty) {
     } else {
         sqlite3_bind_text(stmt, 2, counterparty.inn.c_str(), -1, SQLITE_STATIC);
     }
+    sqlite3_bind_int(stmt, 3, counterparty.is_contract_optional ? 1 : 0);
 
     rc = sqlite3_step(stmt);
     if (rc != SQLITE_DONE) {
@@ -421,6 +435,9 @@ static int counterparty_select_callback(void *data, int argc, char **argv,
             entry.name = argv[i] ? argv[i] : "";
         } else if (colName == "inn") {
             entry.inn = argv[i] ? argv[i] : "";
+        } else if (colName == "is_contract_optional") {
+            entry.is_contract_optional =
+                argv[i] ? (std::stoi(argv[i]) == 1) : false;
         } else if (colName == "total_amount") {
             entry.total_amount = argv[i] ? std::stod(argv[i]) : 0.0;
         }
@@ -434,15 +451,15 @@ std::vector<Counterparty> DatabaseManager::getCounterparties() {
     if (!db)
         return entries;
 
-    std::string sql =
-        "SELECT c.id, c.name, c.inn, IFNULL(p_sum.total, 0.0) as total_amount "
-        "FROM Counterparties c "
-        "LEFT JOIN ( "
-        "    SELECT counterparty_id, SUM(amount) as total "
-        "    FROM Payments "
-        "    WHERE counterparty_id IS NOT NULL "
-        "    GROUP BY counterparty_id "
-        ") p_sum ON c.id = p_sum.counterparty_id;";
+    std::string sql = "SELECT c.id, c.name, c.inn, c.is_contract_optional, "
+                      "IFNULL(p_sum.total, 0.0) as total_amount "
+                      "FROM Counterparties c "
+                      "LEFT JOIN ( "
+                      "    SELECT counterparty_id, SUM(amount) as total "
+                      "    FROM Payments "
+                      "    WHERE counterparty_id IS NOT NULL "
+                      "    GROUP BY counterparty_id "
+                      ") p_sum ON c.id = p_sum.counterparty_id;";
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(), counterparty_select_callback,
                           &entries, &errmsg);
@@ -457,8 +474,8 @@ std::vector<Counterparty> DatabaseManager::getCounterparties() {
 bool DatabaseManager::updateCounterparty(const Counterparty &counterparty) {
     if (!db)
         return false;
-    std::string sql =
-        "UPDATE Counterparties SET name = ?, inn = ? WHERE id = ?;";
+    std::string sql = "UPDATE Counterparties SET name = ?, inn = ?, "
+                      "is_contract_optional = ? WHERE id = ?;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -472,7 +489,8 @@ bool DatabaseManager::updateCounterparty(const Counterparty &counterparty) {
     } else {
         sqlite3_bind_text(stmt, 2, counterparty.inn.c_str(), -1, SQLITE_STATIC);
     }
-    sqlite3_bind_int(stmt, 3, counterparty.id);
+    sqlite3_bind_int(stmt, 3, counterparty.is_contract_optional ? 1 : 0);
+    sqlite3_bind_int(stmt, 4, counterparty.id);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -1687,14 +1705,15 @@ bool DatabaseManager::deleteSuspiciousWord(int id) {
     return rc == SQLITE_DONE;
 }
 
-int DatabaseManager::getSuspiciousWordIdByWord(const std::string& word) {
+int DatabaseManager::getSuspiciousWordIdByWord(const std::string &word) {
     if (!db)
         return -1;
     std::string sql = "SELECT id FROM SuspiciousWords WHERE word = ?;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for suspicious word lookup by word: "
+        std::cerr << "Failed to prepare statement for suspicious word lookup "
+                     "by word: "
                   << sqlite3_errmsg(db) << std::endl;
         return -1;
     }

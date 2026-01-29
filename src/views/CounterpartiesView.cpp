@@ -36,10 +36,10 @@ void CounterpartiesView::RefreshData() {
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 CounterpartiesView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Наименование", "ИНН", "Сумма"};
+    std::vector<std::string> headers = {"ID", "Наименование", "ИНН", "Необязательный договор", "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : counterparties) {
-        rows.push_back({std::to_string(entry.id), entry.name, entry.inn, std::to_string(entry.total_amount)});
+        rows.push_back({std::to_string(entry.id), entry.name, entry.inn, (entry.is_contract_optional ? "Да" : "Нет"), std::to_string(entry.total_amount)});
     }
     return {headers, rows};
 }
@@ -103,7 +103,10 @@ static void SortCounterparties(std::vector<Counterparty> &counterparties,
                       case 2:
                           delta = a.inn.compare(b.inn);
                           break;
-                      case 3:
+                      case 3: // is_contract_optional
+                          delta = (a.is_contract_optional < b.is_contract_optional) ? -1 : (a.is_contract_optional > b.is_contract_optional) ? 1 : 0;
+                          break;
+                      case 4: // total_amount
                             delta = (a.total_amount < b.total_amount)   ? -1
                                   : (a.total_amount > b.total_amount) ? 1
                                                           : 0;
@@ -195,7 +198,7 @@ void CounterpartiesView::Render() {
         // Таблица со списком
         ImGui::BeginChild("CounterpartiesList", ImVec2(0, list_view_height),
                           true, ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("counterparties_table", 4,
+        if (ImGui::BeginTable("counterparties_table", 5,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable)) {
@@ -203,7 +206,8 @@ void CounterpartiesView::Render() {
             ImGui::TableSetupColumn("Наименование",
                                     ImGuiTableColumnFlags_DefaultSort, 0.0f, 1);
             ImGui::TableSetupColumn("ИНН", 0, 0.0f, 2);
-            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 3);
+            ImGui::TableSetupColumn("Необязательный договор", 0, 0.0f, 3);
+            ImGui::TableSetupColumn("Сумма", 0, 0.0f, 4);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
@@ -251,6 +255,8 @@ void CounterpartiesView::Render() {
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", counterparties[i].inn.c_str());
                 ImGui::TableNextColumn();
+                ImGui::Text("%s", counterparties[i].is_contract_optional ? "Да" : "Нет");
+                ImGui::TableNextColumn();
                 ImGui::Text("%.2f", counterparties[i].total_amount);
             }
             ImGui::EndTable();
@@ -285,6 +291,11 @@ void CounterpartiesView::Render() {
             }
             if (ImGui::InputText("ИНН", innBuf, sizeof(innBuf))) {
                 selectedCounterparty.inn = innBuf;
+                isDirty = true;
+            }
+            bool is_contract_optional_checkbox = selectedCounterparty.is_contract_optional;
+            if (ImGui::Checkbox("Необязательный договор", &is_contract_optional_checkbox)) {
+                selectedCounterparty.is_contract_optional = is_contract_optional_checkbox;
                 isDirty = true;
             }
             ImGui::EndChild();
