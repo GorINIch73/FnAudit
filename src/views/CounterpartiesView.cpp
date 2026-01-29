@@ -331,16 +331,12 @@ void CounterpartiesView::Render() {
                             selectedCounterparty.id);
             }
 
-            char nameBuf[256];
             char innBuf[256];
 
-            snprintf(nameBuf, sizeof(nameBuf), "%s",
-                     selectedCounterparty.name.c_str());
             snprintf(innBuf, sizeof(innBuf), "%s",
                      selectedCounterparty.inn.c_str());
 
-            if (ImGui::InputText("Наименование", nameBuf, sizeof(nameBuf))) {
-                selectedCounterparty.name = nameBuf;
+            if (CustomWidgets::InputTextMultilineWithWrap("Наименование", &selectedCounterparty.name, ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 4))) {
                 isDirty = true;
             }
             if (ImGui::InputText("ИНН", innBuf, sizeof(innBuf))) {
