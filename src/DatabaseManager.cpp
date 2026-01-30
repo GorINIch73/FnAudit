@@ -1,4 +1,5 @@
 #include "DatabaseManager.h"
+#include "ExportManager.h"
 #include <iostream>
 #include <vector>
 
@@ -634,7 +635,7 @@ int DatabaseManager::updateContractProcurementCode(
     if (!db)
         return 0;
     std::string sql =
-        "UPDATE Contracts SET procurement_code = ? WHERE number = ? AND date = ?;";
+        "UPDATE Contracts SET procurement_code = ? WHERE number = ? AND date = ? AND (procurement_code IS NULL OR procurement_code = '');";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -1330,6 +1331,70 @@ std::vector<CounterpartyPaymentInfo> DatabaseManager::getAllCounterpartyPaymentI
                   << std::endl;
         sqlite3_free(errmsg);
     }
+    return results;
+}
+
+std::vector<ContractExportData> DatabaseManager::getContractsForExport() {
+    std::vector<ContractExportData> results;
+    if (!db) return results;
+
+    // 1. Get all contracts marked for checking
+    std::string sql_contracts = "SELECT id, number, date, counterparty_id, is_for_special_control, note, procurement_code FROM Contracts WHERE is_for_checking = 1;";
+    sqlite3_stmt *stmt_contracts = nullptr;
+    if (sqlite3_prepare_v2(db, sql_contracts.c_str(), -1, &stmt_contracts, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for getContractsForExport: " << sqlite3_errmsg(db) << std::endl;
+        return results;
+    }
+
+    while (sqlite3_step(stmt_contracts) == SQLITE_ROW) {
+        ContractExportData data;
+        int contract_id = sqlite3_column_int(stmt_contracts, 0);
+        data.contract_number = (const char*)sqlite3_column_text(stmt_contracts, 1);
+        data.contract_date = (const char*)sqlite3_column_text(stmt_contracts, 2);
+        int counterparty_id = sqlite3_column_int(stmt_contracts, 3);
+        data.is_for_special_control = sqlite3_column_int(stmt_contracts, 4) == 1;
+        const unsigned char* note_text = sqlite3_column_text(stmt_contracts, 5);
+        data.note = note_text ? (const char*)note_text : "";
+        const unsigned char* pk_text = sqlite3_column_text(stmt_contracts, 6);
+        data.procurement_code = pk_text ? (const char*)pk_text : "";
+
+        // 2. Get counterparty name
+        if (counterparty_id != 0) {
+            std::string sql_cp = "SELECT name FROM Counterparties WHERE id = ?;";
+            sqlite3_stmt* stmt_cp = nullptr;
+            if (sqlite3_prepare_v2(db, sql_cp.c_str(), -1, &stmt_cp, nullptr) == SQLITE_OK) {
+                sqlite3_bind_int(stmt_cp, 1, counterparty_id);
+                if (sqlite3_step(stmt_cp) == SQLITE_ROW) {
+                    const unsigned char* cp_name = sqlite3_column_text(stmt_cp, 0);
+                    data.counterparty_name = cp_name ? (const char*)cp_name : "";
+                }
+                sqlite3_finalize(stmt_cp);
+            }
+        }
+
+        // 3. Get KOSGU codes
+        std::string sql_kosgu = "SELECT DISTINCT k.code FROM KOSGU k JOIN PaymentDetails pd ON k.id = pd.kosgu_id WHERE pd.contract_id = ?;";
+        sqlite3_stmt* stmt_kosgu = nullptr;
+        if (sqlite3_prepare_v2(db, sql_kosgu.c_str(), -1, &stmt_kosgu, nullptr) == SQLITE_OK) {
+            sqlite3_bind_int(stmt_kosgu, 1, contract_id);
+            std::string kosgu_list;
+            while (sqlite3_step(stmt_kosgu) == SQLITE_ROW) {
+                const unsigned char* code = sqlite3_column_text(stmt_kosgu, 0);
+                if (code) {
+                    if (!kosgu_list.empty()) {
+                        kosgu_list += ", ";
+                    }
+                    kosgu_list += (const char*)code;
+                }
+            }
+            data.kosgu_codes = kosgu_list;
+            sqlite3_finalize(stmt_kosgu);
+        }
+
+        results.push_back(data);
+    }
+
+    sqlite3_finalize(stmt_contracts);
     return results;
 }
 

@@ -63,6 +63,7 @@ set(APP_SOURCES
     src/DatabaseManager.cpp
     src/ImGuiFileDialog.cpp
     src/ImportManager.cpp
+    src/ExportManager.cpp
     src/PdfReporter.cpp
     src/pdfgen.c
     src/CustomWidgets.cpp

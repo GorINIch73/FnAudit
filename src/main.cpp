@@ -6,12 +6,13 @@
 #include <string>
 
 #include "DatabaseManager.h"
+#include "ExportManager.h"
 #include "IconsFontAwesome6.h"
 #include "ImGuiFileDialog.h"
 #include "ImportManager.h"
 #include "PdfReporter.h"
-#include "UIManager.h"
 #include "Settings.h" // Include Settings.h
+#include "UIManager.h"
 
 // Функция обратного вызова для ошибок GLFW
 static void glfw_error_callback(int error, const char *description) {
@@ -73,11 +74,13 @@ int main(int, char **) {
     UIManager uiManager;
     DatabaseManager dbManager;
     ImportManager importManager;
+    ExportManager exportManager(&dbManager);
     PdfReporter pdfReporter;
 
     uiManager.SetDatabaseManager(&dbManager);
     uiManager.SetPdfReporter(&pdfReporter);
     uiManager.SetImportManager(&importManager);
+    uiManager.SetExportManager(&exportManager);
     uiManager.SetWindow(window);
 
     // Load initial settings and apply theme
@@ -177,30 +180,42 @@ int main(int, char **) {
                         "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
                         ".tsv");
                 }
-                if (ImGui::MenuItem(ICON_FA_FILE_SIGNATURE " Импорт ИКЗ")) {
+                if (ImGui::MenuItem(ICON_FA_FILE_SIGNATURE
+                                    " Экспорт Импорт ИКЗ")) {
                     uiManager.ShowServiceView();
                 }
-                if (ImGui::BeginMenu(ICON_FA_DOWNLOAD " Экспорт справочников")) {
+                if (ImGui::BeginMenu(ICON_FA_DOWNLOAD
+                                     " Экспорт справочников")) {
                     if (ImGui::MenuItem("КОСГУ")) {
-                        ImGuiFileDialog::Instance()->OpenDialog("ExportKosguDlgKey", "Экспорт КОСГУ", ".csv");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "ExportKosguDlgKey", "Экспорт КОСГУ", ".csv");
                     }
                     if (ImGui::MenuItem("Подозрительные слова")) {
-                         ImGuiFileDialog::Instance()->OpenDialog("ExportSuspiciousWordsDlgKey", "Экспорт подозрительных слов", ".csv");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "ExportSuspiciousWordsDlgKey",
+                            "Экспорт подозрительных слов", ".csv");
                     }
                     if (ImGui::MenuItem("REGEX выражения")) {
-                        ImGuiFileDialog::Instance()->OpenDialog("ExportRegexesDlgKey", "Экспорт REGEX выражений", ".csv");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "ExportRegexesDlgKey", "Экспорт REGEX выражений",
+                            ".csv");
                     }
                     ImGui::EndMenu();
                 }
                 if (ImGui::BeginMenu(ICON_FA_UPLOAD " Импорт справочников")) {
                     if (ImGui::MenuItem("КОСГУ")) {
-                        ImGuiFileDialog::Instance()->OpenDialog("ImportKosguDlgKey", "Импорт КОСГУ", ".csv");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "ImportKosguDlgKey", "Импорт КОСГУ", ".csv");
                     }
                     if (ImGui::MenuItem("Подозрительные слова")) {
-                        ImGuiFileDialog::Instance()->OpenDialog("ImportSuspiciousWordsDlgKey", "Импорт подозрительных слов", ".csv");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "ImportSuspiciousWordsDlgKey",
+                            "Импорт подозрительных слов", ".csv");
                     }
                     if (ImGui::MenuItem("REGEX выражения")) {
-                        ImGuiFileDialog::Instance()->OpenDialog("ImportRegexesDlgKey", "Импорт REGEX выражений", ".csv");
+                        ImGuiFileDialog::Instance()->OpenDialog(
+                            "ImportRegexesDlgKey", "Импорт REGEX выражений",
+                            ".csv");
                     }
                     ImGui::EndMenu();
                 }

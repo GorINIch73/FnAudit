@@ -14,6 +14,8 @@
 #include "Regex.h"
 #include "SuspiciousWord.h"
 
+struct ContractExportData; // Forward declaration
+
 class DatabaseManager {
 public:
     DatabaseManager();
@@ -67,6 +69,7 @@ public:
     std::vector<KosguPaymentDetailInfo> getAllKosguPaymentInfo();
     std::vector<ContractPaymentInfo> getAllContractPaymentInfo();
     std::vector<CounterpartyPaymentInfo> getAllCounterpartyPaymentInfo();
+    std::vector<ContractExportData> getContractsForExport();
 
     bool addPaymentDetail(PaymentDetail& detail);
     std::vector<PaymentDetail> getPaymentDetails(int payment_id);

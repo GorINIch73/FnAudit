@@ -28,6 +28,7 @@
 
 struct GLFWwindow;
 class ImportManager;
+class ExportManager;
 
 class UIManager {
 public:
@@ -37,6 +38,7 @@ public:
     void SetDatabaseManager(DatabaseManager* dbManager);
     void SetPdfReporter(PdfReporter* pdfReporter);
     void SetImportManager(ImportManager* importManager);
+    void SetExportManager(ExportManager* exportManager);
     void SetWindow(GLFWwindow* window);
     bool LoadDatabase(const std::string& path); // New method
     void AddRecentDbPath(std::string path);
@@ -66,6 +68,10 @@ public:
         if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, SettingsView> || std::is_same_v<T, ServiceView>) {
             viewPtr->SetUIManager(this);
         }
+        
+        if constexpr (std::is_same_v<T, ServiceView>) {
+            viewPtr->SetExportManager(exportManager);
+        }
 
         std::string title = std::string(view->GetTitle());
         // Only add a unique ID if it's not a singleton view like Settings or ImportMap
@@ -86,16 +92,17 @@ public:
     std::string importMessage;
     std::mutex importMutex;
 
-    ImportManager* importManager;
+    ImportManager* importManager = nullptr;
+    ExportManager* exportManager = nullptr;
     std::vector<std::unique_ptr<BaseView>> allViews;
 
 private:
     void LoadRecentDbPaths();
     void SaveRecentDbPaths();
 
-
     DatabaseManager* dbManager;
     PdfReporter* pdfReporter;
     GLFWwindow* window;
     int viewIdCounter = 0;
 };
+

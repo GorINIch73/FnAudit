@@ -141,6 +141,10 @@ void UIManager::SetImportManager(ImportManager *manager) {
     importManager = manager;
 }
 
+void UIManager::SetExportManager(ExportManager *manager) {
+    exportManager = manager;
+}
+
 void UIManager::SetWindow(GLFWwindow *w) { window = w; }
 
 bool UIManager::LoadDatabase(const std::string &path) {
