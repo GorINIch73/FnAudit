@@ -20,12 +20,12 @@ static std::vector<std::string> split(const std::string &s, char delimiter) {
     return tokens;
 }
 
-// Helper to trim whitespace and quotes
+// Helper to trim whitespace only
 static std::string trim(const std::string &str) {
-    size_t first = str.find_first_not_of(" \t\n\r\"");
+    size_t first = str.find_first_not_of(" \t\n\r"); // Exclude "
     if (std::string::npos == first)
         return "";
-    size_t last = str.find_last_not_of(" \t\n\r\"");
+    size_t last = str.find_last_not_of(" \t\n\r"); // Exclude "
     return str.substr(first, (last - first + 1));
 }
 
