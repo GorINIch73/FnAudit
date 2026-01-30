@@ -9,14 +9,14 @@
 #include <vector>
 
 namespace CustomWidgets {
-
+// вспомогательные функции для кастомного многострочного виджета
 namespace { // Anonymous namespace for helper
 struct InputTextCallback_UserData {
         std::string *Str;
         ImGuiInputTextCallback ChainCallback;
         void *ChainCallbackUserData;
 };
-
+// namespace
 static int InputTextCallback(ImGuiInputTextCallbackData *data) {
     InputTextCallback_UserData *user_data =
         (InputTextCallback_UserData *)data->UserData;
@@ -60,7 +60,7 @@ bool InputTextMultiline(const char *label, std::string *str, const ImVec2 &size,
                                      InputTextCallback, &cb_user_data);
 }
 
-// Implementation based on user's explicit request for character-level wrapping
+// Кастомный многострочный виджет текста с автопереносом по буквам
 bool InputTextMultilineWithWrap(const char *label, std::string *str,
                                 const ImVec2 &size, ImGuiInputTextFlags flags) {
     IM_ASSERT((flags & ImGuiInputTextFlags_CallbackResize) == 0);
@@ -132,6 +132,7 @@ bool InputTextMultilineWithWrap(const char *label, std::string *str,
     return changed;
 }
 
+// кастомный виджет комбобокса с фильтром
 bool ComboWithFilter(const char *label, int &current_id,
                      std::vector<ComboItem> &items, char *search_buffer,
                      int search_buffer_size, ImGuiComboFlags flags) {
@@ -141,13 +142,13 @@ bool ComboWithFilter(const char *label, int &current_id,
     std::string preview = "Не выбрано";
     if (current_id != -1) {
         auto current_it =
-            std::find_if(items.begin(), items.end(),
-                         [&](const ComboItem &i) { return i.id == current_id; });
+            std::find_if(items.begin(), items.end(), [&](const ComboItem &i) {
+                return i.id == current_id;
+            });
         if (current_it != items.end()) {
             preview = current_it->name;
         }
     }
-
 
     ImGui::PushID(label);
 
@@ -206,7 +207,7 @@ bool ComboWithFilter(const char *label, int &current_id,
                     ImGui::SetScrollHereY(0.0f);
                 }
             }
-            
+
             for (auto item : filtered_items) {
                 bool is_selected = (current_id == item->id);
                 if (ImGui::Selectable(
@@ -248,6 +249,7 @@ bool ComboWithFilter(const char *label, int &current_id,
     return changed;
 }
 
+// Кастомный горизонтальный сплитер
 void HorizontalSplitter(const char *str_id, float *height, float min_height,
                         float max_height) {
     ImGui::InvisibleButton(str_id, ImVec2(-1, 8.0f));
@@ -273,7 +275,7 @@ void HorizontalSplitter(const char *str_id, float *height, float min_height,
             *height = max_height;
     }
 }
-
+// кастомный вертикальный сплитер
 void VerticalSplitter(const char *str_id, float *width, float min_width,
                       float max_width) {
     ImGui::InvisibleButton(str_id, ImVec2(8.0f, -1));

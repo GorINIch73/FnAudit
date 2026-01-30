@@ -78,6 +78,7 @@ set(APP_SOURCES
     src/views/SelectiveCleanView.cpp
     src/views/SuspiciousWordsView.cpp
     src/views/SpecialQueryView.cpp
+    src/views/ServiceView.cpp
 )
 
 set_source_files_properties(src/pdfgen.c PROPERTIES LANGUAGE C)

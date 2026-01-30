@@ -177,6 +177,9 @@ int main(int, char **) {
                         "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
                         ".tsv");
                 }
+                if (ImGui::MenuItem(ICON_FA_FILE_SIGNATURE " Импорт ИКЗ")) {
+                    uiManager.ShowServiceView();
+                }
                 if (ImGui::BeginMenu(ICON_FA_DOWNLOAD " Экспорт справочников")) {
                     if (ImGui::MenuItem("КОСГУ")) {
                         ImGuiFileDialog::Instance()->OpenDialog("ExportKosguDlgKey", "Экспорт КОСГУ", ".csv");

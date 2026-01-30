@@ -11,9 +11,25 @@
 // to the index of the column in the source file.
 using ColumnMapping = std::map<std::string, int>;
 
+struct UnfoundContract {
+    std::string number;
+    std::string date;
+    std::string ikz;
+};
+
 class ImportManager {
 public:
     ImportManager();
+
+    bool importIKZFromFile(
+        const std::string& filepath,
+        DatabaseManager* dbManager,
+        std::vector<UnfoundContract>& unfoundContracts,
+        int& successfulImports,
+        std::atomic<float>& progress,
+        std::string& message,
+        std::mutex& message_mutex
+    );
 
     // Imports payments from a TSV file using a user-defined column mapping.
     bool ImportPaymentsFromTsv(

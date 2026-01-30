@@ -331,3 +331,96 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
     progress = 1.0f;
     return true; 
 }
+
+
+bool ImportManager::importIKZFromFile(
+    const std::string& filepath,
+    DatabaseManager* dbManager,
+    std::vector<UnfoundContract>& unfoundContracts,
+    int& successfulImports,
+    std::atomic<float>& progress,
+    std::string& message,
+    std::mutex& message_mutex
+) {
+    if (!dbManager) {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Ошибка: Менеджер базы данных не инициализирован.";
+        return false;
+    }
+
+    std::ifstream file(filepath);
+    if (!file.is_open()) {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Ошибка: Не удалось открыть файл: " + filepath;
+        return false;
+    }
+
+    // 1. Get total lines and detect delimiter
+    file.seekg(0, std::ios::beg);
+    size_t total_lines = 0;
+    char delimiter = ','; // Default to comma
+    std::string first_line;
+    if (std::getline(file, first_line)) {
+        total_lines = 1 + std::count(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), '\n');
+        
+        size_t comma_count = std::count(first_line.begin(), first_line.end(), ',');
+        size_t tab_count = std::count(first_line.begin(), first_line.end(), '\t');
+        if (tab_count > comma_count) {
+            delimiter = '\t';
+        }
+    } else {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Файл пуст или нечитаем.";
+        return true; // Not a failure, just nothing to do
+    }
+    
+    file.clear();
+    file.seekg(0, std::ios::beg);
+
+    // 2. Process file
+    unfoundContracts.clear();
+    successfulImports = 0;
+    std::string line;
+    std::getline(file, line); // Skip header line
+
+    size_t line_num = 1; // Start at 1 because we already read the header
+    while (std::getline(file, line)) {
+        line_num++;
+        progress = static_cast<float>(line_num) / total_lines;
+        {
+            std::lock_guard<std::mutex> lock(message_mutex);
+            message = "Импорт строки " + std::to_string(line_num) + " из " + std::to_string(total_lines);
+        }
+
+        if (line.empty()) continue;
+
+        std::vector<std::string> row = split(line, delimiter);
+
+        if (row.size() < 3) continue; // Skip malformed lines
+
+        std::string contract_number = trim(row[0]);
+        std::string contract_date_raw = trim(row[1]);
+        std::string ikz = trim(row[2]);
+
+        if (contract_number.empty() || contract_date_raw.empty() || ikz.empty()) {
+            continue; // Skip lines with essential missing data
+        }
+
+        std::string contract_date = convertDateToDBFormat(contract_date_raw);
+
+        int updated_count = dbManager->updateContractProcurementCode(contract_number, contract_date, ikz);
+        if (updated_count > 0) {
+            successfulImports += updated_count;
+        } else {
+            unfoundContracts.push_back({contract_number, contract_date_raw, ikz});
+        }
+    }
+
+    file.close();
+    {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Импорт завершен. Обновлено: " + std::to_string(successfulImports) + ". Не найдено: " + std::to_string(unfoundContracts.size());
+    }
+    progress = 1.0f;
+    return true;
+}

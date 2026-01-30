@@ -628,6 +628,38 @@ int DatabaseManager::getContractIdByNumberDate(const std::string &number,
     return id;
 }
 
+int DatabaseManager::updateContractProcurementCode(
+    const std::string &number, const std::string &date,
+    const std::string &procurement_code) {
+    if (!db)
+        return 0;
+    std::string sql =
+        "UPDATE Contracts SET procurement_code = ? WHERE number = ? AND date = ?;";
+    sqlite3_stmt *stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for contract procurement code "
+                     "update: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return 0;
+    }
+    
+    sqlite3_bind_text(stmt, 1, procurement_code.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, number.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, date.c_str(), -1, SQLITE_STATIC);
+
+    int rc_step = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc_step != SQLITE_DONE) {
+        std::cerr << "Failed to update Contract procurement code: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return 0;
+    }
+
+    return sqlite3_changes(db);
+}
+
 // Callback функция для getContracts
 static int contract_select_callback(void *data, int argc, char **argv,
                                     char **azColName) {

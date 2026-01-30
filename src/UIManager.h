@@ -24,6 +24,7 @@
 #include "views/SelectiveCleanView.h"
 #include "views/SuspiciousWordsView.h"
 #include "views/SpecialQueryView.h"
+#include "views/ServiceView.h"
 
 struct GLFWwindow;
 class ImportManager;
@@ -41,6 +42,7 @@ public:
     void AddRecentDbPath(std::string path);
     void HandleFileDialogs();
     void SetWindowTitle(const std::string& db_path);
+    void ShowServiceView();
     SpecialQueryView* CreateSpecialQueryView(const std::string& title, const std::string& query);
     void ApplyTheme(int theme_index);
     void ApplyFont(int font_size);
@@ -61,13 +63,13 @@ public:
         view->SetDatabaseManager(dbManager);
         view->SetPdfReporter(pdfReporter);
 
-        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, SettingsView>) {
+        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, SettingsView> || std::is_same_v<T, ServiceView>) {
             viewPtr->SetUIManager(this);
         }
 
         std::string title = std::string(view->GetTitle());
         // Only add a unique ID if it's not a singleton view like Settings or ImportMap
-        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView> && !std::is_same_v<T, SelectiveCleanView> && !std::is_same_v<T, SuspiciousWordsView>) {
+        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView> && !std::is_same_v<T, SelectiveCleanView> && !std::is_same_v<T, SuspiciousWordsView> && !std::is_same_v<T, ServiceView>) {
              title += "###" + std::to_string(viewIdCounter++);
         }
         view->SetTitle(title);
@@ -90,6 +92,7 @@ public:
 private:
     void LoadRecentDbPaths();
     void SaveRecentDbPaths();
+
 
     DatabaseManager* dbManager;
     PdfReporter* pdfReporter;

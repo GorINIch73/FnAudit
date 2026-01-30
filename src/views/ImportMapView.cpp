@@ -310,17 +310,16 @@ void ImportMapView::Render() {
         render_regex_selector("Договор", contract_regex_index, contract_match,
                               contract_pattern_buffer);
         render_regex_selector("КОСГУ", kosgu_regex_index, kosgu_match,
-                              kosgu_pattern_buffer);
-        render_regex_selector("Накладная", invoice_regex_index, invoice_match,
-                              invoice_pattern_buffer);
-
-        ImGui::EndDisabled(); // Re-enable UI for the buttons
-        ImGui::Separator();
-        
-        ImGui::BeginDisabled(import_started);
-        ImGui::InputText("Добавить к примечанию", &custom_note_buffer);
-        ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);
-        ImGui::SameLine();
+                                                             kosgu_pattern_buffer);
+                                              render_regex_selector("Накладная", invoice_regex_index, invoice_match,
+                                                                    invoice_pattern_buffer);
+                                      
+                                              ImGui::EndDisabled(); // Re-enable UI for the buttons
+                                              ImGui::Separator();
+                                              
+                                              ImGui::BeginDisabled(import_started);
+                                              ImGui::InputText("Добавить к примечанию", &custom_note_buffer);
+                                              ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);        ImGui::SameLine();
         ImGui::Checkbox("Возврат", &is_return_import);
         if (ImGui::Button("Импортировать")) {
             if (dbManager && uiManager && uiManager->importManager) {

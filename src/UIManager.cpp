@@ -167,6 +167,21 @@ void UIManager::SetWindowTitle(const std::string &db_path) {
     glfwSetWindowTitle(window, title.c_str());
 }
 
+void UIManager::ShowServiceView() {
+    // This pattern is safer and avoids dangling pointers. It's the same pattern
+    // used for the Settings view.
+    for (const auto &view : allViews) {
+        if (auto existing_view = dynamic_cast<ServiceView *>(view.get())) {
+            existing_view->IsVisible = true;
+            ImGui::SetWindowFocus(existing_view->GetTitle());
+            return; // Found and handled
+        }
+    }
+
+    // If we get here, the view doesn't exist, so create it.
+    CreateView<ServiceView>();
+}
+
 SpecialQueryView *UIManager::CreateSpecialQueryView(const std::string &title,
                                                     const std::string &query) {
     auto view = std::make_unique<SpecialQueryView>(title, query);
