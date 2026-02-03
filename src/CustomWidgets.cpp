@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cctype>  // For isdigit
 #include <cstring> // For strncpy
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -418,6 +419,42 @@ bool InputDate(const char *label, std::string &date) {
     ImGui::PopID();
 
     return changed;
+}
+
+bool AmountInput(const char* label, double& v, const char* format, ImGuiInputTextFlags flags) {
+    char buf[64];
+    sprintf(buf, format, v);
+
+    // Флаг ImGuiInputTextFlags_CharsDecimal разрешает только цифры, точку и знак.
+    // Нам нужно также разрешить запятую и пробелы, поэтому мы не будем его использовать,
+    // а обработаем ввод вручную.
+    if (ImGui::InputText(label, buf, 64, flags)) {
+        std::string s(buf);
+        
+        // Удаляем все пробелы (разделители тысяч)
+        s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
+        
+        // Заменяем запятую на точку
+        std::replace(s.begin(), s.end(), ',', '.');
+        
+        try {
+            // Пытаемся преобразовать строку в double
+            double new_v = std::stod(s);
+            if (v != new_v) {
+                v = new_v;
+                return true; // Возвращаем true, если значение изменилось
+            }
+        }
+        catch (const std::invalid_argument&) {
+            // Ошибка парсинга. Можно здесь что-то предпринять, например,
+            // подсветить поле красным или оставить старое значение.
+            // Пока просто игнорируем некорректный ввод.
+        }
+        catch (const std::out_of_range&) {
+            // Введено слишком большое число. Игнорируем.
+        }
+    }
+    return false; // Возвращаем false, если значение не изменилось
 }
 
 } // namespace CustomWidgets

@@ -26,4 +26,6 @@ void VerticalSplitter(const char* str_id, float* width, float min_width = 100.0f
 
 bool InputDate(const char *label, std::string &date);
 
+bool AmountInput(const char* label, double& value, const char* format = "%.2f", ImGuiInputTextFlags flags = 0);
+
 }

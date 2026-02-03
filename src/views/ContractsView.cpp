@@ -531,8 +531,8 @@ void ContractsView::Render() {
             }
 
             ImGui::SetNextItemWidth(150.0f);
-            if (ImGui::InputDouble("Сумма договора",
-                                   &selectedContract.contract_amount)) {
+            if (CustomWidgets::AmountInput("Сумма договора",
+                                   selectedContract.contract_amount)) {
                 isDirty = true;
             }
 

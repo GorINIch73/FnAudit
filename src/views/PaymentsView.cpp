@@ -724,7 +724,7 @@ void PaymentsView::Render() {
                 isDirty = true;
             }
 
-            if (ImGui::InputDouble("Сумма", &selectedPayment.amount)) {
+            if (CustomWidgets::AmountInput("Сумма", selectedPayment.amount)) {
                 isDirty = true;
             }
 
@@ -1119,8 +1119,8 @@ void PaymentsView::Render() {
                 ImGui::Text(isAddingDetail ? "Добавить новую расшифровку"
                                            : "Редактировать расшифровку ID: %d",
                             selectedDetail.id);
-                if (ImGui::InputDouble("Сумма##detail",
-                                       &selectedDetail.amount)) {
+                if (CustomWidgets::AmountInput("Сумма##detail",
+                                       selectedDetail.amount)) {
                     isDetailDirty = true;
                 }
 
