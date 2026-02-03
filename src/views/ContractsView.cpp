@@ -409,7 +409,7 @@ void ContractsView::Render() {
         if (ImGui::BeginTable("contracts_table", 12,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
-                                  ImGuiTableFlags_Sortable)) {
+                                  ImGuiTableFlags_Sortable | ImGuiTableFlags_ScrollX)) {
             ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
             ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
             ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort,
