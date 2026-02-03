@@ -18,6 +18,7 @@ ContractsView::ContractsView()
     Title = "Справочник 'Договоры'";
     memset(filterText, 0, sizeof(filterText));
     memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
+    memset(contract_search_buffer, 0, sizeof(contract_search_buffer));
 }
 
 void ContractsView::SetDatabaseManager(DatabaseManager *manager) {
@@ -171,6 +172,9 @@ void ContractsView::Render() {
             if (!isAdding && selectedContractIndex != -1) {
                 contract_id_to_delete = contracts[selectedContractIndex].id;
                 show_delete_popup = true;
+                destination_contract_id = -1; // Reset on popup open
+                memset(contract_search_buffer, 0,
+                       sizeof(contract_search_buffer));
             }
         }
         ImGui::SameLine();
@@ -300,6 +304,9 @@ void ContractsView::Render() {
             }
         }
         if (show_delete_popup) {
+            // destination_contract_id = -1; // Reset on popup open
+            // memset(contract_search_buffer, 0,
+            // sizeof(contract_search_buffer));
             ImGui::OpenPopup("Подтверждение удаления##Contract");
         }
         if (ImGui::BeginPopupModal("Подтверждение удаления##Contract",
@@ -308,12 +315,34 @@ void ContractsView::Render() {
             ImGui::Text("Вы уверены, что хотите удалить этот договор?\nЭто "
                         "действие нельзя отменить.");
             ImGui::Separator();
+
+            ImGui::Text(
+                "Перенести расшифровки на другой договор (необязательно):");
+
+            std::vector<CustomWidgets::ComboItem> contractItems;
+            for (const auto &c : contracts) {
+                if (c.id != contract_id_to_delete) {
+                    contractItems.push_back({c.id, c.number + "  " + c.date});
+                }
+            }
+            CustomWidgets::ComboWithFilter(
+                "Новый договор##contract_transfer", destination_contract_id,
+                contractItems, contract_search_buffer,
+                sizeof(contract_search_buffer), 0);
+
+            ImGui::Separator();
+
             if (ImGui::Button("Да", ImVec2(120, 0))) {
                 if (dbManager && contract_id_to_delete != -1) {
+                    if (destination_contract_id != -1) {
+                        dbManager->transferPaymentDetails(
+                            contract_id_to_delete, destination_contract_id);
+                    }
                     dbManager->deleteContract(contract_id_to_delete);
                     RefreshData();
                     selectedContract = Contract{};
                     originalContract = Contract{};
+                    selectedContractIndex = -1; // Reset selection
                 }
                 contract_id_to_delete = -1;
                 show_delete_popup = false;
@@ -532,15 +561,17 @@ void ContractsView::Render() {
 
             ImGui::SetNextItemWidth(150.0f);
             if (CustomWidgets::AmountInput("Сумма договора",
-                                   selectedContract.contract_amount)) {
+                                           selectedContract.contract_amount)) {
                 isDirty = true;
             }
 
             char endDateBuf[12];
             // snprintf(endDateBuf, sizeof(endDateBuf), "%s",
-            //          selectedContract.end_date.c_str()); // This is no longer needed
+            //          selectedContract.end_date.c_str()); // This is no longer
+            //          needed
             ImGui::SetNextItemWidth(100.0f);
-            if (CustomWidgets::InputDate("Дата окончания", selectedContract.end_date)) {
+            if (CustomWidgets::InputDate("Дата окончания",
+                                         selectedContract.end_date)) {
                 isDirty = true;
             }
 
@@ -575,13 +606,19 @@ void ContractsView::Render() {
                 isDirty = true;
             }
 
-            ImGui::BeginDisabled(selectedContract.number.empty() && selectedContract.procurement_code.empty());
-            if (ImGui::Button(ICON_FA_UP_RIGHT_FROM_SQUARE " Открыть на ГосЗакупках")) {
+            ImGui::BeginDisabled(selectedContract.number.empty() &&
+                                 selectedContract.procurement_code.empty());
+            if (ImGui::Button(ICON_FA_UP_RIGHT_FROM_SQUARE
+                              " Открыть на ГосЗакупках")) {
                 std::string url;
                 if (!selectedContract.procurement_code.empty()) {
-                    url = "https://zakupki.gov.ru/epz/contract/contractCard/common-info.html?reestrNumber=" + selectedContract.procurement_code;
+                    url = "https://zakupki.gov.ru/epz/contract/contractCard/"
+                          "common-info.html?reestrNumber=" +
+                          selectedContract.procurement_code;
                 } else {
-                    url = "https://zakupki.gov.ru/epz/contract/search/results.html?searchString=" + selectedContract.number;
+                    url = "https://zakupki.gov.ru/epz/contract/search/"
+                          "results.html?searchString=" +
+                          selectedContract.number;
                 }
                 std::string command = "xdg-open \"" + url + "\"";
                 system(command.c_str());

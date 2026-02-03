@@ -51,6 +51,7 @@ public:
     std::vector<Contract> getContracts();
     bool updateContract(const Contract& contract);
     bool deleteContract(int id);
+    void transferPaymentDetails(int from_contract_id, int to_contract_id);
     std::vector<ContractPaymentInfo> getPaymentInfoForContract(int contract_id);
 
     int addInvoice(Invoice& invoice); // Pass by reference to get the id back
