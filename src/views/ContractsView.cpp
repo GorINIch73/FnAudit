@@ -578,7 +578,7 @@ void ContractsView::Render() {
             char procurementCodeBuf[256];
             snprintf(procurementCodeBuf, sizeof(procurementCodeBuf), "%s",
                      selectedContract.procurement_code.c_str());
-            ImGui::SetNextItemWidth(100.0f);
+            ImGui::SetNextItemWidth(250.0f);
             if (ImGui::InputText("ИКЗ", procurementCodeBuf,
                                  sizeof(procurementCodeBuf))) {
                 selectedContract.procurement_code = procurementCodeBuf;

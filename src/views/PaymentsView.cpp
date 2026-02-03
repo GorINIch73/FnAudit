@@ -147,10 +147,8 @@ void PaymentsView::SaveDetailChanges() {
     isDetailDirty = false;
 }
 
-// Вспомогательная функция для сортировки
-static void SortPayments(std::vector<Payment> &payments,
-                         const ImGuiTableSortSpecs *sort_specs) {
-    std::sort(payments.begin(), payments.end(),
+void PaymentsView::SortPayments(const ImGuiTableSortSpecs *sort_specs) {
+    std::sort(m_filtered_payments.begin(), m_filtered_payments.end(),
               [&](const Payment &a, const Payment &b) {
                   for (int i = 0; i < sort_specs->SpecsCount; i++) {
                       const ImGuiTableColumnSortSpecs *column_spec =
@@ -168,8 +166,33 @@ static void SortPayments(std::vector<Payment> &payments,
                                   : (a.amount > b.amount) ? 1
                                                           : 0;
                           break;
-                      case 3:
+                      case 3: {
+                          std::string a_cp_name = " ";
+                          std::string b_cp_name = " ";
+                          auto it_a = std::find_if(
+                              counterpartiesForDropdown.begin(),
+                              counterpartiesForDropdown.end(),
+                              [&](const Counterparty &cp) {
+                                  return cp.id == a.counterparty_id;
+                              });
+                          if (it_a != counterpartiesForDropdown.end())
+                              a_cp_name = it_a->name;
+                          auto it_b = std::find_if(
+                              counterpartiesForDropdown.begin(),
+                              counterpartiesForDropdown.end(),
+                              [&](const Counterparty &cp) {
+                                  return cp.id == b.counterparty_id;
+                              });
+                          if (it_b != counterpartiesForDropdown.end())
+                              b_cp_name = it_b->name;
+                          delta = a_cp_name.compare(b_cp_name);
+                          break;
+                      }
+                      case 4:
                           delta = a.description.compare(b.description);
+                          break;
+                      case 5:
+                          delta = a.note.compare(b.note);
                           break;
                       default:
                           break;
@@ -587,17 +610,18 @@ void PaymentsView::Render() {
 
         // --- Totals Display ---
         ImGui::Separator();
-        ImGui::Text("Отобрано платежей: %zu", m_filtered_payments.size());
-        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 650);
-        ImGui::Text("Сумма по платежам: %.2f", total_filtered_amount);
-        ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 300);
-        ImGui::Text("Сумма по расшифровкам: %.2f",
-                    total_filtered_details_amount);
+        ImGui::Text("платежей: %zu", m_filtered_payments.size());
+        // ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 750);
+        ImGui::SameLine();
+        ImGui::Text("Сумма: %.2f", total_filtered_amount);
+        ImGui::SameLine();
+        // ImGui::SameLine(ImGui::GetWindowContentRegionMax().x - 400);
+        ImGui::Text("// %.2f", total_filtered_details_amount);
 
         // --- Список платежей ---
         ImGui::BeginChild("PaymentsList", ImVec2(0, list_view_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("payments_table", 5,
+        if (ImGui::BeginTable("payments_table", 6,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
                                   ImGuiTableFlags_Sortable |
@@ -609,18 +633,16 @@ void PaymentsView::Render() {
                 0.0f, 0);
             ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
             ImGui::TableSetupColumn("Сумма", 0, 0.0f, 2);
+            ImGui::TableSetupColumn("Контрагент", 0, 0.0f, 3);
             ImGui::TableSetupColumn(
-                "Назначение", ImGuiTableColumnFlags_WidthFixed, 600.0f, 3);
+                "Назначение", ImGuiTableColumnFlags_WidthFixed, 600.0f, 4);
             ImGui::TableSetupColumn(
-                "Примечание", ImGuiTableColumnFlags_WidthFixed, 300.0f, 4);
+                "Примечание", ImGuiTableColumnFlags_WidthFixed, 300.0f, 5);
             ImGui::TableHeadersRow();
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortPayments(payments,
-                                 sort_specs); // Sort original payments list
-                    UpdateFilteredPayments(); // <<< FIX: Re-apply filter after
-                                              // sorting
+                    SortPayments(sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
@@ -676,6 +698,20 @@ void PaymentsView::Render() {
                     ImGui::Text("%s", payment.doc_number.c_str());
                     ImGui::TableNextColumn();
                     ImGui::Text("%.2f", payment.amount);
+
+                    ImGui::TableNextColumn();
+                    auto cp_it = std::find_if(
+                        counterpartiesForDropdown.begin(),
+                        counterpartiesForDropdown.end(),
+                        [&](const Counterparty &cp) {
+                            return cp.id == payment.counterparty_id;
+                        });
+                    if (cp_it != counterpartiesForDropdown.end()) {
+                        ImGui::Text("%s", cp_it->name.c_str());
+                    } else {
+                        ImGui::Text("N/A");
+                    }
+
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", payment.description.c_str());
                     ImGui::TableNextColumn();
@@ -1120,7 +1156,7 @@ void PaymentsView::Render() {
                                            : "Редактировать расшифровку ID: %d",
                             selectedDetail.id);
                 if (CustomWidgets::AmountInput("Сумма##detail",
-                                       selectedDetail.amount)) {
+                                               selectedDetail.amount)) {
                     isDetailDirty = true;
                 }
 
@@ -1280,47 +1316,53 @@ void PaymentsView::UpdateFilteredPayments() {
                 if (it == details_by_payment.end()) { // has no details
                     m_filtered_payments.push_back(p);
                 }
-                        } else { // Filters for missing info inside details (index 1, 2, 3)
-                            if (it != details_by_payment.end()) { // has details
-                                if (missing_info_filter_index == 2) { // "Без Договора"
-                                    bool has_detail_without_contract = false;
-                                    for (const auto& detail : it->second) {
-                                        if (detail.contract_id == -1) {
-                                            has_detail_without_contract = true;
-                                            break;
-                                        }
-                                    }
-            
-                                    if (has_detail_without_contract) {
-                                        auto cp_it = std::find_if(counterpartiesForDropdown.begin(), counterpartiesForDropdown.end(),
-                                                                  [&](const Counterparty& cp) { return cp.id == p.counterparty_id; });
-            
-                                        bool contract_is_required = true;
-                                        if (cp_it != counterpartiesForDropdown.end()) {
-                                            if (cp_it->is_contract_optional) {
-                                                contract_is_required = false;
-                                            }
-                                        }
-                                        
-                                        if (contract_is_required) {
-                                            m_filtered_payments.push_back(p);
-                                        }
-                                    }
-                                } else { // Handle other missing info filters
-                                    bool missing_found = false;
-                                    for (const auto &detail : it->second) {
-                                        if ((missing_info_filter_index == 1 && detail.kosgu_id == -1) ||
-                                            (missing_info_filter_index == 3 && detail.invoice_id == -1)) {
-                                            missing_found = true;
-                                            break;
-                                        }
-                                    }
-                                    if (missing_found) {
-                                        m_filtered_payments.push_back(p);
-                                    }
-                                }
+            } else { // Filters for missing info inside details (index 1, 2, 3)
+                if (it != details_by_payment.end()) {     // has details
+                    if (missing_info_filter_index == 2) { // "Без Договора"
+                        bool has_detail_without_contract = false;
+                        for (const auto &detail : it->second) {
+                            if (detail.contract_id == -1) {
+                                has_detail_without_contract = true;
+                                break;
                             }
                         }
+
+                        if (has_detail_without_contract) {
+                            auto cp_it = std::find_if(
+                                counterpartiesForDropdown.begin(),
+                                counterpartiesForDropdown.end(),
+                                [&](const Counterparty &cp) {
+                                    return cp.id == p.counterparty_id;
+                                });
+
+                            bool contract_is_required = true;
+                            if (cp_it != counterpartiesForDropdown.end()) {
+                                if (cp_it->is_contract_optional) {
+                                    contract_is_required = false;
+                                }
+                            }
+
+                            if (contract_is_required) {
+                                m_filtered_payments.push_back(p);
+                            }
+                        }
+                    } else { // Handle other missing info filters
+                        bool missing_found = false;
+                        for (const auto &detail : it->second) {
+                            if ((missing_info_filter_index == 1 &&
+                                 detail.kosgu_id == -1) ||
+                                (missing_info_filter_index == 3 &&
+                                 detail.invoice_id == -1)) {
+                                missing_found = true;
+                                break;
+                            }
+                        }
+                        if (missing_found) {
+                            m_filtered_payments.push_back(p);
+                        }
+                    }
+                }
+            }
         }
     }
 

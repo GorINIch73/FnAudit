@@ -310,8 +310,8 @@ bool InputDate(const char *label, std::string &date) {
     const std::string pattern = "YYYY-MM-DD";
     constexpr size_t buf_size = 11; // "YYYY-MM-DD" + null terminator
 
-    ImGui::TextUnformatted(label);
-    ImGui::SameLine();
+    // ImGui::TextUnformatted(label);
+    // ImGui::SameLine();
 
     // 1. Проверяем текущее значение на соответствие шаблону
     if (date.empty()) {
@@ -334,9 +334,11 @@ bool InputDate(const char *label, std::string &date) {
             int d, m, y;
             if (sscanf(new_date.c_str(), "%d.%d.%d", &d, &m, &y) == 3) {
                 // Простая валидация, чтобы избежать совсем неверных дат
-                if (d > 0 && d <= 31 && m > 0 && m <= 12 && y >= 1900 && y < 2200) {
+                if (d > 0 && d <= 31 && m > 0 && m <= 12 && y >= 1900 &&
+                    y < 2200) {
                     char formatted_date[11];
-                    snprintf(formatted_date, sizeof(formatted_date), "%04d-%02d-%02d", y, m, d);
+                    snprintf(formatted_date, sizeof(formatted_date),
+                             "%04d-%02d-%02d", y, m, d);
                     new_date = formatted_date;
                 }
             }
@@ -431,25 +433,28 @@ bool InputDate(const char *label, std::string &date) {
     }
     ImGui::PopID();
 
+    ImGui::SameLine();
+    ImGui::TextUnformatted(label);
     return changed;
 }
 
-bool AmountInput(const char* label, double& v, const char* format, ImGuiInputTextFlags flags) {
+bool AmountInput(const char *label, double &v, const char *format,
+                 ImGuiInputTextFlags flags) {
     char buf[64];
     sprintf(buf, format, v);
 
-    // Флаг ImGuiInputTextFlags_CharsDecimal разрешает только цифры, точку и знак.
-    // Нам нужно также разрешить запятую и пробелы, поэтому мы не будем его использовать,
-    // а обработаем ввод вручную.
+    // Флаг ImGuiInputTextFlags_CharsDecimal разрешает только цифры, точку и
+    // знак. Нам нужно также разрешить запятую и пробелы, поэтому мы не будем
+    // его использовать, а обработаем ввод вручную.
     if (ImGui::InputText(label, buf, 64, flags)) {
         std::string s(buf);
-        
+
         // Удаляем все пробелы (разделители тысяч)
         s.erase(std::remove(s.begin(), s.end(), ' '), s.end());
-        
+
         // Заменяем запятую на точку
         std::replace(s.begin(), s.end(), ',', '.');
-        
+
         try {
             // Пытаемся преобразовать строку в double
             double new_v = std::stod(s);
@@ -457,13 +462,11 @@ bool AmountInput(const char* label, double& v, const char* format, ImGuiInputTex
                 v = new_v;
                 return true; // Возвращаем true, если значение изменилось
             }
-        }
-        catch (const std::invalid_argument&) {
+        } catch (const std::invalid_argument &) {
             // Ошибка парсинга. Можно здесь что-то предпринять, например,
             // подсветить поле красным или оставить старое значение.
             // Пока просто игнорируем некорректный ввод.
-        }
-        catch (const std::out_of_range&) {
+        } catch (const std::out_of_range &) {
             // Введено слишком большое число. Игнорируем.
         }
     }

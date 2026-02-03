@@ -130,4 +130,6 @@ private:
 
     double total_filtered_amount = 0.0;
     double total_filtered_details_amount = 0.0;
+
+    void SortPayments(const ImGuiTableSortSpecs* sort_specs);
 };
