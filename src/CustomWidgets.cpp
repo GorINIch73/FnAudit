@@ -326,8 +326,21 @@ bool InputDate(const char *label, std::string &date) {
     // 3. Отображаем поле ввода
     ImGui::PushID(label);
     ImGui::PushItemWidth(ImGui::CalcTextSize(std::string(pattern).c_str()).x);
-    if (ImGui::InputText("", buf, buf_size, ImGuiInputTextFlags_CharsDecimal)) {
+    if (ImGui::InputText("", buf, buf_size)) {
         std::string new_date = buf;
+
+        // Попытка распознать формат dd.mm.yyyy
+        if (std::count(new_date.begin(), new_date.end(), '.') == 2) {
+            int d, m, y;
+            if (sscanf(new_date.c_str(), "%d.%d.%d", &d, &m, &y) == 3) {
+                // Простая валидация, чтобы избежать совсем неверных дат
+                if (d > 0 && d <= 31 && m > 0 && m <= 12 && y >= 1900 && y < 2200) {
+                    char formatted_date[11];
+                    snprintf(formatted_date, sizeof(formatted_date), "%04d-%02d-%02d", y, m, d);
+                    new_date = formatted_date;
+                }
+            }
+        }
 
         // 4. Фильтруем ввод - оставляем только цифры и дефисы
         std::string filtered;
