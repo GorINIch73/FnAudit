@@ -13,6 +13,7 @@ InvoicesView::InvoicesView()
     Title = "Справочник 'Накладные'";
     memset(filterText, 0, sizeof(filterText));
     memset(contractFilter, 0, sizeof(contractFilter));
+    UpdateFilteredInvoices();
 }
 
 void InvoicesView::SetUIManager(UIManager* manager) {
@@ -31,6 +32,7 @@ void InvoicesView::RefreshData() {
     if (dbManager) {
         invoices = dbManager->getInvoices();
         selectedInvoiceIndex = -1;
+        UpdateFilteredInvoices();
     }
 }
 
@@ -45,7 +47,7 @@ std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 InvoicesView::GetDataAsStrings() {
     std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контракт", "Сумма"};
     std::vector<std::vector<std::string>> rows;
-    for (const auto &entry : invoices) {
+    for (const auto &entry : m_filtered_invoices) {
         std::string contractNumber = "N/A";
         for (const auto &c : contractsForDropdown) {
             if (c.id == entry.contract_id) {
@@ -164,7 +166,7 @@ void InvoicesView::Render() {
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
             if (!isAdding && selectedInvoiceIndex != -1) {
-                invoice_id_to_delete = invoices[selectedInvoiceIndex].id;
+                invoice_id_to_delete = m_filtered_invoices[selectedInvoiceIndex].id;
                 show_delete_popup = true;
             }
         }
@@ -187,6 +189,7 @@ void InvoicesView::Render() {
                     RefreshData();
                     selectedInvoice = Invoice{};
                     originalInvoice = Invoice{};
+                    selectedInvoiceIndex = -1;
                 }
                 invoice_id_to_delete = -1;
                 show_delete_popup = false;
@@ -204,10 +207,13 @@ void InvoicesView::Render() {
 
         ImGui::Separator();
 
-        ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText));
+        if(ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText))) {
+            UpdateFilteredInvoices();
+        }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_XMARK "##clear_filter_invoice")) {
             filterText[0] = '\0';
+            UpdateFilteredInvoices();
         }
 
         // Таблица со списком
@@ -227,59 +233,58 @@ void InvoicesView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortInvoices(invoices, sort_specs);
+                    SortInvoices(m_filtered_invoices, sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
 
-            for (int i = 0; i < invoices.size(); ++i) {
-                if (filterText[0] != '\0' &&
-                    strcasestr(invoices[i].number.c_str(), filterText) ==
-                        nullptr) {
-                    continue;
-                }
+            ImGuiListClipper clipper;
+            clipper.Begin(m_filtered_invoices.size());
+            while (clipper.Step()) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-
-                bool is_selected = (selectedInvoiceIndex == i);
-                char label[256];
-                sprintf(label, "%d##%d", invoices[i].id, i);
-                if (ImGui::Selectable(label, is_selected,
-                                      ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedInvoiceIndex != i) {
-                        SaveChanges();
-                        selectedInvoiceIndex = i;
-                        selectedInvoice = invoices[i];
-                        originalInvoice = invoices[i];
-                        isAdding = false;
-                        isDirty = false;
-                        if (dbManager) {
-                            payment_info = dbManager->getPaymentInfoForInvoice(
-                                selectedInvoice.id);
+                    bool is_selected = (selectedInvoiceIndex == i);
+                    char label[256];
+                    sprintf(label, "%d##%d", m_filtered_invoices[i].id, i);
+                    if (ImGui::Selectable(label, is_selected,
+                                          ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (selectedInvoiceIndex != i) {
+                            SaveChanges();
+                            selectedInvoiceIndex = i;
+                            selectedInvoice = m_filtered_invoices[i];
+                            originalInvoice = m_filtered_invoices[i];
+                            isAdding = false;
+                            isDirty = false;
+                            if (dbManager) {
+                                payment_info = dbManager->getPaymentInfoForInvoice(
+                                    selectedInvoice.id);
+                            }
                         }
                     }
-                }
-                if (is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
-
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", invoices[i].number.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", invoices[i].date.c_str());
-                ImGui::TableNextColumn();
-                const char *contractNumber = "N/A";
-                for (const auto &c : contractsForDropdown) {
-                    if (c.id == invoices[i].contract_id) {
-                        contractNumber = c.number.c_str();
-                        break;
+                    if (is_selected) {
+                        ImGui::SetItemDefaultFocus();
                     }
+
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_invoices[i].number.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", m_filtered_invoices[i].date.c_str());
+                    ImGui::TableNextColumn();
+                    const char *contractNumber = "N/A";
+                    for (const auto &c : contractsForDropdown) {
+                        if (c.id == m_filtered_invoices[i].contract_id) {
+                            contractNumber = c.number.c_str();
+                            break;
+                        }
+                    }
+                    ImGui::Text("%s", contractNumber);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", m_filtered_invoices[i].total_amount);
                 }
-                ImGui::Text("%s", contractNumber);
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", invoices[i].total_amount);
             }
+            clipper.End();
             ImGui::EndTable();
         }
         ImGui::EndChild();
@@ -366,4 +371,17 @@ void InvoicesView::Render() {
         }
     }
     ImGui::End();
+}
+
+void InvoicesView::UpdateFilteredInvoices() {
+    m_filtered_invoices.clear();
+    if (filterText[0] == '\0') {
+        m_filtered_invoices = invoices;
+    } else {
+        for (const auto& invoice : invoices) {
+            if (strcasestr(invoice.number.c_str(), filterText) != nullptr) {
+                m_filtered_invoices.push_back(invoice);
+            }
+        }
+    }
 }

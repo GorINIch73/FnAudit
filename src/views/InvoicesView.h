@@ -37,4 +37,7 @@ private:
     char contractFilter[256];
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
+
+    std::vector<Invoice> m_filtered_invoices;
+    void UpdateFilteredInvoices();
 };
