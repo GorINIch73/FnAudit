@@ -1251,6 +1251,10 @@ void PaymentsView::UpdateFilteredPayments() {
                         strcasestr(p.recipient.c_str(), current_term.c_str()) !=
                             nullptr)
                         term_found_in_payment = true;
+                    if (!term_found_in_payment &&
+                        strcasestr(p.note.c_str(), current_term.c_str()) !=
+                            nullptr)
+                        term_found_in_payment = true;
                     if (!term_found_in_payment) {
                         char amount_str[32];
                         snprintf(amount_str, sizeof(amount_str), "%.2f",
