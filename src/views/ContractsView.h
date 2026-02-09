@@ -48,6 +48,7 @@ private:
 
     std::vector<Contract> m_filtered_contracts;
     void UpdateFilteredContracts();
+    void SortContracts(const struct ImGuiTableSortSpecs* sort_specs);
     std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
     UIManager* uiManager = nullptr;
 };

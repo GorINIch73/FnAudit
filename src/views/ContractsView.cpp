@@ -100,47 +100,42 @@ void ContractsView::SaveChanges() {
     isDirty = false;
 }
 
-// Вспомогательная функция для сортировки
-static void SortContracts(std::vector<Contract> &contracts,
-                          const ImGuiTableSortSpecs *sort_specs) {
-    std::sort(contracts.begin(), contracts.end(),
-              [&](const Contract &a, const Contract &b) {
-                  for (int i = 0; i < sort_specs->SpecsCount; i++) {
-                      const ImGuiTableColumnSortSpecs *column_spec =
-                          &sort_specs->Specs[i];
-                      int delta = 0;
-                      switch (column_spec->ColumnIndex) {
-                      case 0:
-                          delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0;
-                          break;
-                      case 1:
-                          delta = a.number.compare(b.number);
-                          break;
-                      case 2:
-                          delta = a.date.compare(b.date);
-                          break;
-                      case 3:
-                          delta = (a.counterparty_id < b.counterparty_id)   ? -1
-                                  : (a.counterparty_id > b.counterparty_id) ? 1
-                                                                            : 0;
-                          break;
-                      case 4:
-                          delta = (a.total_amount < b.total_amount)   ? -1
-                                  : (a.total_amount > b.total_amount) ? 1
-                                                                      : 0;
-                          break;
-                      default:
-                          break;
-                      }
-                      if (delta != 0) {
-                          return (column_spec->SortDirection ==
-                                  ImGuiSortDirection_Ascending)
-                                     ? (delta < 0)
-                                     : (delta > 0);
-                      }
-                  }
-                  return false;
-              });
+void ContractsView::SortContracts(const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(m_filtered_contracts.begin(), m_filtered_contracts.end(),
+        [&](const Contract& a, const Contract& b) {
+            for (int i = 0; i < sort_specs->SpecsCount; i++) {
+                const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+                int delta = 0;
+
+                auto get_cp_name = [&](int cp_id) {
+                    for (const auto& cp : counterpartiesForDropdown) {
+                        if (cp.id == cp_id) return cp.name;
+                    }
+                    return std::string("");
+                };
+
+                switch (column_spec->ColumnIndex) {
+                case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                case 1: delta = a.number.compare(b.number); break;
+                case 2: delta = a.date.compare(b.date); break;
+                case 3: delta = get_cp_name(a.counterparty_id).compare(get_cp_name(b.counterparty_id)); break;
+                case 4: delta = (a.contract_amount < b.contract_amount) ? -1 : (a.contract_amount > b.contract_amount) ? 1 : 0; break;
+                case 5: delta = (a.total_amount < b.total_amount) ? -1 : (a.total_amount > b.total_amount) ? 1 : 0; break;
+                case 6: delta = a.end_date.compare(b.end_date); break;
+                case 7: delta = a.procurement_code.compare(b.procurement_code); break;
+                case 8: delta = a.note.compare(b.note); break;
+                case 9: delta = (a.is_for_checking < b.is_for_checking) ? -1 : (a.is_for_checking > b.is_for_checking) ? 1 : 0; break;
+                case 10: delta = (a.is_for_special_control < b.is_for_special_control) ? -1 : (a.is_for_special_control > b.is_for_special_control) ? 1 : 0; break;
+                case 11: delta = (a.is_found < b.is_found) ? -1 : (a.is_found > b.is_found) ? 1 : 0; break;
+                default: break;
+                }
+
+                if (delta != 0) {
+                    return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+                }
+            }
+            return false;
+        });
 }
 
 void ContractsView::Render() {
@@ -427,7 +422,7 @@ void ContractsView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
-                    SortContracts(m_filtered_contracts, sort_specs);
+                    SortContracts(sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
