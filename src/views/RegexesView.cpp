@@ -1,4 +1,5 @@
 #include "RegexesView.h"
+#include "../CustomWidgets.h"
 #include "../IconsFontAwesome6.h"
 #include "imgui.h"
 #include "imgui_stdlib.h"
@@ -13,9 +14,7 @@ RegexesView::RegexesView()
     memset(filterText, 0, sizeof(filterText));
 }
 
-void RegexesView::SetUIManager(UIManager* manager) {
-    uiManager = manager;
-}
+void RegexesView::SetUIManager(UIManager *manager) { uiManager = manager; }
 
 void RegexesView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
@@ -32,7 +31,6 @@ void RegexesView::RefreshData() {
         selectedRegexIndex = -1;
     }
 }
-
 
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 RegexesView::GetDataAsStrings() {
@@ -114,31 +112,21 @@ void RegexesView::Render() {
             RefreshData();
         }
 
-        if (show_delete_popup) {
-            ImGui::OpenPopup("Подтверждение удаления##Regex");
-        }
-        if (ImGui::BeginPopupModal("Подтверждение удаления##Regex", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить это выражение?\nЭто действие нельзя отменить.");
-            ImGui::Separator();
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (dbManager && regex_id_to_delete != -1) {
-                    dbManager->deleteRegex(regex_id_to_delete);
-                    RefreshData();
-                    selectedRegex = Regex{};
-                    originalRegex = Regex{};
-                }
-                regex_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
+        // if (show_delete_popup) {
+        // ImGui::OpenPopup("Подтверждение удаления##Regex");
+        // }
+        if (CustomWidgets::ConfirmationModal(
+                "Подтверждение удаления регекс", "Подтверждение удаления",
+                "Вы уверены, что хотите удалить это выражение?\nЭто действие "
+                "нельзя отменить.",
+                "Да", "Нет", show_delete_popup)) {
+            if (dbManager && regex_id_to_delete != -1) {
+                dbManager->deleteRegex(regex_id_to_delete);
+                RefreshData();
+                selectedRegex = Regex{};
+                originalRegex = Regex{};
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                regex_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
+            regex_id_to_delete = -1;
         }
 
         ImGui::Separator();

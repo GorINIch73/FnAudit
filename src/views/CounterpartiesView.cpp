@@ -204,34 +204,19 @@ void CounterpartiesView::Render() {
             RefreshData();
         }
 
-        if (show_delete_popup) {
-            ImGui::OpenPopup("Подтверждение удаления##Counterparty");
-        }
-        if (ImGui::BeginPopupModal("Подтверждение удаления##Counterparty",
-                                   &show_delete_popup,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить этого "
-                        "контрагента?\nЭто действие нельзя отменить.");
-            ImGui::Separator();
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (dbManager && counterparty_id_to_delete != -1) {
-                    dbManager->deleteCounterparty(counterparty_id_to_delete);
-                    RefreshData();
-                    selectedCounterparty = Counterparty{};
-                    originalCounterparty = Counterparty{};
-                }
-                counterparty_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
+        if (CustomWidgets::ConfirmationModal(
+                "Подтверждение удаления контрагенты", "Подтверждение удаления",
+                "Вы уверены, что хотите удалить этого контрагента?\nЭто "
+                "действие нельзя отменить.",
+                "Да", "Нет", show_delete_popup)) {
+            std::cout << "удаление";
+            if (dbManager && counterparty_id_to_delete != -1) {
+                dbManager->deleteCounterparty(counterparty_id_to_delete);
+                RefreshData();
+                selectedCounterparty = Counterparty{};
+                originalCounterparty = Counterparty{};
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                counterparty_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
+            counterparty_id_to_delete = -1;
         }
 
         ImGui::Separator();

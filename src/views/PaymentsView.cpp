@@ -305,65 +305,30 @@ void PaymentsView::Render() {
         }
 
         // --- Delete Confirmation Popups ---
-        if (show_delete_payment_popup) {
-            ImGui::OpenPopup("Подтверждение удаления");
-        }
-        if (ImGui::BeginPopupModal("Подтверждение удаления",
-                                   &show_delete_payment_popup,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить этот платеж?\nЭто "
-                        "действие нельзя отменить.");
-            ImGui::Separator();
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (dbManager && payment_id_to_delete != -1) {
-                    dbManager->deletePayment(payment_id_to_delete);
-                    RefreshData();
-                    selectedPayment = Payment{};
-                    originalPayment = Payment{};
-                    descriptionBuffer.clear();
-                    paymentDetails.clear();
-                    isDirty = false;
-                }
-                payment_id_to_delete = -1;
-                show_delete_payment_popup = false;
-                ImGui::CloseCurrentPopup();
+        if (CustomWidgets::ConfirmationModal("Подтверждение удаления", "Подтверждение удаления", "Вы уверены, что хотите удалить этот платеж?\nЭто действие нельзя отменить.", "Да", "Нет", show_delete_payment_popup)) {
+            if (dbManager && payment_id_to_delete != -1) {
+                dbManager->deletePayment(payment_id_to_delete);
+                RefreshData();
+                selectedPayment = Payment{};
+                originalPayment = Payment{};
+                descriptionBuffer.clear();
+                paymentDetails.clear();
+                isDirty = false;
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                payment_id_to_delete = -1;
-                show_delete_payment_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
+            payment_id_to_delete = -1;
         }
 
-        if (show_group_delete_popup) {
-            ImGui::OpenPopup("Удалить все расшифровки?");
-        }
-        if (ImGui::BeginPopupModal("Удалить все расшифровки?",
-                                   &show_group_delete_popup,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text(
-                "Вы уверены, что хотите удалить расшифровки для %zu платежей?",
-                m_filtered_payments.size());
-            ImGui::Separator();
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (!m_filtered_payments.empty() && current_operation == NONE) {
-                    items_to_process = m_filtered_payments;
-                    processed_items = 0;
-                    current_operation = DELETE_DETAILS;
-                }
-                show_group_delete_popup = false;
-                ImGui::CloseCurrentPopup();
+        char group_delete_message[256];
+        snprintf(group_delete_message, sizeof(group_delete_message),
+                 "Вы уверены, что хотите удалить расшифровки для %zu платежей?",
+                 m_filtered_payments.size());
+
+        if (CustomWidgets::ConfirmationModal("Удалить все расшифровки?", "Удалить все расшифровки?", group_delete_message, "Да", "Нет", show_group_delete_popup)) {
+            if (!m_filtered_payments.empty() && current_operation == NONE) {
+                items_to_process = m_filtered_payments;
+                processed_items = 0;
+                current_operation = DELETE_DETAILS;
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                show_group_delete_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
         }
 
         ImGui::Separator();
@@ -994,34 +959,15 @@ void PaymentsView::Render() {
 
         // --- Расшифровка платежа ---
         ImGui::BeginChild("PaymentDetailsContainer", ImVec2(0, 0), true);
-        if (show_delete_detail_popup) {
-            ImGui::OpenPopup("Удалить расшифровку?");
-        }
-        if (ImGui::BeginPopupModal("Удалить расшифровку?",
-                                   &show_delete_detail_popup,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить эту расшифровку?");
-            ImGui::Separator();
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (dbManager && detail_id_to_delete != -1) {
-                    dbManager->deletePaymentDetail(detail_id_to_delete);
-                    paymentDetails =
-                        dbManager->getPaymentDetails(selectedPayment.id);
-                    selectedDetailIndex = -1;
-                    isDetailDirty = false;
-                }
-                detail_id_to_delete = -1;
-                show_delete_detail_popup = false;
-                ImGui::CloseCurrentPopup();
+        if (CustomWidgets::ConfirmationModal("Удалить расшифровку?", "Удалить расшифровку?", "Вы уверены, что хотите удалить эту расшифровку?", "Да", "Нет", show_delete_detail_popup)) {
+            if (dbManager && detail_id_to_delete != -1) {
+                dbManager->deletePaymentDetail(detail_id_to_delete);
+                paymentDetails =
+                    dbManager->getPaymentDetails(selectedPayment.id);
+                selectedDetailIndex = -1;
+                isDetailDirty = false;
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                detail_id_to_delete = -1;
-                show_delete_detail_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
+            detail_id_to_delete = -1;
         }
 
         ImGui::Text("Расшифровки: ");

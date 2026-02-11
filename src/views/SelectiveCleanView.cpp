@@ -1,6 +1,7 @@
 #include "views/SelectiveCleanView.h"
 #include "imgui.h"
 #include <string>
+#include "../CustomWidgets.h" // Добавлено для CustomWidgets::ConfirmationModal
 
 void SelectiveCleanView::Render() {
     if (!IsVisible) {
@@ -17,24 +18,28 @@ void SelectiveCleanView::Render() {
         currentCleanTarget = CleanTarget::Payments;
         confirmationMessage = "Вы уверены, что хотите удалить ВСЕ платежи и связанные с ними расшифровки?";
         ImGui::OpenPopup("ConfirmationModal");
+        show_confirmation_modal_internal = true;
     }
 
     if (ImGui::Button(ICON_FA_ADDRESS_BOOK " Удалить всех контрагентов")) {
         currentCleanTarget = CleanTarget::Counterparties;
         confirmationMessage = "Вы уверены, что хотите удалить ВСЕХ контрагентов? Это может нарушить целостность данных, если существуют связанные договоры или платежи.";
         ImGui::OpenPopup("ConfirmationModal");
+        show_confirmation_modal_internal = true;
     }
 
     if (ImGui::Button(ICON_FA_FILE_CONTRACT " Удалить все договоры")) {
         currentCleanTarget = CleanTarget::Contracts;
         confirmationMessage = "Вы уверены, что хотите удалить ВСЕ договоры? Это может нарушить целостность данных, если существуют связанные платежи.";
         ImGui::OpenPopup("ConfirmationModal");
+        show_confirmation_modal_internal = true;
     }
 
     if (ImGui::Button(ICON_FA_FILE_INVOICE " Удалить все накладные")) {
         currentCleanTarget = CleanTarget::Invoices;
         confirmationMessage = "Вы уверены, что хотите удалить ВСЕ накладные? Это может нарушить целостность данных, если существуют связанные платежи.";
         ImGui::OpenPopup("ConfirmationModal");
+        show_confirmation_modal_internal = true;
     }
     
     ImGui::Separator();
@@ -43,6 +48,7 @@ void SelectiveCleanView::Render() {
         currentCleanTarget = CleanTarget::OrphanDetails;
         confirmationMessage = "Будет выполнен поиск и удаление записей в таблице расшифровок, которые не связаны ни с одним платежом. Продолжить?";
         ImGui::OpenPopup("ConfirmationModal");
+        show_confirmation_modal_internal = true;
     }
 
     if (!resultMessage.empty()) {
@@ -56,36 +62,28 @@ void SelectiveCleanView::Render() {
 }
 
 void SelectiveCleanView::ShowConfirmationModal() {
-    if (ImGui::BeginPopupModal("ConfirmationModal", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::Text("%s", confirmationMessage.c_str());
-        ImGui::Separator();
-        if (ImGui::Button("Да, я уверен", ImVec2(120, 0))) {
-            bool success = false;
-            if (dbManager) {
-                switch (currentCleanTarget) {
-                    case CleanTarget::Payments:       success = dbManager->ClearPayments(); break;
-                    case CleanTarget::Counterparties: success = dbManager->ClearCounterparties(); break;
-                    case CleanTarget::Contracts:      success = dbManager->ClearContracts(); break;
-                    case CleanTarget::Invoices:       success = dbManager->ClearInvoices(); break;
-                    case CleanTarget::OrphanDetails:  success = dbManager->CleanOrphanPaymentDetails(); break;
-                    case CleanTarget::None: break;
-                }
+    if (CustomWidgets::ConfirmationModal("ConfirmationModal", "Подтверждение операции", confirmationMessage.c_str(), "Да, я уверен", "Отмена", show_confirmation_modal_internal)) {
+        bool success = false;
+        if (dbManager) {
+            switch (currentCleanTarget) {
+                case CleanTarget::Payments:       success = dbManager->ClearPayments(); break;
+                case CleanTarget::Counterparties: success = dbManager->ClearCounterparties(); break;
+                case CleanTarget::Contracts:      success = dbManager->ClearContracts(); break;
+                case CleanTarget::Invoices:       success = dbManager->ClearInvoices(); break;
+                case CleanTarget::OrphanDetails:  success = dbManager->CleanOrphanPaymentDetails(); break;
+                case CleanTarget::None: break;
             }
-            if (success) {
-                resultMessage = "Операция выполнена успешно.";
-            } else {
-                resultMessage = "Ошибка при выполнении операции.";
-            }
-            currentCleanTarget = CleanTarget::None;
-            ImGui::CloseCurrentPopup();
         }
-        ImGui::SameLine();
-        if (ImGui::Button("Отмена", ImVec2(120, 0))) {
-            resultMessage = "Операция отменена.";
-            currentCleanTarget = CleanTarget::None;
-            ImGui::CloseCurrentPopup();
+        if (success) {
+            resultMessage = "Операция выполнена успешно.";
+        } else {
+            resultMessage = "Ошибка при выполнении операции.";
         }
-        ImGui::EndPopup();
+        currentCleanTarget = CleanTarget::None;
+    } else if (!show_confirmation_modal_internal && currentCleanTarget != CleanTarget::None) {
+        // If modal was closed by "Отмена" or other means, and a target was set
+        resultMessage = "Операция отменена.";
+        currentCleanTarget = CleanTarget::None;
     }
 }
 

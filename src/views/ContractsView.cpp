@@ -9,6 +9,7 @@
 #include <sstream> // For std::ostringstream
 
 #include <cstdlib>
+#include <functional> // Добавить для std::function
 
 ContractsView::ContractsView()
     : selectedContractIndex(-1),
@@ -100,38 +101,83 @@ void ContractsView::SaveChanges() {
     isDirty = false;
 }
 
-void ContractsView::SortContracts(const ImGuiTableSortSpecs* sort_specs) {
-    std::sort(m_filtered_contracts.begin(), m_filtered_contracts.end(),
-        [&](const Contract& a, const Contract& b) {
+void ContractsView::SortContracts(const ImGuiTableSortSpecs *sort_specs) {
+    std::sort(
+        m_filtered_contracts.begin(), m_filtered_contracts.end(),
+        [&](const Contract &a, const Contract &b) {
             for (int i = 0; i < sort_specs->SpecsCount; i++) {
-                const ImGuiTableColumnSortSpecs* column_spec = &sort_specs->Specs[i];
+                const ImGuiTableColumnSortSpecs *column_spec =
+                    &sort_specs->Specs[i];
                 int delta = 0;
 
                 auto get_cp_name = [&](int cp_id) {
-                    for (const auto& cp : counterpartiesForDropdown) {
-                        if (cp.id == cp_id) return cp.name;
+                    for (const auto &cp : counterpartiesForDropdown) {
+                        if (cp.id == cp_id)
+                            return cp.name;
                     }
                     return std::string("");
                 };
 
                 switch (column_spec->ColumnIndex) {
-                case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
-                case 1: delta = a.number.compare(b.number); break;
-                case 2: delta = a.date.compare(b.date); break;
-                case 3: delta = get_cp_name(a.counterparty_id).compare(get_cp_name(b.counterparty_id)); break;
-                case 4: delta = (a.contract_amount < b.contract_amount) ? -1 : (a.contract_amount > b.contract_amount) ? 1 : 0; break;
-                case 5: delta = (a.total_amount < b.total_amount) ? -1 : (a.total_amount > b.total_amount) ? 1 : 0; break;
-                case 6: delta = a.end_date.compare(b.end_date); break;
-                case 7: delta = a.procurement_code.compare(b.procurement_code); break;
-                case 8: delta = a.note.compare(b.note); break;
-                case 9: delta = (a.is_for_checking < b.is_for_checking) ? -1 : (a.is_for_checking > b.is_for_checking) ? 1 : 0; break;
-                case 10: delta = (a.is_for_special_control < b.is_for_special_control) ? -1 : (a.is_for_special_control > b.is_for_special_control) ? 1 : 0; break;
-                case 11: delta = (a.is_found < b.is_found) ? -1 : (a.is_found > b.is_found) ? 1 : 0; break;
-                default: break;
+                case 0:
+                    delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0;
+                    break;
+                case 1:
+                    delta = a.number.compare(b.number);
+                    break;
+                case 2:
+                    delta = a.date.compare(b.date);
+                    break;
+                case 3:
+                    delta = get_cp_name(a.counterparty_id)
+                                .compare(get_cp_name(b.counterparty_id));
+                    break;
+                case 4:
+                    delta = (a.contract_amount < b.contract_amount)   ? -1
+                            : (a.contract_amount > b.contract_amount) ? 1
+                                                                      : 0;
+                    break;
+                case 5:
+                    delta = (a.total_amount < b.total_amount)   ? -1
+                            : (a.total_amount > b.total_amount) ? 1
+                                                                : 0;
+                    break;
+                case 6:
+                    delta = a.end_date.compare(b.end_date);
+                    break;
+                case 7:
+                    delta = a.procurement_code.compare(b.procurement_code);
+                    break;
+                case 8:
+                    delta = a.note.compare(b.note);
+                    break;
+                case 9:
+                    delta = (a.is_for_checking < b.is_for_checking)   ? -1
+                            : (a.is_for_checking > b.is_for_checking) ? 1
+                                                                      : 0;
+                    break;
+                case 10:
+                    delta =
+                        (a.is_for_special_control < b.is_for_special_control)
+                            ? -1
+                        : (a.is_for_special_control > b.is_for_special_control)
+                            ? 1
+                            : 0;
+                    break;
+                case 11:
+                    delta = (a.is_found < b.is_found)   ? -1
+                            : (a.is_found > b.is_found) ? 1
+                                                        : 0;
+                    break;
+                default:
+                    break;
                 }
 
                 if (delta != 0) {
-                    return (column_spec->SortDirection == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+                    return (column_spec->SortDirection ==
+                            ImGuiSortDirection_Ascending)
+                               ? (delta < 0)
+                               : (delta > 0);
                 }
             }
             return false;
@@ -161,12 +207,12 @@ void ContractsView::ProcessGroupOperation() {
                                            contract.is_for_special_control);
             break;
         case SET_SPECIAL_CONTROL:
-            dbManager->updateContractFlags(contract.id, contract.is_for_checking,
-                                           true);
+            dbManager->updateContractFlags(contract.id,
+                                           contract.is_for_checking, true);
             break;
         case UNSET_SPECIAL_CONTROL:
-            dbManager->updateContractFlags(contract.id, contract.is_for_checking,
-                                           false);
+            dbManager->updateContractFlags(contract.id,
+                                           contract.is_for_checking, false);
             break;
         case CLEAR_PROCUREMENT_CODE:
             dbManager->updateContractProcurementCode(contract.id, "");
@@ -218,10 +264,10 @@ void ContractsView::Render() {
             } else {
                 ImGui::Text("Обработка %d из %zu...", processed_items,
                             items_to_process.size());
-                float progress =
-                    (items_to_process.empty())
-                        ? 0.0f
-                        : (float)processed_items / (float)items_to_process.size();
+                float progress = (items_to_process.empty())
+                                     ? 0.0f
+                                     : (float)processed_items /
+                                           (float)items_to_process.size();
                 ImGui::ProgressBar(progress, ImVec2(250.0f, 0.0f));
             }
             ImGui::EndPopup();
@@ -377,59 +423,40 @@ void ContractsView::Render() {
                     "BY c.date DESC;"); // Empty result
             }
         }
-        if (show_delete_popup) {
-            // destination_contract_id = -1; // Reset on popup open
-            // memset(contract_search_buffer, 0,
-            // sizeof(contract_search_buffer));
-            ImGui::OpenPopup("Подтверждение удаления##Contract");
-        }
-        if (ImGui::BeginPopupModal("Подтверждение удаления##Contract",
-                                   &show_delete_popup,
-                                   ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить этот договор?\nЭто "
-                        "действие нельзя отменить.");
-            ImGui::Separator();
 
-            ImGui::Text(
-                "Перенести расшифровки на другой договор (необязательно):");
-
-            std::vector<CustomWidgets::ComboItem> contractItems;
-            for (const auto &c : contracts) {
-                if (c.id != contract_id_to_delete) {
-                    contractItems.push_back({c.id, c.number + "  " + c.date});
-                }
-            }
-            CustomWidgets::ComboWithFilter(
-                "Новый договор##contract_transfer", destination_contract_id,
-                contractItems, contract_search_buffer,
-                sizeof(contract_search_buffer), 0);
-
-            ImGui::Separator();
-
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (dbManager && contract_id_to_delete != -1) {
-                    if (destination_contract_id != -1) {
-                        dbManager->transferPaymentDetails(
-                            contract_id_to_delete, destination_contract_id);
+        if (CustomWidgets::ConfirmationModal(
+                "Подтверждение удаления контракты", "Подтверждение удаления",
+                "Вы уверены, что хотите удалить этот договор?\nЭто действие "
+                "нельзя отменить.",
+                "Да", "Нет", show_delete_popup,
+                [&]() { // Lambda for additional content
+                    ImGui::Text("Перенести расшифровки на другой договор "
+                                "(необязательно):");
+                    std::vector<CustomWidgets::ComboItem> contractItems;
+                    for (const auto &c : contracts) {
+                        if (c.id != contract_id_to_delete) {
+                            contractItems.push_back(
+                                {c.id, c.number + "  " + c.date});
+                        }
                     }
-                    dbManager->deleteContract(contract_id_to_delete);
-                    RefreshData();
-                    selectedContract = Contract{};
-                    originalContract = Contract{};
-                    selectedContractIndex = -1; // Reset selection
+                    CustomWidgets::ComboWithFilter(
+                        "Новый договор##contract_transfer",
+                        destination_contract_id, contractItems,
+                        contract_search_buffer, sizeof(contract_search_buffer),
+                        0);
+                })) {
+            if (dbManager && contract_id_to_delete != -1) {
+                if (destination_contract_id != -1) {
+                    dbManager->transferPaymentDetails(contract_id_to_delete,
+                                                      destination_contract_id);
                 }
-                contract_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
+                dbManager->deleteContract(contract_id_to_delete);
+                RefreshData();
+                selectedContract = Contract{};
+                originalContract = Contract{};
+                selectedContractIndex = -1; // Reset selection
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                contract_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
+            contract_id_to_delete = -1;
         }
 
         ImGui::Separator();
@@ -479,9 +506,11 @@ void ContractsView::Render() {
 
         // --- Групповые операции ---
         if (ImGui::CollapsingHeader("Групповые операции")) {
-            ImGui::Text("Применить к %zu отфильтрованным договорам:", m_filtered_contracts.size());
+            ImGui::Text("Применить к %zu отфильтрованным договорам:",
+                        m_filtered_contracts.size());
             if (ImGui::Button("Установить 'Для проверки'")) {
-                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                if (!m_filtered_contracts.empty() &&
+                    current_operation == NONE) {
                     items_to_process = m_filtered_contracts;
                     processed_items = 0;
                     current_operation = SET_FOR_CHECKING;
@@ -489,14 +518,16 @@ void ContractsView::Render() {
             }
             ImGui::SameLine();
             if (ImGui::Button("Снять 'Для проверки'")) {
-                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                if (!m_filtered_contracts.empty() &&
+                    current_operation == NONE) {
                     items_to_process = m_filtered_contracts;
                     processed_items = 0;
                     current_operation = UNSET_FOR_CHECKING;
                 }
             }
             if (ImGui::Button("Установить 'Усиленный контроль'")) {
-                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                if (!m_filtered_contracts.empty() &&
+                    current_operation == NONE) {
                     items_to_process = m_filtered_contracts;
                     processed_items = 0;
                     current_operation = SET_SPECIAL_CONTROL;
@@ -504,14 +535,16 @@ void ContractsView::Render() {
             }
             ImGui::SameLine();
             if (ImGui::Button("Снять 'Усиленный контроль'")) {
-                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                if (!m_filtered_contracts.empty() &&
+                    current_operation == NONE) {
                     items_to_process = m_filtered_contracts;
                     processed_items = 0;
                     current_operation = UNSET_SPECIAL_CONTROL;
                 }
             }
             if (ImGui::Button("Очистить ИКЗ")) {
-                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                if (!m_filtered_contracts.empty() &&
+                    current_operation == NONE) {
                     items_to_process = m_filtered_contracts;
                     processed_items = 0;
                     current_operation = CLEAR_PROCUREMENT_CODE;
@@ -526,7 +559,8 @@ void ContractsView::Render() {
         if (ImGui::BeginTable("contracts_table", 12,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_Resizable |
-                                  ImGuiTableFlags_Sortable | ImGuiTableFlags_ScrollX)) {
+                                  ImGuiTableFlags_Sortable |
+                                  ImGuiTableFlags_ScrollX)) {
             ImGui::TableSetupColumn("ID", 0, 0.0f, 0);
             ImGui::TableSetupColumn("Номер", 0, 0.0f, 1);
             ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort,

@@ -1,14 +1,17 @@
-
 #include "CustomWidgets.h"
 #include "imgui.h"
 #include "imgui_internal.h" // For ImTextCharFromUtf8
-#include <algorithm>
-#include <cctype>  // For isdigit
-#include <cstring> // For strncpy
-#include <stdexcept>
-#include <string>
-#include <vector>
+#include <algorithm> // For std::remove_if, std::find_if, std::sort, std::clamp, std::replace
+#include <cctype>     // For std::isdigit
+#include <cstdio>     // For std::sprintf, std::sscanf, std::snprintf
+#include <cstring>    // For std::strncpy, std::memset
+#include <functional> // For std::function
+#include <stdexcept>  // For std::invalid_argument, std::out_of_range
+#include <string>     // For std::string, std::to_string
+#include <strings.h>  // For strcasestr, strcasecmp (POSIX specific)
+#include <vector>     // For std::vector
 
+#include <iostream>
 namespace CustomWidgets {
 // вспомогательные функции для кастомного многострочного виджета
 namespace { // Anonymous namespace for helper
@@ -308,7 +311,7 @@ bool InputDate(const char *label, std::string &date) {
 
     bool changed = false;
     const std::string pattern = "YYYY-MM-DD";
-    constexpr size_t buf_size = 11; // "YYYY-MM-DD" + null terminator
+    constexpr std::size_t buf_size = 11; // "YYYY-MM-DD" + null terminator
 
     // ImGui::TextUnformatted(label);
     // ImGui::SameLine();
@@ -320,7 +323,7 @@ bool InputDate(const char *label, std::string &date) {
 
     // 2. Подготавливаем буфер для ImGui
     char buf[buf_size];
-    strncpy(buf, date.c_str(), buf_size);
+    std::strncpy(buf, date.c_str(), buf_size);
     buf[buf_size - 1] = '\0';
 
     // 3. Отображаем поле ввода
@@ -332,13 +335,13 @@ bool InputDate(const char *label, std::string &date) {
         // Попытка распознать формат dd.mm.yyyy
         if (std::count(new_date.begin(), new_date.end(), '.') == 2) {
             int d, m, y;
-            if (sscanf(new_date.c_str(), "%d.%d.%d", &d, &m, &y) == 3) {
+            if (std::sscanf(new_date.c_str(), "%d.%d.%d", &d, &m, &y) == 3) {
                 // Простая валидация, чтобы избежать совсем неверных дат
                 if (d > 0 && d <= 31 && m > 0 && m <= 12 && y >= 1900 &&
                     y < 2200) {
                     char formatted_date[11];
-                    snprintf(formatted_date, sizeof(formatted_date),
-                             "%04d-%02d-%02d", y, m, d);
+                    std::snprintf(formatted_date, sizeof(formatted_date),
+                                  "%04d-%02d-%02d", y, m, d);
                     new_date = formatted_date;
                 }
             }
@@ -347,19 +350,19 @@ bool InputDate(const char *label, std::string &date) {
         // 4. Фильтруем ввод - оставляем только цифры и дефисы
         std::string filtered;
         for (char c : new_date) {
-            if (isdigit(c) || c == '-' || c == '_') {
+            if (std::isdigit(c) || c == '-' || c == '_') {
                 filtered.push_back(c);
             }
         }
 
         // 5. Восстанавливаем шаблон
         std::string formatted = pattern;
-        size_t digit_pos = 0;
+        std::size_t digit_pos = 0;
 
         // Заполняем цифрами
-        for (size_t i = 0; i < filtered.size() && digit_pos < pattern.size();
-             ++i) {
-            if (isdigit(filtered[i])) {
+        for (std::size_t i = 0;
+             i < filtered.size() && digit_pos < pattern.size(); ++i) {
+            if (std::isdigit(filtered[i])) {
                 while (digit_pos < pattern.size() &&
                        pattern[digit_pos] != 'Y' && pattern[digit_pos] != 'M' &&
                        pattern[digit_pos] != 'D') {
@@ -412,7 +415,7 @@ bool InputDate(const char *label, std::string &date) {
         }
 
         // 7. Заменяем незаполненные позиции
-        for (size_t i = 0; i < formatted.size(); ++i) {
+        for (std::size_t i = 0; i < formatted.size(); ++i) {
             if (formatted[i] == 'Y' || formatted[i] == 'M' ||
                 formatted[i] == 'D') {
                 formatted[i] = '_';
@@ -441,7 +444,7 @@ bool InputDate(const char *label, std::string &date) {
 bool AmountInput(const char *label, double &v, const char *format,
                  ImGuiInputTextFlags flags) {
     char buf[64];
-    sprintf(buf, format, v);
+    std::sprintf(buf, format, v);
 
     // Флаг ImGuiInputTextFlags_CharsDecimal разрешает только цифры, точку и
     // знак. Нам нужно также разрешить запятую и пробелы, поэтому мы не будем
@@ -471,6 +474,43 @@ bool AmountInput(const char *label, double &v, const char *format,
         }
     }
     return false; // Возвращаем false, если значение не изменилось
+}
+
+bool ConfirmationModal(const char *label, const char *title,
+                       const char *message, const char *confirm_button_text,
+                       const char *cancel_button_text, bool &show_modal,
+                       std::function<void()> for_additional_content) {
+    bool confirmed = false;
+    // std::cout << "0";
+    if (show_modal) {
+        ImGui::PushID(label);
+        ImGui::OpenPopup(title);
+        if (ImGui::BeginPopupModal(title, &show_modal,
+                                   ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::TextWrapped("%s", message);
+            ImGui::Separator();
+
+            if (for_additional_content) {
+                for_additional_content();
+                ImGui::Separator();
+            }
+
+            if (ImGui::Button(confirm_button_text, ImVec2(120, 0))) {
+                confirmed = true;
+                show_modal = false; // Close on confirm
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button(cancel_button_text, ImVec2(120, 0))) {
+                show_modal = false; // Close on cancel
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::PopID();
+    }
+    return confirmed;
 }
 
 } // namespace CustomWidgets

@@ -16,9 +16,7 @@ InvoicesView::InvoicesView()
     UpdateFilteredInvoices();
 }
 
-void InvoicesView::SetUIManager(UIManager* manager) {
-    uiManager = manager;
-}
+void InvoicesView::SetUIManager(UIManager *manager) { uiManager = manager; }
 
 void InvoicesView::SetDatabaseManager(DatabaseManager *manager) {
     dbManager = manager;
@@ -42,10 +40,10 @@ void InvoicesView::RefreshDropdownData() {
     }
 }
 
-
 std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>>
 InvoicesView::GetDataAsStrings() {
-    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контракт", "Сумма"};
+    std::vector<std::string> headers = {"ID", "Номер", "Дата", "Контракт",
+                                        "Сумма"};
     std::vector<std::vector<std::string>> rows;
     for (const auto &entry : m_filtered_invoices) {
         std::string contractNumber = "N/A";
@@ -121,10 +119,10 @@ static void SortInvoices(std::vector<Invoice> &invoices,
                                                                     : 0;
                           break;
                       case 4:
-                            delta = (a.total_amount < b.total_amount)   ? -1
-                                    : (a.total_amount > b.total_amount) ? 1
-                                                                        : 0;
-                            break;
+                          delta = (a.total_amount < b.total_amount)   ? -1
+                                  : (a.total_amount > b.total_amount) ? 1
+                                                                      : 0;
+                          break;
                       default:
                           break;
                       }
@@ -166,7 +164,8 @@ void InvoicesView::Render() {
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
             if (!isAdding && selectedInvoiceIndex != -1) {
-                invoice_id_to_delete = m_filtered_invoices[selectedInvoiceIndex].id;
+                invoice_id_to_delete =
+                    m_filtered_invoices[selectedInvoiceIndex].id;
                 show_delete_popup = true;
             }
         }
@@ -177,37 +176,25 @@ void InvoicesView::Render() {
             RefreshDropdownData();
         }
 
-        if (show_delete_popup) {
-            ImGui::OpenPopup("Подтверждение удаления##Invoice");
-        }
-        if (ImGui::BeginPopupModal("Подтверждение удаления##Invoice", &show_delete_popup, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Вы уверены, что хотите удалить эту накладную?\nЭто действие нельзя отменить.");
-            ImGui::Separator();
-            if (ImGui::Button("Да", ImVec2(120, 0))) {
-                if (dbManager && invoice_id_to_delete != -1) {
-                    dbManager->deleteInvoice(invoice_id_to_delete);
-                    RefreshData();
-                    selectedInvoice = Invoice{};
-                    originalInvoice = Invoice{};
-                    selectedInvoiceIndex = -1;
-                }
-                invoice_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
+        if (CustomWidgets::ConfirmationModal(
+                "Подтверждение удаления##Invoice", "Подтверждение удаления",
+                "Вы уверены, что хотите удалить эту накладную?\nЭто действие "
+                "нельзя отменить.",
+                "Да", "Нет", show_delete_popup)) {
+            if (dbManager && invoice_id_to_delete != -1) {
+                dbManager->deleteInvoice(invoice_id_to_delete);
+                RefreshData();
+                selectedInvoice = Invoice{};
+                originalInvoice = Invoice{};
+                selectedInvoiceIndex = -1;
             }
-            ImGui::SetItemDefaultFocus();
-            ImGui::SameLine();
-            if (ImGui::Button("Нет", ImVec2(120, 0))) {
-                invoice_id_to_delete = -1;
-                show_delete_popup = false;
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::EndPopup();
+            invoice_id_to_delete = -1;
         }
 
         ImGui::Separator();
 
-        if(ImGui::InputText("Фильтр по номеру", filterText, sizeof(filterText))) {
+        if (ImGui::InputText("Фильтр по номеру", filterText,
+                             sizeof(filterText))) {
             UpdateFilteredInvoices();
         }
         ImGui::SameLine();
@@ -241,15 +228,17 @@ void InvoicesView::Render() {
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_invoices.size());
             while (clipper.Step()) {
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
+                     ++i) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
 
                     bool is_selected = (selectedInvoiceIndex == i);
                     char label[256];
                     sprintf(label, "%d##%d", m_filtered_invoices[i].id, i);
-                    if (ImGui::Selectable(label, is_selected,
-                                          ImGuiSelectableFlags_SpanAllColumns)) {
+                    if (ImGui::Selectable(
+                            label, is_selected,
+                            ImGuiSelectableFlags_SpanAllColumns)) {
                         if (selectedInvoiceIndex != i) {
                             SaveChanges();
                             selectedInvoiceIndex = i;
@@ -258,8 +247,9 @@ void InvoicesView::Render() {
                             isAdding = false;
                             isDirty = false;
                             if (dbManager) {
-                                payment_info = dbManager->getPaymentInfoForInvoice(
-                                    selectedInvoice.id);
+                                payment_info =
+                                    dbManager->getPaymentInfoForInvoice(
+                                        selectedInvoice.id);
                             }
                         }
                     }
@@ -378,7 +368,7 @@ void InvoicesView::UpdateFilteredInvoices() {
     if (filterText[0] == '\0') {
         m_filtered_invoices = invoices;
     } else {
-        for (const auto& invoice : invoices) {
+        for (const auto &invoice : invoices) {
             if (strcasestr(invoice.number.c_str(), filterText) != nullptr) {
                 m_filtered_invoices.push_back(invoice);
             }

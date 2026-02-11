@@ -33,4 +33,5 @@ private:
     CleanTarget currentCleanTarget = CleanTarget::None;
     std::string confirmationMessage;
     std::string resultMessage;
+    bool show_confirmation_modal_internal = false;
 };
