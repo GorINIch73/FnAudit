@@ -138,6 +138,54 @@ void ContractsView::SortContracts(const ImGuiTableSortSpecs* sort_specs) {
         });
 }
 
+void ContractsView::ProcessGroupOperation() {
+    if (!dbManager || current_operation == NONE || items_to_process.empty()) {
+        show_group_operation_progress_popup = false;
+        return;
+    }
+
+    const int items_per_frame = 20;
+    int processed_in_frame = 0;
+
+    while (processed_items < items_to_process.size() &&
+           processed_in_frame < items_per_frame) {
+        const auto &contract = items_to_process[processed_items];
+
+        switch (current_operation) {
+        case SET_FOR_CHECKING:
+            dbManager->updateContractFlags(contract.id, true,
+                                           contract.is_for_special_control);
+            break;
+        case UNSET_FOR_CHECKING:
+            dbManager->updateContractFlags(contract.id, false,
+                                           contract.is_for_special_control);
+            break;
+        case SET_SPECIAL_CONTROL:
+            dbManager->updateContractFlags(contract.id, contract.is_for_checking,
+                                           true);
+            break;
+        case UNSET_SPECIAL_CONTROL:
+            dbManager->updateContractFlags(contract.id, contract.is_for_checking,
+                                           false);
+            break;
+        case NONE: // Should not happen
+            break;
+        }
+
+        processed_items++;
+        processed_in_frame++;
+    }
+
+    if (processed_items >= items_to_process.size()) {
+        // Operation finished
+        current_operation = NONE;
+        processed_items = 0;
+        items_to_process.clear();
+        show_group_operation_progress_popup = false;
+        RefreshData(); // Refresh to reflect changes
+    }
+}
+
 void ContractsView::Render() {
     if (!IsVisible) {
         if (isDirty) {
@@ -146,7 +194,35 @@ void ContractsView::Render() {
         return;
     }
 
+    // Handle chunked group operation processing
+    if (current_operation != NONE) {
+        ProcessGroupOperation();
+        show_group_operation_progress_popup = true;
+    }
+
     if (ImGui::Begin(GetTitle(), &IsVisible)) {
+
+        // --- Progress Bar Popup ---
+        if (show_group_operation_progress_popup && current_operation != NONE) {
+            ImGui::OpenPopup("Выполнение групповой операции...");
+        }
+        if (ImGui::BeginPopupModal("Выполнение групповой операции...", NULL,
+                                   ImGuiWindowFlags_AlwaysAutoResize |
+                                       ImGuiWindowFlags_NoMove)) {
+            if (current_operation == NONE) { // Operation finished
+                show_group_operation_progress_popup = false;
+                ImGui::CloseCurrentPopup();
+            } else {
+                ImGui::Text("Обработка %d из %zu...", processed_items,
+                            items_to_process.size());
+                float progress =
+                    (items_to_process.empty())
+                        ? 0.0f
+                        : (float)processed_items / (float)items_to_process.size();
+                ImGui::ProgressBar(progress, ImVec2(250.0f, 0.0f));
+            }
+            ImGui::EndPopup();
+        }
 
         if (dbManager && contracts.empty()) {
             RefreshData();
@@ -397,6 +473,42 @@ void ContractsView::Render() {
         if (filter_changed) {
             UpdateFilteredContracts();
         }
+
+        // --- Групповые операции ---
+        if (ImGui::CollapsingHeader("Групповые операции")) {
+            ImGui::Text("Применить к %zu отфильтрованным договорам:", m_filtered_contracts.size());
+            if (ImGui::Button("Установить 'Для проверки'")) {
+                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_contracts;
+                    processed_items = 0;
+                    current_operation = SET_FOR_CHECKING;
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Снять 'Для проверки'")) {
+                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_contracts;
+                    processed_items = 0;
+                    current_operation = UNSET_FOR_CHECKING;
+                }
+            }
+            if (ImGui::Button("Установить 'Усиленный контроль'")) {
+                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_contracts;
+                    processed_items = 0;
+                    current_operation = SET_SPECIAL_CONTROL;
+                }
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Снять 'Усиленный контроль'")) {
+                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_contracts;
+                    processed_items = 0;
+                    current_operation = UNSET_SPECIAL_CONTROL;
+                }
+            }
+        }
+        ImGui::Separator();
 
         // Таблица со списком
         ImGui::BeginChild("ContractsList", ImVec2(0, list_view_height), true,

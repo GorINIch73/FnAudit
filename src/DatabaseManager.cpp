@@ -791,6 +791,30 @@ bool DatabaseManager::deleteContract(int id) {
     return true;
 }
 
+bool DatabaseManager::updateContractFlags(int contract_id, bool is_for_checking, bool is_for_special_control) {
+    if (!db) return false;
+
+    std::string sql = "UPDATE Contracts SET is_for_checking = ?, is_for_special_control = ? WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for updateContractFlags: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, is_for_checking ? 1 : 0);
+    sqlite3_bind_int(stmt, 2, is_for_special_control ? 1 : 0);
+    sqlite3_bind_int(stmt, 3, contract_id);
+
+    rc = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (rc != SQLITE_DONE) {
+        std::cerr << "Failed to update contract flags: " << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    return true;
+}
+
 void DatabaseManager::transferPaymentDetails(int from_contract_id,
                                              int to_contract_id) {
     if (!db)

@@ -51,4 +51,17 @@ private:
     void SortContracts(const struct ImGuiTableSortSpecs* sort_specs);
     std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
     UIManager* uiManager = nullptr;
+
+    enum GroupOperationType {
+        NONE,
+        SET_FOR_CHECKING,
+        UNSET_FOR_CHECKING,
+        SET_SPECIAL_CONTROL,
+        UNSET_SPECIAL_CONTROL
+    };
+    GroupOperationType current_operation = NONE;
+    int processed_items = 0;
+    std::vector<Contract> items_to_process;
+    bool show_group_operation_progress_popup = false;
+    void ProcessGroupOperation();
 };

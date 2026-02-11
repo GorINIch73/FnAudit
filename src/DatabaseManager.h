@@ -50,6 +50,7 @@ public:
     int updateContractProcurementCode(const std::string& number, const std::string& date, const std::string& procurement_code);
     std::vector<Contract> getContracts();
     bool updateContract(const Contract& contract);
+    bool updateContractFlags(int contract_id, bool is_for_checking, bool is_for_special_control);
     bool deleteContract(int id);
     void transferPaymentDetails(int from_contract_id, int to_contract_id);
     std::vector<ContractPaymentInfo> getPaymentInfoForContract(int contract_id);
