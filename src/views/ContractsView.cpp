@@ -509,6 +509,7 @@ void ContractsView::Render() {
                                       "Для проверки",
                                       "Усиленный контроль",
                                       "С примечанием",
+                                      "С ИКЗ",
                                       "Подозрительное в платежах",
                                       "Ненайденные"};
         if (ImGui::Combo("Фильтр по статусу", &contract_filter_index,
@@ -953,7 +954,14 @@ void ContractsView::UpdateFilteredContracts() {
             }
         }
         break;
-    case 4: // Подозрительное в платежах
+    case 4: // С ИКЗ
+        for (const auto &contract : text_filtered_contracts) {
+            if (!contract.procurement_code.empty()) {
+                m_filtered_contracts.push_back(contract);
+            }
+        }
+        break;
+    case 5: // Подозрительное в платежах
         for (const auto &contract : text_filtered_contracts) {
             bool payment_has_suspicious = false;
             auto it = m_contract_details_map.find(contract.id);
@@ -975,7 +983,7 @@ void ContractsView::UpdateFilteredContracts() {
             }
         }
         break;
-    case 5: // Ненайденные
+    case 6: // Ненайденные
         for (const auto &contract : text_filtered_contracts) {
             if (contract.is_for_checking && !contract.is_found) {
                 m_filtered_contracts.push_back(contract);
