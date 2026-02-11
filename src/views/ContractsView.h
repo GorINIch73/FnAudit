@@ -57,7 +57,8 @@ private:
         SET_FOR_CHECKING,
         UNSET_FOR_CHECKING,
         SET_SPECIAL_CONTROL,
-        UNSET_SPECIAL_CONTROL
+        UNSET_SPECIAL_CONTROL,
+        CLEAR_PROCUREMENT_CODE
     };
     GroupOperationType current_operation = NONE;
     int processed_items = 0;

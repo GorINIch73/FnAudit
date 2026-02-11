@@ -168,6 +168,9 @@ void ContractsView::ProcessGroupOperation() {
             dbManager->updateContractFlags(contract.id, contract.is_for_checking,
                                            false);
             break;
+        case CLEAR_PROCUREMENT_CODE:
+            dbManager->updateContractProcurementCode(contract.id, "");
+            break;
         case NONE: // Should not happen
             break;
         }
@@ -505,6 +508,13 @@ void ContractsView::Render() {
                     items_to_process = m_filtered_contracts;
                     processed_items = 0;
                     current_operation = UNSET_SPECIAL_CONTROL;
+                }
+            }
+            if (ImGui::Button("Очистить ИКЗ")) {
+                if (!m_filtered_contracts.empty() && current_operation == NONE) {
+                    items_to_process = m_filtered_contracts;
+                    processed_items = 0;
+                    current_operation = CLEAR_PROCUREMENT_CODE;
                 }
             }
         }
