@@ -15,7 +15,8 @@ ContractsView::ContractsView()
     : selectedContractIndex(-1),
       showEditModal(false),
       isAdding(false),
-      isDirty(false) {
+      isDirty(false),
+      cancel_group_operation(false) {
     Title = "Справочник 'Договоры'";
     memset(filterText, 0, sizeof(filterText));
     memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
@@ -195,6 +196,17 @@ void ContractsView::ProcessGroupOperation() {
 
     while (processed_items < items_to_process.size() &&
            processed_in_frame < items_per_frame) {
+        // Check for cancellation
+        if (cancel_group_operation) {
+            current_operation = NONE;
+            processed_items = 0;
+            items_to_process.clear();
+            show_group_operation_progress_popup = false;
+            cancel_group_operation = false; // Reset the flag
+            RefreshData(); // Refresh to reflect any partial changes
+            return; // Exit early
+        }
+
         const auto &contract = items_to_process[processed_items];
 
         switch (current_operation) {
@@ -231,6 +243,7 @@ void ContractsView::ProcessGroupOperation() {
         processed_items = 0;
         items_to_process.clear();
         show_group_operation_progress_popup = false;
+        cancel_group_operation = false; // Reset the flag
         RefreshData(); // Refresh to reflect changes
     }
 }
@@ -269,6 +282,11 @@ void ContractsView::Render() {
                                      : (float)processed_items /
                                            (float)items_to_process.size();
                 ImGui::ProgressBar(progress, ImVec2(250.0f, 0.0f));
+
+                if (ImGui::Button("Отмена")) {
+                    cancel_group_operation = true;
+                    // No need to close popup here, ProcessGroupOperation will handle it on next frame
+                }
             }
             ImGui::EndPopup();
         }
@@ -530,6 +548,7 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
+                        this->cancel_group_operation = false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = SET_FOR_CHECKING;
@@ -542,6 +561,7 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
+                        this->cancel_group_operation = false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = UNSET_FOR_CHECKING;
@@ -553,6 +573,7 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
+                        this->cancel_group_operation = false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = SET_SPECIAL_CONTROL;
@@ -565,6 +586,7 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
+                        this->cancel_group_operation = false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = UNSET_SPECIAL_CONTROL;
@@ -576,6 +598,7 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
+                        this->cancel_group_operation = false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = CLEAR_PROCUREMENT_CODE;

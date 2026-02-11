@@ -69,6 +69,7 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                                           std::atomic<float> &progress,
                                           std::string &message,
                                           std::mutex &message_mutex,
+                                          std::atomic<bool> &cancel_flag,
                                           const std::string& contract_regex_str,
                                           const std::string& kosgu_regex_str,
                                           const std::string& invoice_regex_str,
@@ -107,6 +108,14 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
 
     size_t line_num = 0;
     while (std::getline(file, line)) {
+        // Check for cancellation
+        if (cancel_flag) {
+            std::lock_guard<std::mutex> lock(message_mutex);
+            message = "Импорт отменен пользователем.";
+            progress = 0.0f; // Reset progress
+            return false; // Indicate cancellation
+        }
+
         line_num++;
         progress = static_cast<float>(line_num) / total_lines;
         {

@@ -79,7 +79,8 @@ UIManager::UIManager()
     : dbManager(nullptr),
       pdfReporter(nullptr),
       importManager(nullptr),
-      window(nullptr) {
+      window(nullptr),
+      cancelImport(false) {
     LoadRecentDbPaths();
 }
 
@@ -398,6 +399,11 @@ void UIManager::Render() {
             ImGui::Text("%s", importMessage.c_str());
         }
         ImGui::ProgressBar(importProgress, ImVec2(200, 0));
+
+        // Add a Cancel button
+        if (isImporting && ImGui::Button("Отмена")) {
+            cancelImport = true;
+        }
 
         if (!isImporting) {
             ImGui::CloseCurrentPopup();

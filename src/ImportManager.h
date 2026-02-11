@@ -32,19 +32,19 @@ public:
     );
 
     // Imports payments from a TSV file using a user-defined column mapping.
-    bool ImportPaymentsFromTsv(
-        const std::string& filepath, 
-        DatabaseManager* dbManager, 
-        const ColumnMapping& mapping,
-        std::atomic<float>& progress,
-        std::string& message,
-        std::mutex& message_mutex,
-        const std::string& contract_regex,
-        const std::string& kosgu_regex,
-        const std::string& invoice_regex,
-        bool force_income_type,
-        bool is_return_import,
-        const std::string& custom_note
-    );
-
+        bool ImportPaymentsFromTsv(
+            const std::string& filepath,
+            DatabaseManager* dbManager,
+            const ColumnMapping& mapping,
+            std::atomic<float>& progress,
+            std::string& message,
+            std::mutex& message_mutex,
+            std::atomic<bool>& cancel_flag, // New parameter
+            const std::string& contract_regex,
+            const std::string& kosgu_regex,
+            const std::string& invoice_regex,
+            bool force_income_type,
+            bool is_return_import,
+            const std::string& custom_note
+        );
 };

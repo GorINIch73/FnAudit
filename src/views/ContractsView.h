@@ -2,6 +2,7 @@
 
 #include "BaseView.h"
 #include <functional>
+#include <atomic>
 #include <vector>
 #include <map>
 #include "../Contract.h"
@@ -67,5 +68,6 @@ private:
     bool show_group_operation_progress_popup = false;
     bool show_group_operation_confirmation_popup = false;
     std::function<void()> on_group_operation_confirm;
+    std::atomic<bool> cancel_group_operation;
     void ProcessGroupOperation();
 };

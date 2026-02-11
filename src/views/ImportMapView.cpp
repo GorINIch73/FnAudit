@@ -104,7 +104,12 @@ void ImportMapView::ReadPreviewData() {
     }
 }
 
-void ImportMapView::SetUIManager(UIManager *manager) { uiManager = manager; }
+void ImportMapView::SetUIManager(UIManager *manager) {
+    uiManager = manager;
+    if (uiManager) {
+        cancel_flag = &uiManager->cancelImport;
+    }
+}
 
 void ImportMapView::RefreshRegexes() {
     if (dbManager) {
@@ -322,14 +327,16 @@ void ImportMapView::Render() {
                                               ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);        ImGui::SameLine();
         ImGui::Checkbox("Возврат", &is_return_import);
         if (ImGui::Button("Импортировать")) {
-            if (dbManager && uiManager && uiManager->importManager) {
+            if (dbManager && uiManager && uiManager->importManager && cancel_flag) {
                 import_started = true;
                 uiManager->isImporting = true;
+                *cancel_flag = false; // Reset cancel flag before starting new import
                 std::thread([this]() {
                     uiManager->importManager->ImportPaymentsFromTsv(
                         importFilePath, dbManager, currentMapping,
                         uiManager->importProgress, uiManager->importMessage,
-                        uiManager->importMutex, contract_pattern_buffer,
+                        uiManager->importMutex, *(this->cancel_flag), // Pass the cancel_flag
+                        contract_pattern_buffer,
                         kosgu_pattern_buffer, invoice_pattern_buffer,
                         force_income_type, is_return_import,
                         custom_note_buffer);

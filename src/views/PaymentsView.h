@@ -119,7 +119,7 @@ private:
 
     // State for "Apply Regex" popup
     bool show_apply_regex_popup = false;
-    int regex_target = 0; // 0 for Contract, 1 for Invoice
+    int regex_target = 0; // 0 for Contract, 1 for Invoice, 2 for Kosgu
     int selected_regex_id = -1;
     std::string selected_regex_name;
     char regex_filter[128]{};

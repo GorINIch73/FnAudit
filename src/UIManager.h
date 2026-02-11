@@ -91,6 +91,7 @@ public:
     std::atomic<float> importProgress{0.0f};
     std::string importMessage;
     std::mutex importMutex;
+    std::atomic<bool> cancelImport;
 
     ImportManager* importManager = nullptr;
     ExportManager* exportManager = nullptr;

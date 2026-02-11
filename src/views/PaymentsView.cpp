@@ -305,7 +305,11 @@ void PaymentsView::Render() {
         }
 
         // --- Delete Confirmation Popups ---
-        if (CustomWidgets::ConfirmationModal("Подтверждение удаления", "Подтверждение удаления", "Вы уверены, что хотите удалить этот платеж?\nЭто действие нельзя отменить.", "Да", "Нет", show_delete_payment_popup)) {
+        if (CustomWidgets::ConfirmationModal(
+                "Подтверждение удаления", "Подтверждение удаления",
+                "Вы уверены, что хотите удалить этот платеж?\nЭто действие "
+                "нельзя отменить.",
+                "Да", "Нет", show_delete_payment_popup)) {
             if (dbManager && payment_id_to_delete != -1) {
                 dbManager->deletePayment(payment_id_to_delete);
                 RefreshData();
@@ -323,7 +327,9 @@ void PaymentsView::Render() {
                  "Вы уверены, что хотите удалить расшифровки для %zu платежей?",
                  m_filtered_payments.size());
 
-        if (CustomWidgets::ConfirmationModal("Удалить все расшифровки?", "Удалить все расшифровки?", group_delete_message, "Да", "Нет", show_group_delete_popup)) {
+        if (CustomWidgets::ConfirmationModal(
+                "Удалить все расшифровки?", "Удалить все расшифровки?",
+                group_delete_message, "Да", "Нет", show_group_delete_popup)) {
             if (!m_filtered_payments.empty() && current_operation == NONE) {
                 items_to_process = m_filtered_payments;
                 processed_items = 0;
@@ -420,12 +426,15 @@ void PaymentsView::Render() {
             ImGui::Text("Применить regex для %zu отфильтрованных платежей:",
                         m_filtered_payments.size());
             ImGui::Text("Будет обновлена первая расшифровка без установленного "
-                        "значения.");
+                        "значения.\nДля КОСГУ будет добавлена расшифровка по "
+                        "остатку если нужно.");
 
             ImGui::Separator();
             ImGui::RadioButton("Договор", &regex_target, 0);
             ImGui::SameLine();
             ImGui::RadioButton("Накладная", &regex_target, 1);
+            ImGui::SameLine();
+            ImGui::RadioButton("КОСГУ", &regex_target, 2);
             ImGui::Separator();
 
             std::vector<CustomWidgets::ComboItem> regexItems;
@@ -959,7 +968,10 @@ void PaymentsView::Render() {
 
         // --- Расшифровка платежа ---
         ImGui::BeginChild("PaymentDetailsContainer", ImVec2(0, 0), true);
-        if (CustomWidgets::ConfirmationModal("Удалить расшифровку?", "Удалить расшифровку?", "Вы уверены, что хотите удалить эту расшифровку?", "Да", "Нет", show_delete_detail_popup)) {
+        if (CustomWidgets::ConfirmationModal(
+                "Удалить расшифровку?", "Удалить расшифровку?",
+                "Вы уверены, что хотите удалить эту расшифровку?", "Да", "Нет",
+                show_delete_detail_popup)) {
             if (dbManager && detail_id_to_delete != -1) {
                 dbManager->deletePaymentDetail(detail_id_to_delete);
                 paymentDetails =
@@ -1394,63 +1406,142 @@ void PaymentsView::ProcessGroupOperation() {
                     std::regex re(it->pattern);
                     std::smatch match;
                     if (std::regex_search(payment.description, match, re) &&
-                        match.size() > 2) {
-                        std::string number = match[1].str();
-                        std::string date = match[2].str();
+                        match.size() >
+                            1) { // Changed to > 1 as KOSGU only needs 1 group
 
-                        number.erase(number.find_last_not_of(" \n\r\t") + 1);
-                        number.erase(0, number.find_first_not_of(" \n\r\t"));
-                        date.erase(date.find_last_not_of(" \n\r\t") + 1);
-                        date.erase(0, date.find_first_not_of(" \n\r\t"));
+                        if (regex_target == 2) { // Target is KOSGU
+                            std::string kosgu_code = match[1].str();
+                            kosgu_code.erase(
+                                kosgu_code.find_last_not_of(" \n\r\t") + 1);
+                            kosgu_code.erase(
+                                0, kosgu_code.find_first_not_of(" \n\r\t"));
 
-                        int id_to_set = -1;
-                        if (regex_target == 0) { // Contract
-                            id_to_set = dbManager->getContractIdByNumberDate(
-                                number, date);
-                            if (id_to_set == -1) {
-                                Contract new_contract = {
-                                    -1, number, date, payment.counterparty_id,
-                                    0.0};
+                            int kosgu_id =
+                                dbManager->getKosguIdByCode(kosgu_code);
+                            if (kosgu_id == -1) {
+                                Kosgu new_kosgu{-1, kosgu_code,
+                                                "КОСГУ " + kosgu_code};
+                                if (dbManager->addKosguEntry(new_kosgu)) {
+                                    kosgu_id =
+                                        dbManager->getKosguIdByCode(kosgu_code);
+                                }
+                            }
+
+                            if (kosgu_id != -1) {
+                                auto details =
+                                    dbManager->getPaymentDetails(payment.id);
+                                double total_existing_details_amount = 0.0;
+                                for (const auto &detail : details) {
+                                    total_existing_details_amount +=
+                                        detail.amount;
+                                }
+
+                                if (details.empty()) {
+                                    // If no details exist, add one with full
+                                    // payment amount
+                                    PaymentDetail newDetail;
+                                    newDetail.payment_id = payment.id;
+                                    newDetail.amount = payment.amount;
+                                    newDetail.kosgu_id = kosgu_id;
+                                    newDetail.contract_id = -1;
+                                    newDetail.invoice_id = -1;
+                                    dbManager->addPaymentDetail(newDetail);
+                                } else if (total_existing_details_amount <
+                                           payment.amount) {
+                                    // If details exist and sum is less than
+                                    // payment amount, add missing
+                                    double amount_to_add =
+                                        payment.amount -
+                                        total_existing_details_amount;
+                                    PaymentDetail newDetail;
+                                    newDetail.payment_id = payment.id;
+                                    newDetail.amount = amount_to_add;
+                                    newDetail.kosgu_id = kosgu_id;
+                                    newDetail.contract_id = -1;
+                                    newDetail.invoice_id = -1;
+                                    dbManager->addPaymentDetail(newDetail);
+                                } else {
+                                    // Find a detail without KOSGU and update it
+                                    bool updated_existing = false;
+                                    for (auto &detail : details) {
+                                        if (detail.kosgu_id == -1) {
+                                            detail.kosgu_id = kosgu_id;
+                                            dbManager->updatePaymentDetail(
+                                                detail);
+                                            updated_existing = true;
+                                            break;
+                                        }
+                                    }
+                                    // If all details have KOSGU, do nothing
+                                    // more for now
+                                }
+                            }
+                        } else if (match.size() >
+                                   2) { // Contract or Invoice, requires 2
+                                        // groups (number and date)
+                            std::string number = match[1].str();
+                            std::string date = match[2].str();
+
+                            number.erase(number.find_last_not_of(" \n\r\t") +
+                                         1);
+                            number.erase(0,
+                                         number.find_first_not_of(" \n\r\t"));
+                            date.erase(date.find_last_not_of(" \n\r\t") + 1);
+                            date.erase(0, date.find_first_not_of(" \n\r\t"));
+
+                            int id_to_set = -1;
+                            if (regex_target == 0) { // Contract
                                 id_to_set =
-                                    dbManager->addContract(new_contract);
+                                    dbManager->getContractIdByNumberDate(number,
+                                                                         date);
+                                if (id_to_set == -1) {
+                                    Contract new_contract = {
+                                        -1, number, date,
+                                        payment.counterparty_id, 0.0};
+                                    id_to_set =
+                                        dbManager->addContract(new_contract);
+                                }
+                            } else { // Invoice
+                                id_to_set = dbManager->getInvoiceIdByNumberDate(
+                                    number, date);
+                                if (id_to_set == -1) {
+                                    Invoice new_invoice = {-1, number, date, -1,
+                                                           0.0};
+                                    id_to_set =
+                                        dbManager->addInvoice(new_invoice);
+                                }
                             }
-                        } else { // Invoice
-                            id_to_set = dbManager->getInvoiceIdByNumberDate(
-                                number, date);
-                            if (id_to_set == -1) {
-                                Invoice new_invoice = {-1, number, date, -1,
-                                                       0.0};
-                                id_to_set = dbManager->addInvoice(new_invoice);
-                            }
-                        }
 
-                        if (id_to_set != -1) {
-                            auto details =
-                                dbManager->getPaymentDetails(payment.id);
-                            if (details.empty()) {
-                                PaymentDetail newDetail;
-                                newDetail.payment_id = payment.id;
-                                newDetail.amount = payment.amount;
-                                if (regex_target == 0)
-                                    newDetail.contract_id = id_to_set;
-                                else
-                                    newDetail.invoice_id = id_to_set;
-                                dbManager->addPaymentDetail(newDetail);
-                            } else {
-                                for (auto &detail : details) {
-                                    if (regex_target ==
-                                        0) { // Target is Contract
-                                             // if (detail.contract_id == -1) {
-                                        detail.contract_id = id_to_set;
-                                        dbManager->updatePaymentDetail(detail);
-                                        break;
-                                        // }
-                                    } else { // Target is Invoice
-                                             // if (detail.invoice_id == -1) {
-                                        detail.invoice_id = id_to_set;
-                                        dbManager->updatePaymentDetail(detail);
-                                        break;
-                                        // }
+                            if (id_to_set != -1) {
+                                auto details =
+                                    dbManager->getPaymentDetails(payment.id);
+                                if (details.empty()) {
+                                    PaymentDetail newDetail;
+                                    newDetail.payment_id = payment.id;
+                                    newDetail.amount = payment.amount;
+                                    if (regex_target == 0)
+                                        newDetail.contract_id = id_to_set;
+                                    else
+                                        newDetail.invoice_id = id_to_set;
+                                    dbManager->addPaymentDetail(newDetail);
+                                } else {
+                                    for (auto &detail : details) {
+                                        if (regex_target ==
+                                            0) { // Target is Contract
+                                            if (detail.contract_id == -1) {
+                                                detail.contract_id = id_to_set;
+                                                dbManager->updatePaymentDetail(
+                                                    detail);
+                                                break;
+                                            }
+                                        } else { // Target is Invoice
+                                            if (detail.invoice_id == -1) {
+                                                detail.invoice_id = id_to_set;
+                                                dbManager->updatePaymentDetail(
+                                                    detail);
+                                                break;
+                                            }
+                                        }
                                     }
                                 }
                             }

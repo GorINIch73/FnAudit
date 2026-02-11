@@ -6,6 +6,7 @@
 #include <map>
 #include "../Regex.h"
 #include <regex>
+#include <atomic>
 
 // Forward declaration
 class UIManager;
@@ -51,4 +52,5 @@ private:
     bool force_income_type = false;
     bool is_return_import = false;
     std::string custom_note_buffer;
+    std::atomic<bool>* cancel_flag = nullptr;
 };
