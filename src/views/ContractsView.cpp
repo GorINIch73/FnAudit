@@ -459,6 +459,23 @@ void ContractsView::Render() {
             contract_id_to_delete = -1;
         }
 
+        // --- Group Operation Confirmation Modal ---
+        if (CustomWidgets::ConfirmationModal(
+                "Подтверждение групповой операции",
+                "Подтверждение операции",
+                ("Вы уверены, что хотите применить эту операцию ко всем " +
+                 std::to_string(m_filtered_contracts.size()) +
+                 " отфильтрованным договорам? Это действие может быть "
+                 "необратимым.")
+                    .c_str(),
+                "Да", "Нет", show_group_operation_confirmation_popup)) {
+            if (this->on_group_operation_confirm) {
+                this->on_group_operation_confirm();
+            }
+            // Reset the flag after handling the confirmation
+            show_group_operation_confirmation_popup = false;
+        }
+
         ImGui::Separator();
 
         bool filter_changed = false;
@@ -511,43 +528,58 @@ void ContractsView::Render() {
             if (ImGui::Button("Установить 'Для проверки'")) {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
-                    items_to_process = m_filtered_contracts;
-                    processed_items = 0;
-                    current_operation = SET_FOR_CHECKING;
+                    this->on_group_operation_confirm = [this]() {
+                        this->items_to_process = this->m_filtered_contracts;
+                        this->processed_items = 0;
+                        this->current_operation = SET_FOR_CHECKING;
+                    };
+                    show_group_operation_confirmation_popup = true;
                 }
             }
             ImGui::SameLine();
             if (ImGui::Button("Снять 'Для проверки'")) {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
-                    items_to_process = m_filtered_contracts;
-                    processed_items = 0;
-                    current_operation = UNSET_FOR_CHECKING;
+                    this->on_group_operation_confirm = [this]() {
+                        this->items_to_process = this->m_filtered_contracts;
+                        this->processed_items = 0;
+                        this->current_operation = UNSET_FOR_CHECKING;
+                    };
+                    show_group_operation_confirmation_popup = true;
                 }
             }
             if (ImGui::Button("Установить 'Усиленный контроль'")) {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
-                    items_to_process = m_filtered_contracts;
-                    processed_items = 0;
-                    current_operation = SET_SPECIAL_CONTROL;
+                    this->on_group_operation_confirm = [this]() {
+                        this->items_to_process = this->m_filtered_contracts;
+                        this->processed_items = 0;
+                        this->current_operation = SET_SPECIAL_CONTROL;
+                    };
+                    show_group_operation_confirmation_popup = true;
                 }
             }
             ImGui::SameLine();
             if (ImGui::Button("Снять 'Усиленный контроль'")) {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
-                    items_to_process = m_filtered_contracts;
-                    processed_items = 0;
-                    current_operation = UNSET_SPECIAL_CONTROL;
+                    this->on_group_operation_confirm = [this]() {
+                        this->items_to_process = this->m_filtered_contracts;
+                        this->processed_items = 0;
+                        this->current_operation = UNSET_SPECIAL_CONTROL;
+                    };
+                    show_group_operation_confirmation_popup = true;
                 }
             }
             if (ImGui::Button("Очистить ИКЗ")) {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
-                    items_to_process = m_filtered_contracts;
-                    processed_items = 0;
-                    current_operation = CLEAR_PROCUREMENT_CODE;
+                    this->on_group_operation_confirm = [this]() {
+                        this->items_to_process = this->m_filtered_contracts;
+                        this->processed_items = 0;
+                        this->current_operation = CLEAR_PROCUREMENT_CODE;
+                    };
+                    show_group_operation_confirmation_popup = true;
                 }
             }
         }

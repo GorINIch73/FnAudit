@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BaseView.h"
+#include <functional>
 #include <vector>
 #include <map>
 #include "../Contract.h"
@@ -64,5 +65,7 @@ private:
     int processed_items = 0;
     std::vector<Contract> items_to_process;
     bool show_group_operation_progress_popup = false;
+    bool show_group_operation_confirmation_popup = false;
+    std::function<void()> on_group_operation_confirm;
     void ProcessGroupOperation();
 };
