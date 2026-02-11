@@ -1,34 +1,61 @@
-# Financial Audit Application
+# Приложение для Финансового Аудита
 
-This is a C++ application for financial auditing of a public sector organization. It uses ImGui for the graphical user interface and SQLite3 for database management.
+Это настольное приложение на C++ для финансового аудита организаций государственного сектора. Оно использует библиотеку ImGui для графического пользовательского интерфейса и SQLite3 для управления базой данных.
 
-## Features Implemented:
-*   **KOSGU Management:** CRUD operations for KOSGU entries.
-*   **Payments Management:** Add, Update, Delete functionality for payment records. Automatic date pre-filling for new entries.
-*   **Counterparties Management:** CRUD operations for Counterparty entries. Robust import logic handles name-only lookups and NULL INN values.
-*   **TSV Import:** Enhanced import functionality from TSV files. It parses payment details, automatically creates/updates Counterparties, and extracts/links Contracts and Invoices from payment descriptions.
-*   **PDF Reporting:** Basic PDF generation for KOSGU, SQL query results, and Payments.
-*   **SQL Query Runner:** A tool to execute arbitrary SQL SELECT queries and display results.
+## Возможности:
 
-## Build Instructions:
-This project uses CMake.
-1.   `mkdir build`  `cd build`
-2.   `cmake .. `
-3.   `cd ..`
-4.   `cmake --build build/ `
+*   **Управление КОСГУ:** Операции создания, чтения, обновления и удаления (CRUD) для записей КОСГУ.
+*   **Управление Платежами:** Функционал добавления, обновления и удаления записей платежей. Автоматическое предзаполнение даты для новых записей.
+*   **Управление Контрагентами:** Операции CRUD для записей контрагентов. Надежная логика импорта обрабатывает поиск только по имени и значения ИНН NULL.
+*   **Импорт из TSV:** Расширенная функциональность импорта из файлов TSV. Анализирует детали платежей, автоматически создает/обновляет контрагентов, извлекает/связывает договоры и накладные из описаний платежей. **Включает возможность прерывания длительных операций импорта.**
+*   **Групповые операции (Договоры):**
+    *   **Подтверждение операций:** Использует кастомный виджет подтверждения для групповых операций.
+    *   **Фильтр "с ИКЗ":** Добавлен новый фильтр для отображения договоров с проставленным идентификатором закупки (ИКЗ).
+    *   **Прерывание длительных операций:** Возможность отмены групповых операций.
+*   **Групповые операции (Платежи):**
+    *   **Расширенная операция "Определить по regex и проставить":** Добавлена возможность автоматического добавления/обновления расшифровок платежей с КОСГУ на основе регулярных выражений, если поле КОСГУ пустое. Правила добавления соответствуют логике импорта.
+*   **PDF-отчетность:** Базовая генерация PDF для КОСГУ, результатов SQL-запросов и платежей.
+*   **Выполнение SQL-запросов:** Инструмент для выполнения произвольных SQL SELECT-запросов и отображения результатов. **Включает возможность сортировки результатов по заголовкам столбцов.**
 
-## Running the Application:
- `build/FinancialAudit`
+## Инструкции по сборке:
 
-## Install Application
+Проект использует CMake.
 
- `sudo cmake --install build `
+1.  Создайте директорию для сборки и перейдите в нее:
+    ```bash
+    mkdir build
+    cd build
+    ```
+2.  Сконфигурируйте проект с CMake:
+    ```bash
+    cmake ..
+    ```
+3.  Выполните сборку:
+    ```bash
+    cmake --build .
+    ```
 
-## Current Development Status:
-*   Payments Form (including filters, group operations, and regex processing) - **Completed**
-*   KOSGU Form (including filters and performance optimizations) - **Completed**
-*   PDF Export for Payments, KOSGU, SQL Query - **Completed**
-*   Counterparties CRUD UI (including robust import logic) - **Completed**
-*   TSV Import (parsing Contracts and Invoices from description) - **Completed**
-*   Contracts CRUD UI - **Completed**
-*   Invoices CRUD UI - **Completed**
+## Запуск приложения:
+
+После успешной сборки исполняемый файл будет находиться в директории `build`.
+```bash
+build/FinancialAudit
+```
+
+## Установка приложения (необязательно):
+
+```bash
+sudo cmake --install build
+```
+
+## Текущий статус разработки:
+
+*   Форма "Платежи" (включая фильтры, групповые операции и обработку regex) - **Завершено**
+*   Форма "КОСГУ" (включая фильтры и оптимизацию производительности) - **Завершено**
+*   Экспорт в PDF для Платежей, КОСГУ, SQL-запросов - **Завершено**
+*   Пользовательский интерфейс CRUD для контрагентов (включая надежную логику импорта) - **Завершено**
+*   Импорт TSV (анализ договоров и накладных из описания) - **Завершено**
+*   Пользовательский интерфейс CRUD для договоров - **Завершено**
+*   Пользовательский интерфейс CRUD для накладных - **Завершено**
+*   Сортировка результатов в произвольных SQL-запросах - **Завершено**
+*   Прерывание длительных операций (групповые операции, импорт) - **Завершено**
