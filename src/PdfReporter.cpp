@@ -1,8 +1,11 @@
 #include "PdfReporter.h"
+#include "Settings.h" // Added for Settings
+#include "ExportManager.h" // Added for ContractExportData
 #include <iostream>
 #include <iomanip> // For std::fixed, std::setprecision
 #include <algorithm> // For std::max
 #include <cstring>   // For strncpy
+#include <vector>
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,11 +15,6 @@ extern "C" {
 }
 #endif
 
-#include "PdfReporter.h"
-#include <iostream>
-#include <iomanip> // For std::fixed, std::setprecision
-#include <algorithm> // For std::max
-#include <cstring>   // For strncpy
 #include <cstdint>   // For uint32_t
 
 PdfReporter::PdfReporter() {}
@@ -181,17 +179,19 @@ bool PdfReporter::generatePdfFromTable(
         }
 
         float cell_x = margin_x;
-        float max_cell_height = table_row_height; // Assume single line for now
+        float max_cell_height = 0.0f; // Initialize to 0.0f
         
         // Find max height needed for this row
         for(size_t i = 0; i < row.size(); ++i) {
              if (i < column_widths.size()) {
                 float text_height = 0.0f;
-                // Temporarily calculate text height without writing
-                pdf_add_text_wrap(pdf, nullptr, row[i].c_str(), font_size_text, 0, 0, 0, (uint32_t)0x000000, column_widths[i] - padding * 2, PDF_ALIGN_NO_WRITE, &text_height);
-                max_cell_height = std::max(max_cell_height, text_height + padding * 2);
+                // Temporarily calculate text height without writing, using current 'page'
+                // This is crucial for accurate multi-line height calculation
+                pdf_add_text_wrap(pdf, page, row[i].c_str(), font_size_text, 0, 0, 0, (uint32_t)0x000000, column_widths[i] - padding * 2, PDF_ALIGN_NO_WRITE, &text_height);
+                max_cell_height = std::max(max_cell_height, text_height);
              }
         }
+        max_cell_height += padding * 2; // Add padding after finding max text height
         
         // Draw row content
         for (size_t i = 0; i < row.size(); ++i) {
@@ -217,3 +217,39 @@ bool PdfReporter::generatePdfFromTable(
     std::cout << "PDF report '" << filename << "' generated successfully." << std::endl;
     return true;
 }
+
+bool PdfReporter::generateContractsReport(const std::string& filename, const Settings& settings, const std::vector<ContractExportData>& contracts) {
+    std::string report_title = settings.organization_name;
+    if (!settings.period_start_date.empty() || !settings.period_end_date.empty()) {
+        report_title += "\nПериод проверки: ";
+        if (!settings.period_start_date.empty()) {
+            report_title += settings.period_start_date;
+        }
+        if (!settings.period_start_date.empty() && !settings.period_end_date.empty()) {
+            report_title += " - ";
+        }
+        if (!settings.period_end_date.empty()) {
+            report_title += settings.period_end_date;
+        }
+    }
+    report_title += "\nОтчет по договорам для проверки";
+
+    std::vector<std::string> columns = {
+        "№ Договора", "Дата Договора", "Контрагент", "КОСГУ", "Примечание", "ИКЗ"
+    };
+
+    std::vector<std::vector<std::string>> rows;
+    for (const auto& contract : contracts) {
+        rows.push_back({
+            contract.contract_number,
+            contract.contract_date,
+            contract.counterparty_name,
+            contract.kosgu_codes,
+            contract.note,
+            contract.procurement_code
+        });
+    }
+
+    return generatePdfFromTable(filename, report_title, columns, rows);
+}
+

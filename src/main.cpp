@@ -172,6 +172,9 @@ int main(int, char **) {
                     ImGuiFileDialog::Instance()->OpenDialog(
                         "SavePdfFileDlgKey", "Сохранить отчет в PDF", ".pdf");
                 }
+                if (ImGui::MenuItem(ICON_FA_FILE_CONTRACT " Договоры для проверки (PDF)")) {
+                    uiManager.ExportContractsForCheckingPdf();
+                }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(ICON_FA_GEAR " Сервис")) {

@@ -457,6 +457,32 @@ void UIManager::ExportRegexes(const std::string& path) {
     }
 }
 
+void UIManager::ExportContractsForCheckingPdf() {
+    if (!dbManager || !pdfReporter) {
+        std::cerr << "DatabaseManager or PdfReporter not set." << std::endl;
+        return;
+    }
+
+    Settings settings = dbManager->getSettings();
+    std::vector<ContractExportData> contracts = dbManager->getContractsForExport();
+
+    std::string filename = "contracts.pdf";
+    if (pdfReporter->generateContractsReport(filename, settings, contracts)) {
+        // Open the generated PDF with the default system viewer
+        std::string command = "xdg-open " + filename + " &";
+        std::cout << "Attempting to open PDF with command: " << command << std::endl;
+        // On Linux, xdg-open is common. On macOS, 'open', on Windows 'start'
+        // For a cross-platform solution, a more robust approach would be needed.
+        // For now, assuming xdg-open for Linux environment.
+        int result = std::system(command.c_str());
+        if (result != 0) {
+            std::cerr << "Failed to open PDF with xdg-open. Error code: " << result << std::endl;
+        }
+    } else {
+        std::cerr << "Failed to generate contracts PDF report." << std::endl;
+    }
+}
+
 #include <sstream>
 
 // Function to parse a single CSV line

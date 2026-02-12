@@ -53,6 +53,7 @@ public:
     void ExportKosgu(const std::string& path);
     void ExportSuspiciousWords(const std::string& path);
     void ExportRegexes(const std::string& path);
+    void ExportContractsForCheckingPdf();
     void ImportKosgu(const std::string& path);
     void ImportSuspiciousWords(const std::string& path);
     void ImportRegexes(const std::string& path);

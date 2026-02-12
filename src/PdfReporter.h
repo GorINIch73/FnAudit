@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include "Settings.h"         // Added missing include
+#include "ExportManager.h"    // Added missing include
 
 class PdfReporter {
 public:
@@ -14,4 +16,6 @@ public:
         const std::vector<std::string>& columns,
         const std::vector<std::vector<std::string>>& rows
     );
+
+    bool generateContractsReport(const std::string& filename, const Settings& settings, const std::vector<ContractExportData>& contracts);
 };
