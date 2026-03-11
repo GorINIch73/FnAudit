@@ -30,6 +30,7 @@ private:
     bool show_delete_popup = false;
     int kosgu_id_to_delete = -1;
     std::vector<ContractPaymentInfo> payment_info;
+    std::vector<ContractPaymentInfo> m_filtered_payment_info;
     char filterText[256];
     
     std::vector<Kosgu> m_filtered_kosgu_entries;

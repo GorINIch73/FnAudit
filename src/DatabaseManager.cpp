@@ -1258,9 +1258,10 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description "
+    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description, c.name "
                       "FROM Payments p "
                       "JOIN PaymentDetails pd ON p.id = pd.payment_id "
+                      "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
                       "WHERE pd.kosgu_id = ?;";
 
     sqlite3_stmt *stmt = nullptr;
@@ -1278,6 +1279,8 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
         info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
         info.amount = sqlite3_column_double(stmt, 2);
         info.description = (const char *)sqlite3_column_text(stmt, 3);
+        const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 4);
+        info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
         results.push_back(info);
     }
 
@@ -1291,9 +1294,10 @@ std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
         return results;
 
     std::string sql =
-        "SELECT pd.kosgu_id, p.date, p.doc_number, pd.amount, p.description "
+        "SELECT pd.kosgu_id, p.date, p.doc_number, pd.amount, p.description, c.name "
         "FROM PaymentDetails pd "
         "JOIN Payments p ON pd.payment_id = p.id "
+        "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
         "WHERE pd.kosgu_id IS NOT NULL;";
 
     sqlite3_stmt *stmt = nullptr;
@@ -1313,6 +1317,8 @@ std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
         info.amount = sqlite3_column_double(stmt, 3);
         const unsigned char *desc_text = sqlite3_column_text(stmt, 4);
         info.description = desc_text ? (const char *)desc_text : "";
+        const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 5);
+        info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
         results.push_back(info);
     }
 

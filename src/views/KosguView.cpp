@@ -110,6 +110,8 @@ void KosguView::UpdateFilteredKosgu() {
                             nullptr ||
                         strcasestr(detail.doc_number.c_str(), filterText) !=
                             nullptr ||
+                        strcasestr(detail.counterparty_name.c_str(), filterText) !=
+                            nullptr ||
                         strcasestr(detail.description.c_str(), filterText) !=
                             nullptr) {
                         detail_match = true;
@@ -215,6 +217,55 @@ static void SortKosgu(std::vector<Kosgu> &kosguEntries,
                   return false;
               });
 }
+
+static std::string ConvertDateForSort(const std::string& date) {
+    if (date.length() == 10 && date[2] == '.' && date[5] == '.') {
+        return date.substr(6, 4) + "." + date.substr(3, 2) + "." + date.substr(0, 2);
+    }
+    return date;
+}
+
+// Вспомогательная функция для сортировки
+static void SortPaymentInfo(std::vector<ContractPaymentInfo> &paymentInfo,
+                      const ImGuiTableSortSpecs *sort_specs) {
+    std::sort(paymentInfo.begin(), paymentInfo.end(),
+              [&](const ContractPaymentInfo &a, const ContractPaymentInfo &b) {
+                  for (int i = 0; i < sort_specs->SpecsCount; i++) {
+                      const ImGuiTableColumnSortSpecs *column_spec =
+                          &sort_specs->Specs[i];
+                      int delta = 0;
+                      switch (column_spec->ColumnIndex) {
+                      case 0:
+                          delta = ConvertDateForSort(a.date).compare(ConvertDateForSort(b.date));
+                          break;
+                      case 1:
+                          delta = a.doc_number.compare(b.doc_number);
+                          break;
+                      case 2:
+                          delta = (a.amount < b.amount)   ? -1
+                                  : (a.amount > b.amount) ? 1
+                                                                      : 0;
+                          break;
+                      case 3:
+                          delta = a.counterparty_name.compare(b.counterparty_name);
+                          break;
+                      case 4:
+                          delta = a.description.compare(b.description);
+                          break;
+                      default:
+                          break;
+                      }
+                      if (delta != 0) {
+                          return (column_spec->SortDirection ==
+                                  ImGuiSortDirection_Ascending)
+                                     ? (delta < 0)
+                                     : (delta > 0);
+                      }
+                  }
+                  return false;
+              });
+}
+
 
 void KosguView::Render() {
     if (!IsVisible) {
@@ -351,6 +402,7 @@ void KosguView::Render() {
                                 payment_info =
                                     dbManager->getPaymentInfoForKosgu(
                                         selectedKosgu.id);
+                                filter_changed = true; 
                             }
                         }
                     }
@@ -419,68 +471,80 @@ void KosguView::Render() {
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
             ImGui::Text("Расшифровки платежей:");
 
-            std::vector<ContractPaymentInfo> details_to_show = payment_info;
-            if (m_filter_index == 3 && !suspiciousWordsForFilter.empty()) {
-                std::vector<ContractPaymentInfo> suspicious_details;
-                for (const auto &info : payment_info) {
-                    bool found = false;
-                    for (const auto &word : suspiciousWordsForFilter) {
-                        if (strcasestr(info.description.c_str(),
-                                       word.word.c_str()) != nullptr) {
-                            found = true;
-                            break;
+            if (filter_changed) {
+                std::vector<ContractPaymentInfo> details_to_show = payment_info;
+                if (m_filter_index == 3 && !suspiciousWordsForFilter.empty()) {
+                    std::vector<ContractPaymentInfo> suspicious_details;
+                    for (const auto &info : payment_info) {
+                        bool found = false;
+                        for (const auto &word : suspiciousWordsForFilter) {
+                            if (strcasestr(info.description.c_str(),
+                                           word.word.c_str()) != nullptr) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            suspicious_details.push_back(info);
                         }
                     }
-                    if (found) {
-                        suspicious_details.push_back(info);
-                    }
+                    details_to_show = suspicious_details;
                 }
-                details_to_show = suspicious_details;
-            }
 
-            std::vector<ContractPaymentInfo> filtered_payment_info;
-            if (filterText[0] != '\0') {
-                for (const auto &info : details_to_show) {
-                    bool match = false;
-                    if (strcasestr(info.date.c_str(), filterText) != nullptr ||
-                        strcasestr(info.doc_number.c_str(), filterText) !=
-                            nullptr ||
-                        strcasestr(info.description.c_str(), filterText) !=
-                            nullptr) {
-                        match = true;
+                m_filtered_payment_info.clear();
+                if (filterText[0] != '\0') {
+                    for (const auto &info : details_to_show) {
+                        bool match = false;
+                        if (strcasestr(info.date.c_str(), filterText) != nullptr ||
+                            strcasestr(info.doc_number.c_str(), filterText) !=
+                                nullptr ||
+                            strcasestr(info.counterparty_name.c_str(), filterText) !=
+                                nullptr ||
+                            strcasestr(info.description.c_str(), filterText) !=
+                                nullptr) {
+                            match = true;
+                        }
+                        char amount_str[32];
+                        snprintf(amount_str, sizeof(amount_str), "%.2f",
+                                 info.amount);
+                        if (!match &&
+                            strcasestr(amount_str, filterText) != nullptr) {
+                            match = true;
+                        }
+                        if (match) {
+                            m_filtered_payment_info.push_back(info);
+                        }
                     }
-                    char amount_str[32];
-                    snprintf(amount_str, sizeof(amount_str), "%.2f",
-                             info.amount);
-                    if (!match &&
-                        strcasestr(amount_str, filterText) != nullptr) {
-                        match = true;
-                    }
-                    if (match) {
-                        filtered_payment_info.push_back(info);
-                    }
+                } else {
+                    m_filtered_payment_info = details_to_show;
                 }
-            } else {
-                filtered_payment_info = details_to_show;
             }
 
             if (ImGui::BeginTable(
-                    "payment_details_table", 4,
+                    "payment_details_table", 5,
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                         ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollX |
-                        ImGuiTableFlags_ScrollY)) {
-                ImGui::TableSetupColumn("Дата");
+                        ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable)) {
+                ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort);
                 ImGui::TableSetupColumn("Номер док.");
                 ImGui::TableSetupColumn("Сумма");
+                ImGui::TableSetupColumn("Наименование контрагента");
                 ImGui::TableSetupColumn("Назначение");
                 ImGui::TableHeadersRow();
 
+                if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+                    if (sort_specs->SpecsDirty) {
+                        SortPaymentInfo(m_filtered_payment_info, sort_specs);
+                        sort_specs->SpecsDirty = false;
+                    }
+                }
+
                 ImGuiListClipper clipper;
-                clipper.Begin(filtered_payment_info.size());
+                clipper.Begin(m_filtered_payment_info.size());
                 while (clipper.Step()) {
                     for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
                          ++i) {
-                        const auto &info = filtered_payment_info[i];
+                        const auto &info = m_filtered_payment_info[i];
                         ImGui::TableNextRow();
                         ImGui::TableNextColumn();
                         ImGui::Text("%s", info.date.c_str());
@@ -488,6 +552,8 @@ void KosguView::Render() {
                         ImGui::Text("%s", info.doc_number.c_str());
                         ImGui::TableNextColumn();
                         ImGui::Text("%.2f", info.amount);
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", info.counterparty_name.c_str());
                         ImGui::TableNextColumn();
                         ImGui::Text("%s", info.description.c_str());
                     }
