@@ -154,12 +154,13 @@ void CounterpartiesView::UpdateFilteredCounterparties() {
             continue; // Already added, no need to check payments
         }
 
-        // Check payment descriptions
+        // Check payment descriptions and KOSGU codes
         auto it = m_counterparty_details_map.find(counterparty.id);
         if (it != m_counterparty_details_map.end()) {
             for (const auto &detail : it->second) {
                 if (strcasestr(detail.description.c_str(), filterText) !=
-                    nullptr) {
+                    nullptr ||
+                    strcasestr(detail.kosgu_code.c_str(), filterText) != nullptr) {
                     m_filtered_counterparties.push_back(counterparty);
                     break; // Found a match, move to the next counterparty
                 }
@@ -374,13 +375,14 @@ void CounterpartiesView::Render() {
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
             ImGui::Text("Расшифровки платежей:");
             if (ImGui::BeginTable(
-                    "payment_details_table", 4,
+                    "payment_details_table", 5,
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                         ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollX |
                         ImGuiTableFlags_ScrollY)) {
                 ImGui::TableSetupColumn("Дата");
                 ImGui::TableSetupColumn("Номер док.");
                 ImGui::TableSetupColumn("Сумма");
+                ImGui::TableSetupColumn("КОСГУ");
                 ImGui::TableSetupColumn("Назначение");
                 ImGui::TableHeadersRow();
 
@@ -392,6 +394,8 @@ void CounterpartiesView::Render() {
                     ImGui::Text("%s", info.doc_number.c_str());
                     ImGui::TableNextColumn();
                     ImGui::Text("%.2f", info.amount);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", info.kosgu_code.c_str());
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", info.description.c_str());
                 }

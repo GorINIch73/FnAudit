@@ -21,6 +21,7 @@ struct ContractPaymentInfo {
     double amount;
     std::string description;
     std::string counterparty_name;
+    std::string kosgu_code;
 };
 
 struct CounterpartyPaymentInfo {
@@ -29,6 +30,7 @@ struct CounterpartyPaymentInfo {
     std::string doc_number;
     double amount;
     std::string description;
+    std::string kosgu_code;
 };
 
 struct KosguPaymentDetailInfo {

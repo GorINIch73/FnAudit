@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <cmath>
+
 
 ImportManager::ImportManager() {}
 
@@ -45,7 +47,15 @@ static std::string get_value_from_row(const std::vector<std::string> &row,
 }
 
 // Helper function to convert DD.MM.YY or DD.MM.YYYY to YYYY-MM-DD
-static std::string convertDateToDBFormat(const std::string &date_str) {
+static std::string convertDateToDBFormat(const std::string &date_str_in) {
+    std::string date_str = date_str_in;
+    
+    // Удаляем время (разделители: пробел, 'T', точка с запятой и др.)
+    size_t delim_pos = date_str.find_first_of(" \tT;");
+    if (delim_pos != std::string::npos) {
+        date_str = date_str.substr(0, delim_pos);
+    }
+
     if (date_str.length() == 10 && date_str[2] == '.' &&
         date_str[5] == '.') { // DD.MM.YYYY
         return date_str.substr(6, 4) + "-" + date_str.substr(3, 2) + "-" +
@@ -163,14 +173,16 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
         if (is_return_import) {
             payment.amount *= -1;
         }
+
+        // Пропускаем строки с нулевой суммой
+        if (std::abs(payment.amount) < 0.001) {
+            continue;
+        }
         
         if (type_str_from_file.empty()) {
             payment.type = payment.recipient.empty();
         }
 
-        if (payment.date.empty() && payment.amount == 0.0) {
-            continue;
-        }
 
         Counterparty counterparty;
         if (payment.type) { // true is income
