@@ -204,7 +204,7 @@ void ContractsView::ProcessGroupOperation() {
             show_group_operation_progress_popup = false;
             cancel_group_operation = false; // Reset the flag
             RefreshData(); // Refresh to reflect any partial changes
-            return; // Exit early
+            return;        // Exit early
         }
 
         const auto &contract = items_to_process[processed_items];
@@ -244,7 +244,7 @@ void ContractsView::ProcessGroupOperation() {
         items_to_process.clear();
         show_group_operation_progress_popup = false;
         cancel_group_operation = false; // Reset the flag
-        RefreshData(); // Refresh to reflect changes
+        RefreshData();                  // Refresh to reflect changes
     }
 }
 
@@ -285,7 +285,8 @@ void ContractsView::Render() {
 
                 if (ImGui::Button("Отмена")) {
                     cancel_group_operation = true;
-                    // No need to close popup here, ProcessGroupOperation will handle it on next frame
+                    // No need to close popup here, ProcessGroupOperation will
+                    // handle it on next frame
                 }
             }
             ImGui::EndPopup();
@@ -442,6 +443,27 @@ void ContractsView::Render() {
             }
         }
 
+        ImGui::SameLine();
+        if (ImGui::Button("Итоги для акта")) { // New button for report
+            if (uiManager) {
+                std::ostringstream oss;
+                // oss << "SELECT * FROM Contracts WHERE id IN (";
+                oss << "SELECT KOSGU.code, "
+                       "ROUND(SUM(PaymentDetails.amount),2), COUNT(DISTINCT "
+                       "contracts.id) FROM PaymentDetails inner join Contracts "
+                       "on PaymentDetails.contract_id=contracts.id inner join "
+                       "KOSGU on PaymentDetails.kosgu_id=KOSGU.id inner join "
+                       "Payments on PaymentDetails.payment_id=Payments.id "
+                       "inner join Counterparties on "
+                       "Contracts.counterparty_id=Counterparties.id WHERE "
+                       "Contracts.is_found=true GROUP BY "
+                       "KOSGU.code";
+
+                uiManager->CreateSpecialQueryView("Отчет по договорам для акта",
+                                                  oss.str());
+            }
+        }
+
         if (CustomWidgets::ConfirmationModal(
                 "Подтверждение удаления контракты", "Подтверждение удаления",
                 "Вы уверены, что хотите удалить этот договор?\nЭто действие "
@@ -479,8 +501,7 @@ void ContractsView::Render() {
 
         // --- Group Operation Confirmation Modal ---
         if (CustomWidgets::ConfirmationModal(
-                "Подтверждение групповой операции",
-                "Подтверждение операции",
+                "Подтверждение групповой операции", "Подтверждение операции",
                 ("Вы уверены, что хотите применить эту операцию ко всем " +
                  std::to_string(m_filtered_contracts.size()) +
                  " отфильтрованным договорам? Это действие может быть "
@@ -523,13 +544,10 @@ void ContractsView::Render() {
 
         ImGui::SameLine();
         ImGui::PushItemWidth(combo_width);
-        const char *filter_items[] = {"Все",
-                                      "Для проверки",
-                                      "Усиленный контроль",
-                                      "С примечанием",
-                                      "С ИКЗ",
-                                      "Подозрительное в платежах",
-                                      "Ненайденные"};
+        const char *filter_items[] = {
+            "Все",           "Для проверки", "Усиленный контроль",
+            "С примечанием", "С ИКЗ",        "Подозрительное в платежах",
+            "Ненайденные"};
         if (ImGui::Combo("Фильтр по статусу", &contract_filter_index,
                          filter_items, IM_ARRAYSIZE(filter_items))) {
             filter_changed = true;
@@ -548,7 +566,8 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
-                        this->cancel_group_operation = false; // Reset cancel flag
+                        this->cancel_group_operation =
+                            false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = SET_FOR_CHECKING;
@@ -561,7 +580,8 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
-                        this->cancel_group_operation = false; // Reset cancel flag
+                        this->cancel_group_operation =
+                            false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = UNSET_FOR_CHECKING;
@@ -573,7 +593,8 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
-                        this->cancel_group_operation = false; // Reset cancel flag
+                        this->cancel_group_operation =
+                            false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = SET_SPECIAL_CONTROL;
@@ -586,7 +607,8 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
-                        this->cancel_group_operation = false; // Reset cancel flag
+                        this->cancel_group_operation =
+                            false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = UNSET_SPECIAL_CONTROL;
@@ -598,7 +620,8 @@ void ContractsView::Render() {
                 if (!m_filtered_contracts.empty() &&
                     current_operation == NONE) {
                     this->on_group_operation_confirm = [this]() {
-                        this->cancel_group_operation = false; // Reset cancel flag
+                        this->cancel_group_operation =
+                            false; // Reset cancel flag
                         this->items_to_process = this->m_filtered_contracts;
                         this->processed_items = 0;
                         this->current_operation = CLEAR_PROCUREMENT_CODE;

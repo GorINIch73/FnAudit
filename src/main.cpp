@@ -125,9 +125,11 @@ int main(int, char **) {
                 if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK
                                     " Сохранить базу как...")) {
                     if (!uiManager.currentDbPath.empty()) {
+                        IGFD::FileDialogConfig config;
+                        config.filePathName = uiManager.currentDbPath;
                         ImGuiFileDialog::Instance()->OpenDialog(
                             "SaveDbAsFileDlgKey", "Сохранить базу как...",
-                            ".db");
+                            ".db", config);
                     }
                 }
                 if (ImGui::BeginMenu(ICON_FA_CLOCK_ROTATE_LEFT
