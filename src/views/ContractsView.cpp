@@ -448,7 +448,7 @@ void ContractsView::Render() {
             if (uiManager) {
                 std::ostringstream oss;
                 // oss << "SELECT * FROM Contracts WHERE id IN (";
-                oss << "SELECT KOSGU.code, "
+                oss << "SELECT KOSGU.code, KOSGU.name, "
                        "ROUND(SUM(PaymentDetails.amount),2), COUNT(DISTINCT "
                        "contracts.id) FROM PaymentDetails inner join Contracts "
                        "on PaymentDetails.contract_id=contracts.id inner join "

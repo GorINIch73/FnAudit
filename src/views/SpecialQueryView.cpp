@@ -34,6 +34,7 @@ void SpecialQueryView::ExecuteQuery() {
         dbManager->executeSelect(query.c_str(), queryResult.columns, queryResult.rows);
         selected_cells.assign(queryResult.rows.size(), std::vector<bool>(queryResult.columns.size(), false));
         last_clicked_cell = ImVec2(-1, -1);
+        CalculateTotals();
     } else {
         queryResult.columns.clear();
         queryResult.rows.clear();
@@ -114,6 +115,7 @@ void SpecialQueryView::Render() {
                     if (sorts_specs->SpecsDirty) {
                         this->sort_specs = *sorts_specs; // Copy the content
                         SortRows();
+                        CalculateTotals(); // Recalculate totals after sorting
                         sorts_specs->SpecsDirty = false;
                     }
                 }
@@ -152,6 +154,20 @@ void SpecialQueryView::Render() {
                         }
                     }
                 }
+
+                // Draw totals row
+                if (!queryResult.rows.empty()) {
+                    ImGui::TableNextRow(ImGuiTableRowFlags_None, ImGui::GetTextLineHeightWithSpacing() * 1.2f);
+                    for (size_t j = 0; j < queryResult.columns.size(); ++j) {
+                        ImGui::TableNextColumn();
+                        if (is_numeric_column[j] && column_totals[j] != 0.0) {
+                            char total_text[64];
+                            snprintf(total_text, sizeof(total_text), "Итого: %.2f", column_totals[j]);
+                            ImGui::TextDisabled("%s", total_text);
+                        }
+                    }
+                }
+
                 ImGui::EndTable();
                 }
                 ImGui::EndChild();
@@ -199,4 +215,33 @@ void SpecialQueryView::SortRows() {
                   }
                   return false;
               });
+}
+
+void SpecialQueryView::CalculateTotals() {
+    column_totals.assign(queryResult.columns.size(), 0.0);
+    is_numeric_column.assign(queryResult.columns.size(), true);
+
+    for (size_t col = 0; col < queryResult.columns.size(); ++col) {
+        for (const auto& row : queryResult.rows) {
+            if (col >= row.size()) continue;
+
+            std::string cell_value = row[col];
+            // Replace comma with dot for numeric parsing
+            std::replace(cell_value.begin(), cell_value.end(), ',', '.');
+
+            // Try to parse as number (handle spaces as thousand separators)
+            std::string cleaned_value;
+            for (char c : cell_value) {
+                if (c != ' ') cleaned_value += c;
+            }
+
+            double value;
+            if (sscanf(cleaned_value.c_str(), "%lf", &value) == 1) {
+                column_totals[col] += value;
+            } else {
+                is_numeric_column[col] = false;
+                break;
+            }
+        }
+    }
 }
