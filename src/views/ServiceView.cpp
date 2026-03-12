@@ -27,6 +27,59 @@ void ServiceView::Reset() {
     m_lastExportCount = -1;
 }
 
+void ServiceView::StartIKZImport(const std::string& filePath, ImportManager* importManager,
+                                  DatabaseManager* dbManager, std::atomic<float>& progress,
+                                  std::string& message, std::mutex& mutex, std::atomic<bool>& isImporting) {
+    m_ikzImportStarted = true;
+    isImporting = true;
+    m_showUnfoundContracts = true;
+    m_unfoundContracts.clear();
+    m_successfulImports = 0;
+
+    std::thread([this, filePath, importManager, dbManager, &progress, &message, &mutex, &isImporting]() {
+        importManager->importIKZFromFile(
+            filePath,
+            dbManager,
+            m_unfoundContracts,
+            m_successfulImports,
+            progress,
+            message,
+            mutex
+        );
+        m_ikzImportStarted = false;
+        isImporting = false;
+    }).detach();
+}
+
+void ServiceView::StartContractsExport(const std::string& filePath, ExportManager* exportManager,
+                                        std::atomic<float>& progress, std::string& message,
+                                        std::mutex& mutex, std::atomic<bool>& isImporting) {
+    isImporting = true;
+
+    std::thread([this, filePath, exportManager, &progress, &message, &mutex, &isImporting]() {
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            progress = 0.5f;
+            message = "Экспорт договоров...";
+        }
+
+        int exportedCount = 0;
+        if (exportManager) {
+            exportedCount = exportManager->ExportContractsForChecking(filePath);
+        }
+        m_lastExportCount = exportedCount;
+
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            progress = 1.0f;
+            message = "Экспорт завершен.";
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        isImporting = false;
+    }).detach();
+}
+
 void ServiceView::Render() {
     if (!IsVisible) {
         return;
@@ -49,34 +102,6 @@ void ServiceView::Render() {
         }
 
         ImGui::EndDisabled();
-
-        if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey_IKZ_Service")) {
-            if (ImGuiFileDialog::Instance()->IsOk()) {
-                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                
-                m_ikzImportStarted = true;
-                uiManager->isImporting = true;
-                m_showUnfoundContracts = true;
-                m_unfoundContracts.clear();
-                m_successfulImports = 0;
-
-                std::thread([this, filePathName]() {
-                    uiManager->importManager->importIKZFromFile(
-                        filePathName,
-                        dbManager,
-                        m_unfoundContracts,
-                        m_successfulImports,
-                        uiManager->importProgress,
-                        uiManager->importMessage,
-                        uiManager->importMutex
-                    );
-                    m_ikzImportStarted = false;
-                    uiManager->isImporting = false;
-                }).detach();
-            }
-            ImGuiFileDialog::Instance()->Close();
-        }
-        
 
         if (m_showUnfoundContracts) {
             ImGui::Spacing();
@@ -137,38 +162,6 @@ void ServiceView::Render() {
         }
 
         ImGui::EndDisabled();
-
-        if (ImGuiFileDialog::Instance()->Display("ExportContractsDlgKey")) {
-            if (ImGuiFileDialog::Instance()->IsOk()) {
-                std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
-                
-                uiManager->isImporting = true; // Reuse the "isImporting" flag as a generic "isProcessing"
-                
-                std::thread([this, filePathName]() {
-                    {
-                        std::lock_guard<std::mutex> lock(uiManager->importMutex);
-                        uiManager->importProgress = 0.5f;
-                        uiManager->importMessage = "Экспорт договоров...";
-                    }
-                    
-                    int exportedCount = 0;
-                    if (exportManager) {
-                       exportedCount = exportManager->ExportContractsForChecking(filePathName);
-                    }
-                    m_lastExportCount = exportedCount;
-
-                    {
-                        std::lock_guard<std::mutex> lock(uiManager->importMutex);
-                        uiManager->importProgress = 1.0f;
-                        uiManager->importMessage = "Экспорт завершен.";
-                    }
-                    // The popup will close on its own after a short delay
-                    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-                    uiManager->isImporting = false; 
-                }).detach();
-            }
-            ImGuiFileDialog::Instance()->Close();
-        }
     }
     ImGui::End();
 }

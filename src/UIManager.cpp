@@ -369,6 +369,39 @@ void UIManager::HandleFileDialogs() {
         }
         ImGuiFileDialog::Instance()->Close();
     }
+
+    // Service View Dialogs
+    if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey_IKZ_Service")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            // Find ServiceView and trigger import
+            for (auto& view : allViews) {
+                if (auto* serviceView = dynamic_cast<ServiceView*>(view.get())) {
+                    serviceView->StartIKZImport(filePathName, importManager, dbManager,
+                                               importProgress, importMessage, importMutex,
+                                               isImporting);
+                    break;
+                }
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("ExportContractsDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName = ImGuiFileDialog::Instance()->GetFilePathName();
+            // Find ServiceView and trigger export
+            for (auto& view : allViews) {
+                if (auto* serviceView = dynamic_cast<ServiceView*>(view.get())) {
+                    serviceView->StartContractsExport(filePathName, exportManager,
+                                                     importProgress, importMessage, importMutex,
+                                                     isImporting);
+                    break;
+                }
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
 }
 
 void UIManager::Render() {
