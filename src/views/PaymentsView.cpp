@@ -2,6 +2,7 @@
 #include "../Contract.h"
 #include "../IconsFontAwesome6.h"
 #include "../Invoice.h"
+#include "../UIManager.h"
 #include "CustomWidgets.h"
 #include <algorithm> // для std::sort
 #include <cstring>   // Для strcasestr и memset
@@ -285,6 +286,37 @@ void PaymentsView::Render() {
             SaveDetailChanges();
             RefreshData();
             RefreshDropdownData();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_LIST " Отчет по расшифровкам")) {
+            if (uiManager) {
+                std::string query =
+                    "SELECT p.date AS 'Дата', p.doc_number AS 'Номер док.', "
+                    "p.type AS 'Тип', p.amount AS 'Сумма платежа', "
+                    "pd.amount AS 'Сумма расшифровки', "
+                    "k.code AS 'КОСГУ', k.name AS 'Наименование КОСГУ', "
+                    "c.name AS 'Контрагент', "
+                    "p.description AS 'Назначение' "
+                    "FROM Payments p "
+                    "JOIN PaymentDetails pd ON p.id = pd.payment_id "
+                    "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
+                    "LEFT JOIN Counterparties c ON p.counterparty_id = c.id ";
+                
+                // Добавляем WHERE для фильтрации по выбранным платежам
+                if (filterText[0] != '\0') {
+                    query += "WHERE (LOWER(p.date) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(p.doc_number) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(p.amount) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(p.description) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(p.recipient) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(k.code) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(k.name) LIKE LOWER('%" + std::string(filterText) + "%') "
+                             "OR LOWER(c.name) LIKE LOWER('%" + std::string(filterText) + "%'))";
+                }
+                query += ";";
+                
+                uiManager->CreateSpecialQueryView("Отчет по расшифровкам платежей", query);
+            }
         }
         ImGui::SameLine();
         if (ImGui::Button("Сверка с банком")) {
