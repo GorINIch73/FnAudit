@@ -1,6 +1,7 @@
 #include "KosguView.h"
 #include "../CustomWidgets.h"
 #include "../IconsFontAwesome6.h"
+#include "../UIManager.h"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -301,6 +302,28 @@ void KosguView::Render() {
         if (ImGui::Button(ICON_FA_ROTATE_RIGHT " Обновить")) {
             SaveChanges();
             RefreshData();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_LIST " Отчет по расшифровкам")) {
+            if (!isAdding && selectedKosguIndex != -1 && dbManager) {
+                std::string query = "SELECT k.code AS 'КОСГУ', p.date AS 'Дата', p.doc_number AS 'Номер док.', "
+                                    "pd.amount AS 'Сумма', p.description AS 'Назначение', c.name AS 'Контрагент' "
+                                    "FROM PaymentDetails pd "
+                                    "JOIN Payments p ON pd.payment_id = p.id "
+                                    "JOIN KOSGU k ON pd.kosgu_id = k.id "
+                                    "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
+                                    "WHERE pd.kosgu_id = " + std::to_string(kosguEntries[selectedKosguIndex].id) +
+                                    (filterText[0] != '\0' ? " AND (LOWER(p.date) LIKE LOWER('%" + std::string(filterText) + "%') "
+                                    "OR LOWER(p.doc_number) LIKE LOWER('%" + std::string(filterText) + "%') "
+                                    "OR LOWER(pd.amount) LIKE LOWER('%" + std::string(filterText) + "%') "
+                                    "OR LOWER(p.description) LIKE LOWER('%" + std::string(filterText) + "%') "
+                                    "OR LOWER(c.name) LIKE LOWER('%" + std::string(filterText) + "%') "
+                                    "OR LOWER(k.code) LIKE LOWER('%" + std::string(filterText) + "%'))" : "") +
+                                    ";";
+                if (uiManager) {
+                    uiManager->CreateSpecialQueryView("Отчет по расшифровкам КОСГУ " + kosguEntries[selectedKosguIndex].code, query);
+                }
+            }
         }
 
         if (CustomWidgets::ConfirmationModal(

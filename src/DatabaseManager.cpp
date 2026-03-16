@@ -1291,6 +1291,60 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
     return results;
 }
 
+std::vector<ContractPaymentInfo>
+DatabaseManager::getDecodingForKosgu(int kosgu_id, const std::string& filterText) {
+    std::vector<ContractPaymentInfo> results;
+    if (!db)
+        return results;
+
+    std::string sql = "SELECT k.code AS kosgu_code, p.date, p.doc_number, pd.amount, "
+                      "p.description, c.name AS counterparty_name "
+                      "FROM PaymentDetails pd "
+                      "JOIN Payments p ON pd.payment_id = p.id "
+                      "JOIN KOSGU k ON pd.kosgu_id = k.id "
+                      "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
+                      "WHERE pd.kosgu_id = ?";
+    
+    if (!filterText.empty()) {
+        sql += " AND (LOWER(p.date) LIKE LOWER(?) OR LOWER(p.doc_number) LIKE LOWER(?) "
+               "OR LOWER(pd.amount) LIKE LOWER(?) OR LOWER(p.description) LIKE LOWER(?) "
+               "OR LOWER(c.name) LIKE LOWER(?) OR LOWER(k.code) LIKE LOWER(?))";
+    }
+    
+    sql += ";";
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for getDecodingForKosgu: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return results;
+    }
+
+    sqlite3_bind_int(stmt, 1, kosgu_id);
+    
+    if (!filterText.empty()) {
+        std::string filterParam = "%" + filterText + "%";
+        for (int i = 0; i < 6; i++) {
+            sqlite3_bind_text(stmt, 2 + i, filterParam.c_str(), -1, SQLITE_TRANSIENT);
+        }
+    }
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        ContractPaymentInfo info;
+        info.kosgu_code = (const char *)sqlite3_column_text(stmt, 0);
+        info.date = (const char *)sqlite3_column_text(stmt, 1);
+        info.doc_number = (const char *)sqlite3_column_text(stmt, 2);
+        info.amount = sqlite3_column_double(stmt, 3);
+        info.description = (const char *)sqlite3_column_text(stmt, 4);
+        const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 5);
+        info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
+        results.push_back(info);
+    }
+
+    sqlite3_finalize(stmt);
+    return results;
+}
+
 std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
     std::vector<KosguPaymentDetailInfo> results;
     if (!db)

@@ -69,6 +69,7 @@ public:
     bool updatePayment(const Payment& payment);
     bool deletePayment(int id);
     std::vector<ContractPaymentInfo> getPaymentInfoForKosgu(int kosgu_id);
+    std::vector<ContractPaymentInfo> getDecodingForKosgu(int kosgu_id, const std::string& filterText = "");
     std::vector<KosguPaymentDetailInfo> getAllKosguPaymentInfo();
     std::vector<ContractPaymentInfo> getAllContractPaymentInfo();
     std::vector<CounterpartyPaymentInfo> getAllCounterpartyPaymentInfo();

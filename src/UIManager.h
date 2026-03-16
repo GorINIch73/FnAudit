@@ -66,7 +66,7 @@ public:
         view->SetDatabaseManager(dbManager);
         view->SetPdfReporter(pdfReporter);
 
-        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, SettingsView> || std::is_same_v<T, ServiceView>) {
+        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, KosguView> || std::is_same_v<T, CounterpartiesView> || std::is_same_v<T, SettingsView> || std::is_same_v<T, ServiceView>) {
             viewPtr->SetUIManager(this);
         }
         
