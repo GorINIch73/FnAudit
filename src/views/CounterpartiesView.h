@@ -27,7 +27,6 @@ private:
 
     Counterparty selectedCounterparty;
     Counterparty originalCounterparty;
-    int selectedCounterpartyIndex;
     bool showEditModal;
     bool isAdding;
     bool isDirty = false;

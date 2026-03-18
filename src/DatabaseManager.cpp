@@ -552,11 +552,16 @@ DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char *)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
+        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
+        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
+        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
+        const char* kosgu_text = (const char*)sqlite3_column_text(stmt, 4);
+        
+        info.date = date_text ? date_text : "";
+        info.doc_number = doc_text ? doc_text : "";
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char *)sqlite3_column_text(stmt, 3);
-        info.kosgu_code = (const char *)sqlite3_column_text(stmt, 4);
+        info.description = desc_text ? desc_text : "";
+        info.kosgu_code = kosgu_text ? kosgu_text : "";
         results.push_back(info);
     }
 
@@ -892,10 +897,14 @@ DatabaseManager::getPaymentInfoForContract(int contract_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char *)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
+        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
+        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
+        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
+        
+        info.date = date_text ? date_text : "";
+        info.doc_number = doc_text ? doc_text : "";
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char *)sqlite3_column_text(stmt, 3);
+        info.description = desc_text ? desc_text : "";
         results.push_back(info);
     }
 
@@ -1083,10 +1092,14 @@ DatabaseManager::getPaymentInfoForInvoice(int invoice_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char *)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
+        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
+        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
+        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
+        
+        info.date = date_text ? date_text : "";
+        info.doc_number = doc_text ? doc_text : "";
         info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char *)sqlite3_column_text(stmt, 3);
+        info.description = desc_text ? desc_text : "";
         results.push_back(info);
     }
 
@@ -1278,11 +1291,15 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.date = (const char *)sqlite3_column_text(stmt, 0);
-        info.doc_number = (const char *)sqlite3_column_text(stmt, 1);
-        info.amount = sqlite3_column_double(stmt, 2);
-        info.description = (const char *)sqlite3_column_text(stmt, 3);
+        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
+        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
+        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
         const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 4);
+        
+        info.date = date_text ? date_text : "";
+        info.doc_number = doc_text ? doc_text : "";
+        info.amount = sqlite3_column_double(stmt, 2);
+        info.description = desc_text ? desc_text : "";
         info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
         results.push_back(info);
     }
@@ -1331,12 +1348,17 @@ DatabaseManager::getDecodingForKosgu(int kosgu_id, const std::string& filterText
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        info.kosgu_code = (const char *)sqlite3_column_text(stmt, 0);
-        info.date = (const char *)sqlite3_column_text(stmt, 1);
-        info.doc_number = (const char *)sqlite3_column_text(stmt, 2);
-        info.amount = sqlite3_column_double(stmt, 3);
-        info.description = (const char *)sqlite3_column_text(stmt, 4);
+        const char* kosgu_text = (const char*)sqlite3_column_text(stmt, 0);
+        const char* date_text = (const char*)sqlite3_column_text(stmt, 1);
+        const char* doc_text = (const char*)sqlite3_column_text(stmt, 2);
+        const char* desc_text = (const char*)sqlite3_column_text(stmt, 4);
         const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 5);
+        
+        info.kosgu_code = kosgu_text ? kosgu_text : "";
+        info.date = date_text ? date_text : "";
+        info.doc_number = doc_text ? doc_text : "";
+        info.amount = sqlite3_column_double(stmt, 3);
+        info.description = desc_text ? desc_text : "";
         info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
         results.push_back(info);
     }

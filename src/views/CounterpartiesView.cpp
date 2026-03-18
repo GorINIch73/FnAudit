@@ -7,8 +7,7 @@
 #include <iostream>
 
 CounterpartiesView::CounterpartiesView()
-    : selectedCounterpartyIndex(-1),
-      showEditModal(false),
+    : showEditModal(false),
       isAdding(false),
       isDirty(false) {
     Title = "Справочник 'Контрагенты'";
@@ -38,7 +37,16 @@ void CounterpartiesView::RefreshData() {
         }
 
         UpdateFilteredCounterparties();
-        selectedCounterpartyIndex = -1;
+        // Сбрасываем выделение, если выбранный контрагент больше не существует
+        if (selectedCounterparty.id != -1) {
+            auto it = std::find_if(counterparties.begin(), counterparties.end(),
+                                   [&](const Counterparty &c) {
+                                       return c.id == selectedCounterparty.id;
+                                   });
+            if (it == counterparties.end()) {
+                selectedCounterparty = Counterparty{};
+            }
+        }
     }
 }
 
@@ -63,6 +71,8 @@ void CounterpartiesView::SaveChanges() {
     }
 
     if (dbManager) {
+        int saved_id = selectedCounterparty.id;
+        
         if (isAdding) {
             dbManager->addCounterparty(selectedCounterparty);
             isAdding = false;
@@ -70,25 +80,18 @@ void CounterpartiesView::SaveChanges() {
             dbManager->updateCounterparty(selectedCounterparty);
         }
 
-        // Find the name and inn of the currently selected counterparty before
-        // refreshing
-        std::string current_name = selectedCounterparty.name;
-        std::string current_inn = selectedCounterparty.inn;
+        // После сохранения обновляем данные и находим сохранённый элемент по ID
         RefreshData();
 
-        // Find the index of the counterparty that was just saved
+        // Находим контрагента по ID после обновления
         auto it = std::find_if(counterparties.begin(), counterparties.end(),
                                [&](const Counterparty &c) {
-                                   return c.name == current_name &&
-                                          c.inn == current_inn;
+                                   return c.id == saved_id || 
+                                          (saved_id == -1 && c.name == selectedCounterparty.name);
                                });
 
         if (it != counterparties.end()) {
-            selectedCounterpartyIndex =
-                std::distance(counterparties.begin(), it);
             selectedCounterparty = *it;
-        } else {
-            selectedCounterpartyIndex = -1;
         }
     }
 
@@ -187,16 +190,14 @@ void CounterpartiesView::Render() {
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
             SaveChanges();
             isAdding = true;
-            selectedCounterpartyIndex = -1; // Сброс выделения
             selectedCounterparty = Counterparty{-1, "", ""};
             originalCounterparty = selectedCounterparty;
             isDirty = false;
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            if (!isAdding && selectedCounterpartyIndex != -1) {
-                counterparty_id_to_delete =
-                    counterparties[selectedCounterpartyIndex].id;
+            if (!isAdding && selectedCounterparty.id != -1) {
+                counterparty_id_to_delete = selectedCounterparty.id;
                 show_delete_popup = true;
             }
         }
@@ -207,13 +208,13 @@ void CounterpartiesView::Render() {
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_LIST " Отчет по расшифровкам")) {
-            if (!isAdding && selectedCounterpartyIndex != -1 && dbManager) {
+            if (!isAdding && selectedCounterparty.id != -1 && dbManager) {
                 std::string query = "SELECT p.date AS 'Дата', p.doc_number AS 'Номер док.', "
                                     "pd.amount AS 'Сумма', k.code AS 'КОСГУ', p.description AS 'Назначение' "
                                     "FROM PaymentDetails pd "
                                     "JOIN Payments p ON pd.payment_id = p.id "
                                     "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
-                                    "WHERE p.counterparty_id = " + std::to_string(counterparties[selectedCounterpartyIndex].id) +
+                                    "WHERE p.counterparty_id = " + std::to_string(selectedCounterparty.id) +
                                     (filterText[0] != '\0' ? " AND (LOWER(p.date) LIKE LOWER('%" + std::string(filterText) + "%') "
                                     "OR LOWER(p.doc_number) LIKE LOWER('%" + std::string(filterText) + "%') "
                                     "OR LOWER(pd.amount) LIKE LOWER('%" + std::string(filterText) + "%') "
@@ -221,7 +222,7 @@ void CounterpartiesView::Render() {
                                     "OR LOWER(p.description) LIKE LOWER('%" + std::string(filterText) + "%'))" : "") +
                                     ";";
                 if (uiManager) {
-                    uiManager->CreateSpecialQueryView("Отчет по расшифровкам контрагента " + counterparties[selectedCounterpartyIndex].name, query);
+                    uiManager->CreateSpecialQueryView("Отчет по расшифровкам контрагента " + selectedCounterparty.name, query);
                 }
             }
         }
@@ -283,69 +284,57 @@ void CounterpartiesView::Render() {
                 }
             }
 
-            ImGuiListClipper clipper;
-            clipper.Begin(m_filtered_counterparties.size());
-            while (clipper.Step()) {
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
-                     ++i) {
-                    auto original_it = std::find_if(
-                        counterparties.begin(), counterparties.end(),
-                        [&](const Counterparty &c) {
-                            return c.id == m_filtered_counterparties[i].id;
-                        });
-                    int original_index =
-                        (original_it == counterparties.end())
-                            ? -1
-                            : std::distance(counterparties.begin(),
-                                            original_it);
+            // Используем ID для отслеживания выделения вместо индекса
+            static int selectedCounterpartyId = -1;
 
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
+            // Для таблиц с ImGuiListClipper нужно использовать другой подход
+            const int items_count = (int)m_filtered_counterparties.size();
+            const float items_height = ImGui::GetTextLineHeightWithSpacing();
+            
+            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            for (int i = 0; i < items_count; i++) {
+                const Counterparty &cp = m_filtered_counterparties[i];
+                bool is_selected = (selectedCounterpartyId == cp.id);
 
-                    bool is_selected =
-                        (selectedCounterpartyIndex == original_index);
-                    char label[256];
-                    sprintf(label, "%d##%d", m_filtered_counterparties[i].id,
-                            i);
-                    if (ImGui::Selectable(
-                            label, is_selected,
-                            ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedCounterpartyIndex != original_index &&
-                            original_index != -1) {
-                            SaveChanges();
-                            selectedCounterpartyIndex = original_index;
-                            selectedCounterparty =
-                                counterparties[original_index];
-                            originalCounterparty =
-                                counterparties[original_index];
-                            isAdding = false;
-                            isDirty = false;
-                            if (dbManager) {
-                                payment_info =
-                                    dbManager->getPaymentInfoForCounterparty(
-                                        selectedCounterparty.id);
-                            }
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+
+                char label[256];
+                sprintf(label, "%d##%d", cp.id, i);
+                if (ImGui::Selectable(
+                        label, is_selected,
+                        ImGuiSelectableFlags_SpanAllColumns)) {
+                    if (selectedCounterpartyId != cp.id) {
+                        SaveChanges();
+                        selectedCounterpartyId = cp.id;
+                        selectedCounterparty = cp;
+                        originalCounterparty = cp;
+                        isAdding = false;
+                        isDirty = false;
+                        if (dbManager) {
+                            payment_info =
+                                dbManager->getPaymentInfoForCounterparty(
+                                    selectedCounterparty.id);
                         }
                     }
-                    if (is_selected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s",
-                                m_filtered_counterparties[i].name.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", m_filtered_counterparties[i].inn.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text(
-                        "%s", m_filtered_counterparties[i].is_contract_optional
-                                  ? "Да"
-                                  : "Нет");
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%.2f",
-                                m_filtered_counterparties[i].total_amount);
                 }
+                if (is_selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+
+                ImGui::TableNextColumn();
+                ImGui::Text("%s", cp.name.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text("%s", cp.inn.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text(
+                    "%s", cp.is_contract_optional
+                              ? "Да"
+                              : "Нет");
+                ImGui::TableNextColumn();
+                ImGui::Text("%.2f", cp.total_amount);
             }
+            ImGui::PopStyleVar();
             ImGui::EndTable();
         }
         ImGui::EndChild();
@@ -353,7 +342,7 @@ void CounterpartiesView::Render() {
         CustomWidgets::HorizontalSplitter("h_splitter", &list_view_height);
 
         // Редактор
-        if (selectedCounterpartyIndex != -1 || isAdding) {
+        if (selectedCounterparty.id != -1 || isAdding) {
             ImGui::BeginChild("CounterpartyEditor", ImVec2(editor_width, 0),
                               true);
 
