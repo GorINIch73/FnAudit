@@ -72,7 +72,7 @@ void CounterpartiesView::SaveChanges() {
 
     if (dbManager) {
         int saved_id = selectedCounterparty.id;
-        
+
         if (isAdding) {
             dbManager->addCounterparty(selectedCounterparty);
             isAdding = false;
@@ -86,8 +86,9 @@ void CounterpartiesView::SaveChanges() {
         // Находим контрагента по ID после обновления
         auto it = std::find_if(counterparties.begin(), counterparties.end(),
                                [&](const Counterparty &c) {
-                                   return c.id == saved_id || 
-                                          (saved_id == -1 && c.name == selectedCounterparty.name);
+                                   return c.id == saved_id ||
+                                          (saved_id == -1 &&
+                                           c.name == selectedCounterparty.name);
                                });
 
         if (it != counterparties.end()) {
@@ -163,8 +164,9 @@ void CounterpartiesView::UpdateFilteredCounterparties() {
         if (it != m_counterparty_details_map.end()) {
             for (const auto &detail : it->second) {
                 if (strcasestr(detail.description.c_str(), filterText) !=
-                    nullptr ||
-                    strcasestr(detail.kosgu_code.c_str(), filterText) != nullptr) {
+                        nullptr ||
+                    strcasestr(detail.kosgu_code.c_str(), filterText) !=
+                        nullptr) {
                     m_filtered_counterparties.push_back(counterparty);
                     break; // Found a match, move to the next counterparty
                 }
@@ -207,22 +209,46 @@ void CounterpartiesView::Render() {
             RefreshData();
         }
         ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_LIST " Отчет по расшифровкам")) {
+        if (ImGui::Button(ICON_FA_LIST " Расшифровки по контрагенту")) {
             if (!isAdding && selectedCounterparty.id != -1 && dbManager) {
-                std::string query = "SELECT p.date AS 'Дата', p.doc_number AS 'Номер док.', "
-                                    "pd.amount AS 'Сумма', k.code AS 'КОСГУ', p.description AS 'Назначение' "
-                                    "FROM PaymentDetails pd "
-                                    "JOIN Payments p ON pd.payment_id = p.id "
-                                    "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
-                                    "WHERE p.counterparty_id = " + std::to_string(selectedCounterparty.id) +
-                                    (filterText[0] != '\0' ? " AND (LOWER(p.date) LIKE LOWER('%" + std::string(filterText) + "%') "
-                                    "OR LOWER(p.doc_number) LIKE LOWER('%" + std::string(filterText) + "%') "
-                                    "OR LOWER(pd.amount) LIKE LOWER('%" + std::string(filterText) + "%') "
-                                    "OR LOWER(k.code) LIKE LOWER('%" + std::string(filterText) + "%') "
-                                    "OR LOWER(p.description) LIKE LOWER('%" + std::string(filterText) + "%'))" : "") +
-                                    ";";
+                // std::string query = "SELECT p.date AS 'Дата', p.doc_number AS
+                // 'Номер док.', "
+                //                     "pd.amount AS 'Сумма', k.code AS 'КОСГУ',
+                //                     p.description AS 'Назначение' " "FROM
+                //                     PaymentDetails pd " "JOIN Payments p ON
+                //                     pd.payment_id = p.id " "LEFT JOIN KOSGU k
+                //                     ON pd.kosgu_id = k.id " "WHERE
+                //                     p.counterparty_id = " +
+                //                     std::to_string(selectedCounterparty.id) +
+                //                     (filterText[0] != '\0' ? " AND
+                //                     (LOWER(p.date) LIKE LOWER('%" +
+                //                     std::string(filterText) + "%') " "OR
+                //                     LOWER(p.doc_number) LIKE LOWER('%" +
+                //                     std::string(filterText) + "%') " "OR
+                //                     LOWER(pd.amount) LIKE LOWER('%" +
+                //                     std::string(filterText) + "%') " "OR
+                //                     LOWER(k.code) LIKE LOWER('%" +
+                //                     std::string(filterText) + "%') " "OR
+                //                     LOWER(p.description) LIKE LOWER('%" +
+                //                     std::string(filterText) + "%'))" : "") +
+                //                     ";";
+                std::string query =
+                    "SELECT p.date AS 'Дата', p.doc_number AS 'Номер док.', "
+                    "cp.name AS 'Контрагент по договору', "
+                    "p.amount AS 'Сумма по ПП', pd.amount AS 'Сумма "
+                    "расшифровки', k.code AS 'КОСГУ', p.description AS "
+                    "'Назначение' "
+                    "FROM PaymentDetails pd "
+                    "JOIN Payments p ON pd.payment_id = p.id "
+                    "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
+                    "LEFT JOIN Counterparties cp ON p.counterparty_id = cp.id "
+                    "WHERE p.counterparty_id = " +
+                    std::to_string(selectedCounterparty.id);
                 if (uiManager) {
-                    uiManager->CreateSpecialQueryView("Отчет по расшифровкам контрагента " + selectedCounterparty.name, query);
+                    uiManager->CreateSpecialQueryView(
+                        "Отчет по расшифровкам контрагента " +
+                            selectedCounterparty.name,
+                        query);
                 }
             }
         }
@@ -290,7 +316,7 @@ void CounterpartiesView::Render() {
             // Для таблиц с ImGuiListClipper нужно использовать другой подход
             const int items_count = (int)m_filtered_counterparties.size();
             const float items_height = ImGui::GetTextLineHeightWithSpacing();
-            
+
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
             for (int i = 0; i < items_count; i++) {
                 const Counterparty &cp = m_filtered_counterparties[i];
@@ -301,9 +327,8 @@ void CounterpartiesView::Render() {
 
                 char label[256];
                 sprintf(label, "%d##%d", cp.id, i);
-                if (ImGui::Selectable(
-                        label, is_selected,
-                        ImGuiSelectableFlags_SpanAllColumns)) {
+                if (ImGui::Selectable(label, is_selected,
+                                      ImGuiSelectableFlags_SpanAllColumns)) {
                     if (selectedCounterpartyId != cp.id) {
                         SaveChanges();
                         selectedCounterpartyId = cp.id;
@@ -327,10 +352,7 @@ void CounterpartiesView::Render() {
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", cp.inn.c_str());
                 ImGui::TableNextColumn();
-                ImGui::Text(
-                    "%s", cp.is_contract_optional
-                              ? "Да"
-                              : "Нет");
+                ImGui::Text("%s", cp.is_contract_optional ? "Да" : "Нет");
                 ImGui::TableNextColumn();
                 ImGui::Text("%.2f", cp.total_amount);
             }
