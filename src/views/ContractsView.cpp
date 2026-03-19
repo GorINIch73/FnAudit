@@ -388,12 +388,12 @@ void ContractsView::Render() {
         if (ImGui::Button("Подробный список")) { // New button for report
             if (uiManager && !m_filtered_contracts.empty()) {
                 std::ostringstream oss;
-                // oss << "SELECT * FROM Contracts WHERE id IN (";
                 oss << "SELECT c.number AS 'Номер договора'"
                        ", c.date AS 'Дата договора'"
                        ", cp.name AS 'Контрагент по договору'"
                        ", p.date AS 'Дата платежа'"
                        ", p.doc_number AS 'Номер платежа' "
+                       ", p.amount AS 'Сумма по ПП'"
                        ", pd.amount AS 'Сумма по расшифровке' "
                        ", k.code AS 'КОСГУ' "
                        ", p.description AS 'Назначение платежа' "
@@ -423,23 +423,24 @@ void ContractsView::Render() {
                 uiManager->CreateSpecialQueryView(
                     "Отчет по договорам",
                     "SELECT c.number AS 'Номер договора'"
-                    ", c.date AS 'Дата договора', cp.name AS 'Контрагент'"
-                    ", COALESCE(ds.total_details_amount, 0.0) AS 'Всего сумма"
-                    "по расшифровкам'"
-                    ", COALESCE(ds.details_count, 0) AS 'Количество "
-                    "расшифровок'"
-                    ", CASE WHEN c.is_for_checking THEN 'Да'"
-                    " ELSE 'Нет'"
-                    " END AS 'Для проверки'"
-                    ", CASE WHEN c.is_for_special_control THEN 'Да'"
-                    " ELSE 'Нет'"
-                    " END AS 'Для контроля', c.note AS 'Примечание'"
-                    " FROM Contracts c LEFT JOIN Counterparties cp ON "
-                    "c.counterparty_id = cp.id LEFT JOIN (SELECT "
-                    "contract_id, SUM(amount) AS total_details_amount, "
-                    "COUNT(*) AS details_count FROM PaymentDetails GROUP "
-                    "BY contract_id) AS ds ON c.id = ds.contract_id ORDER "
-                    "BY c.date DESC;"); // Empty result
+                    ", c.date AS 'Дата договора'"
+                    ", cp.name AS 'Контрагент по договору'"
+                    ", p.date AS 'Дата платежа'"
+                    ", p.doc_number AS 'Номер платежа' "
+                    ", p.amount AS 'Сумма по ПП'"
+                    ", pd.amount AS 'Сумма по расшифровке' "
+                    ", k.code AS 'КОСГУ' "
+                    ", p.description AS 'Назначение платежа' "
+                    ", c.note AS 'Примечание' "
+                    " FROM PaymentDetails pd"
+                    " JOIN "
+                    "Payments p ON pd.payment_id = p.id JOIN Contracts c ON "
+                    " pd.contract_id = "
+                    " c.id LEFT JOIN Counterparties cp ON c.counterparty_id "
+                    "= "
+                    " cp.id LEFT JOIN KOSGU k ON pd.kosgu_id = k.id WHERE "
+                    "pd.contract_id IS NOT NULL "
+                    " ORDER BY c.date DESC, p.date DESC "); // Empty result
             }
         }
 
