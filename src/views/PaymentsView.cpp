@@ -1071,7 +1071,7 @@ void PaymentsView::Render() {
 
             ImGui::BeginChild(
                 "PaymentDetailsList",
-                ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 8), true,
+                ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 4), true,
                 ImGuiWindowFlags_HorizontalScrollbar);
             if (ImGui::BeginTable("payment_details_table", 4,
                                   ImGuiTableFlags_Borders |
@@ -1164,7 +1164,8 @@ void PaymentsView::Render() {
                 // Dropdown for Contract
                 std::vector<CustomWidgets::ComboItem> contractItems;
                 for (const auto &c : contractsForDropdown) {
-                    contractItems.push_back({c.id, c.number});
+                    std::string display = c.number + "  " + c.date;
+                    contractItems.push_back({c.id, display});
                 }
                 if (CustomWidgets::ComboWithFilter(
                         "Договор##detail", selectedDetail.contract_id,
@@ -1176,7 +1177,8 @@ void PaymentsView::Render() {
                 // Dropdown for Invoice
                 std::vector<CustomWidgets::ComboItem> invoiceItems;
                 for (const auto &i : invoicesForDropdown) {
-                    invoiceItems.push_back({i.id, i.number});
+                    std::string display = i.number + "  " + i.date;
+                    invoiceItems.push_back({i.id, display});
                 }
                 if (CustomWidgets::ComboWithFilter("Накладная##detail",
                                                    selectedDetail.invoice_id,
