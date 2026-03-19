@@ -866,13 +866,14 @@ void ContractsView::Render() {
             ImGui::BeginChild("PaymentDetails", ImVec2(0, 0), true);
             ImGui::Text("Расшифровки платежей:");
             if (ImGui::BeginTable(
-                    "payment_details_table", 4,
+                    "payment_details_table", 5,
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                         ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollX |
                         ImGuiTableFlags_ScrollY)) {
                 ImGui::TableSetupColumn("Дата");
                 ImGui::TableSetupColumn("Номер док.");
                 ImGui::TableSetupColumn("Сумма");
+                ImGui::TableSetupColumn("КОСГУ");
                 ImGui::TableSetupColumn("Назначение");
                 ImGui::TableHeadersRow();
 
@@ -884,6 +885,8 @@ void ContractsView::Render() {
                     ImGui::Text("%s", info.doc_number.c_str());
                     ImGui::TableNextColumn();
                     ImGui::Text("%.2f", info.amount);
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", info.kosgu_code.c_str());
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", info.description.c_str());
                 }
@@ -952,6 +955,8 @@ void ContractsView::UpdateFilteredContracts() {
                         strcasestr(detail.doc_number.c_str(), filterText) !=
                             nullptr ||
                         strcasestr(detail.description.c_str(), filterText) !=
+                            nullptr ||
+                        strcasestr(detail.kosgu_code.c_str(), filterText) !=
                             nullptr) {
                         payment_detail_match = true;
                         break;
@@ -1036,6 +1041,9 @@ void ContractsView::UpdateFilteredContracts() {
                 m_filtered_contracts.push_back(contract);
             }
         }
+        break;
+    default:
+        m_filtered_contracts = text_filtered_contracts;
         break;
     }
 }
