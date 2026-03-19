@@ -54,6 +54,9 @@ private:
     std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
     UIManager* uiManager = nullptr;
 
+    std::vector<ContractPaymentInfo> m_sorted_payment_info;
+    void SortPaymentInfo(const struct ImGuiTableSortSpecs* sort_specs);
+
     enum GroupOperationType {
         NONE,
         SET_FOR_CHECKING,

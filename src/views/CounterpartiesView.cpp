@@ -336,6 +336,7 @@ void CounterpartiesView::Render() {
                         originalCounterparty = cp;
                         isAdding = false;
                         isDirty = false;
+                        m_sorted_payment_info.clear();
                         if (dbManager) {
                             payment_info =
                                 dbManager->getPaymentInfoForCounterparty(
@@ -410,15 +411,23 @@ void CounterpartiesView::Render() {
                     "payment_details_table", 5,
                     ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                         ImGuiTableFlags_Resizable | ImGuiTableFlags_ScrollX |
-                        ImGuiTableFlags_ScrollY)) {
-                ImGui::TableSetupColumn("Дата");
-                ImGui::TableSetupColumn("Номер док.");
-                ImGui::TableSetupColumn("Сумма");
-                ImGui::TableSetupColumn("КОСГУ");
-                ImGui::TableSetupColumn("Назначение");
+                        ImGuiTableFlags_ScrollY | ImGuiTableFlags_Sortable)) {
+                ImGui::TableSetupColumn("Дата", ImGuiTableColumnFlags_DefaultSort, 0, 0);
+                ImGui::TableSetupColumn("Номер док.", 0, 0, 1);
+                ImGui::TableSetupColumn("Сумма", 0, 0, 2);
+                ImGui::TableSetupColumn("КОСГУ", 0, 0, 3);
+                ImGui::TableSetupColumn("Назначение", 0, 0, 4);
                 ImGui::TableHeadersRow();
 
-                for (const auto &info : payment_info) {
+                if (ImGuiTableSortSpecs* sort_specs = ImGui::TableGetSortSpecs()) {
+                    if (sort_specs->SpecsDirty || m_sorted_payment_info.empty()) {
+                        m_sorted_payment_info = payment_info;
+                        SortPaymentInfo(sort_specs);
+                        sort_specs->SpecsDirty = false;
+                    }
+                }
+
+                for (const auto &info : m_sorted_payment_info) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
                     ImGui::Text("%s", info.date.c_str());
@@ -443,4 +452,46 @@ void CounterpartiesView::Render() {
         }
     }
     ImGui::End();
+}
+
+void CounterpartiesView::SortPaymentInfo(const ImGuiTableSortSpecs* sort_specs) {
+    std::sort(
+        m_sorted_payment_info.begin(), m_sorted_payment_info.end(),
+        [&](const ContractPaymentInfo &a, const ContractPaymentInfo &b) {
+            for (int i = 0; i < sort_specs->SpecsCount; i++) {
+                const ImGuiTableColumnSortSpecs *column_spec =
+                    &sort_specs->Specs[i];
+                int delta = 0;
+
+                switch (column_spec->ColumnIndex) {
+                case 0: // Дата
+                    delta = a.date.compare(b.date);
+                    break;
+                case 1: // Номер док.
+                    delta = a.doc_number.compare(b.doc_number);
+                    break;
+                case 2: // Сумма
+                    delta = (a.amount < b.amount)   ? -1
+                            : (a.amount > b.amount) ? 1
+                                                    : 0;
+                    break;
+                case 3: // КОСГУ
+                    delta = a.kosgu_code.compare(b.kosgu_code);
+                    break;
+                case 4: // Назначение
+                    delta = a.description.compare(b.description);
+                    break;
+                default:
+                    break;
+                }
+
+                if (delta != 0) {
+                    return (column_spec->SortDirection ==
+                            ImGuiSortDirection_Ascending)
+                               ? (delta < 0)
+                               : (delta > 0);
+                }
+            }
+            return false;
+        });
 }
