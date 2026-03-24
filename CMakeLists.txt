@@ -117,9 +117,20 @@ install(TARGETS ${PROJECT_NAME}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-# Установка каталога с данными (шрифтами)
+# Установка каталога с данными (шрифтами, иконкой)
 install(DIRECTORY data/
     DESTINATION ${INSTALL_DATA_DIR}
+)
+
+# Установка иконки в стандартную директорию иконок
+install(FILES data/FnAudit.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME ${PROJECT_NAME}.svg
+)
+
+# Установка .desktop файла
+install(FILES FnAudit.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 
 # Передаём путь к данным в C++ код через макрос препроцессора
