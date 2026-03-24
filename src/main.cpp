@@ -13,6 +13,7 @@
 #include "PdfReporter.h"
 #include "Settings.h" // Include Settings.h
 #include "UIManager.h"
+#include "AboutDialog.h" // Include AboutDialog
 
 // Функция обратного вызова для ошибок GLFW
 static void glfw_error_callback(int error, const char *description) {
@@ -44,6 +45,9 @@ int main(int, char **) {
     }
     glfwMakeContextCurrent(window);
     glfwSwapInterval(1); // Включить V-Sync
+
+    // Переменная состояния для диалога "О программе"
+    bool showAboutDialog = false;
 
     // --- Настройка ImGui ---
     IMGUI_CHECKVERSION();
@@ -260,6 +264,12 @@ int main(int, char **) {
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu(ICON_FA_QUESTION " Помощь")) {
+                if (ImGui::MenuItem(ICON_FA_CIRCLE_INFO " О программе")) {
+                    showAboutDialog = true;
+                }
+                ImGui::EndMenu();
+            }
             ImGui::EndMainMenuBar();
         }
 
@@ -268,6 +278,9 @@ int main(int, char **) {
 
         // --- Рендеринг окон через UIManager ---
         uiManager.Render();
+
+        // --- Диалог "О программе" ---
+        AboutDialog::Show(&showAboutDialog);
 
         // Рендеринг
         ImGui::Render();

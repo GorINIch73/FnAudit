@@ -96,14 +96,15 @@ void PaymentsView::SaveChanges() {
             dbManager->updatePayment(selectedPayment);
         }
 
-        std::string current_doc_number = selectedPayment.doc_number;
-        RefreshData();
+        // Note: We don't call RefreshData() here to avoid invalidating
+        // m_filtered_payments during iteration. The data will be refreshed
+        // when switching to another payment or when leaving the view.
+        // Just update selectedPayment with the new data from DB
         auto it = std::find_if(payments.begin(), payments.end(),
                                [&](const Payment &p) {
-                                   return p.doc_number == current_doc_number;
+                                   return p.id == selectedPayment.id;
                                });
         if (it != payments.end()) {
-            selectedPaymentIndex = std::distance(payments.begin(), it);
             selectedPayment = *it;
             originalPayment = *it;
             descriptionBuffer = selectedPayment.description;
@@ -129,18 +130,15 @@ void PaymentsView::SaveDetailChanges() {
             dbManager->updatePaymentDetail(selectedDetail);
         }
 
+        // Note: We don't refresh paymentDetails here to avoid invalidating
+        // indices during iteration. Just update selectedDetail with the new data.
         int old_detail_id = selectedDetail.id;
-        paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
-
         auto it = std::find_if(
             paymentDetails.begin(), paymentDetails.end(),
             [&](const PaymentDetail &d) { return d.id == old_detail_id; });
         if (it != paymentDetails.end()) {
-            selectedDetailIndex = std::distance(paymentDetails.begin(), it);
             selectedDetail = *it;
             originalDetail = *it;
-        } else {
-            selectedDetailIndex = -1;
         }
     }
 
@@ -655,8 +653,9 @@ void PaymentsView::Render() {
 
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_payments.size());
-            while (clipper.Step()) {
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
+            bool need_to_break = false;
+            while (clipper.Step() && !need_to_break) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd && !need_to_break;
                      ++i) {
                     const auto &payment = m_filtered_payments[i];
                     ImGui::TableNextRow();
@@ -680,48 +679,62 @@ void PaymentsView::Render() {
                         if (selectedPaymentIndex != original_index) {
                             SaveChanges();
                             SaveDetailChanges();
-
-                            selectedPaymentIndex = original_index;
-                            selectedPayment = payments[original_index];
-                            originalPayment = payments[original_index];
-                            descriptionBuffer = selectedPayment.description;
-                            noteBuffer = selectedPayment.note;
-                            if (dbManager) {
-                                paymentDetails = dbManager->getPaymentDetails(
-                                    selectedPayment.id);
+                            // Now refresh the data to update payments
+                            RefreshData();
+                            // Re-find the payment by ID in the refreshed payments
+                            int new_index = -1;
+                            for (size_t j = 0; j < payments.size(); ++j) {
+                                if (payments[j].id == payment.id) {
+                                    new_index = j;
+                                    break;
+                                }
                             }
-                            isAdding = false;
-                            isDirty = false;
-                            selectedDetailIndex = -1;
-                            isDetailDirty = false;
+                            if (new_index != -1 && new_index < (int)payments.size()) {
+                                selectedPaymentIndex = new_index;
+                                selectedPayment = payments[new_index];
+                                originalPayment = payments[new_index];
+                                descriptionBuffer = selectedPayment.description;
+                                noteBuffer = selectedPayment.note;
+                                if (dbManager) {
+                                    paymentDetails = dbManager->getPaymentDetails(
+                                        selectedPayment.id);
+                                }
+                                isAdding = false;
+                                isDirty = false;
+                                selectedDetailIndex = -1;
+                                isDetailDirty = false;
+                            }
+                            need_to_break = true;
                         }
                     }
-                    if (is_selected) {
+                    if (!need_to_break && is_selected) {
                         ImGui::SetItemDefaultFocus();
                     }
 
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", payment.doc_number.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%.2f", payment.amount);
+                    if (!need_to_break) {
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", payment.doc_number.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%.2f", payment.amount);
 
-                    ImGui::TableNextColumn();
-                    auto cp_it = std::find_if(
-                        counterpartiesForDropdown.begin(),
-                        counterpartiesForDropdown.end(),
-                        [&](const Counterparty &cp) {
-                            return cp.id == payment.counterparty_id;
-                        });
-                    if (cp_it != counterpartiesForDropdown.end()) {
-                        ImGui::Text("%s", cp_it->name.c_str());
-                    } else {
-                        ImGui::Text("N/A");
+                        ImGui::TableNextColumn();
+                        auto cp_it = std::find_if(
+                            counterpartiesForDropdown.begin(),
+                            counterpartiesForDropdown.end(),
+                            [&](const Counterparty &cp) {
+                                return cp.id == payment.counterparty_id;
+                            });
+                        if (cp_it != counterpartiesForDropdown.end()) {
+                            ImGui::Text("%s", cp_it->name.c_str());
+                        } else {
+                            ImGui::Text("N/A");
+                        }
+
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", payment.description.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", payment.note.c_str());
                     }
-
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", payment.description.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", payment.note.c_str());
                 }
             }
             ImGui::EndTable();
@@ -734,7 +747,7 @@ void PaymentsView::Render() {
         ImGui::BeginChild("Editors", ImVec2(0, 0), false);
 
         ImGui::BeginChild("PaymentEditor", ImVec2(editor_width, 0), true);
-        if (selectedPaymentIndex != -1 || isAdding) {
+        if ((selectedPaymentIndex != -1 && selectedPaymentIndex < (int)payments.size()) || isAdding) {
             if (isAdding) {
                 ImGui::Text("Добавление нового платежа");
             } else {
@@ -1083,58 +1096,86 @@ void PaymentsView::Render() {
                 ImGui::TableSetupColumn("Накладная");
                 ImGui::TableHeadersRow();
 
-                for (int i = 0; i < paymentDetails.size(); ++i) {
+                bool need_to_break = false;
+                for (int i = 0; i < (int)paymentDetails.size() && !need_to_break; ++i) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
-                    bool is_detail_selected = (selectedDetailIndex == i);
+                    int detail_id = paymentDetails[i].id;
+                    
+                    // Find original index
+                    int original_index = -1;
+                    for (size_t j = 0; j < paymentDetails.size(); ++j) {
+                        if (paymentDetails[j].id == detail_id) {
+                            original_index = j;
+                            break;
+                        }
+                    }
+                    
+                    bool is_detail_selected = (selectedDetailIndex == original_index);
                     char detail_label[128];
                     sprintf(detail_label, "%.2f##detail_%d",
                             paymentDetails[i].amount, paymentDetails[i].id);
                     if (ImGui::Selectable(
                             detail_label, is_detail_selected,
                             ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedDetailIndex != i) {
+                        if (selectedDetailIndex != original_index &&
+                            original_index != -1) {
                             SaveDetailChanges();
-                            selectedDetailIndex = i;
-                            selectedDetail = paymentDetails[i];
-                            originalDetail = paymentDetails[i];
-                            isAddingDetail = false;
-                            isDetailDirty = false;
+                            // Refresh payment details
+                            paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                            // Re-find by ID
+                            int new_index = -1;
+                            for (size_t j = 0; j < paymentDetails.size(); ++j) {
+                                if (paymentDetails[j].id == detail_id) {
+                                    new_index = j;
+                                    break;
+                                }
+                            }
+                            if (new_index != -1 && new_index < (int)paymentDetails.size()) {
+                                selectedDetailIndex = new_index;
+                                selectedDetail = paymentDetails[new_index];
+                                originalDetail = paymentDetails[new_index];
+                                isAddingDetail = false;
+                                isDetailDirty = false;
+                            }
+                            need_to_break = true;
                         }
                     }
-                    if (is_detail_selected) {
+                    if (!need_to_break && is_detail_selected) {
                         ImGui::SetItemDefaultFocus();
                     }
 
-                    ImGui::TableNextColumn();
-                    const char *kosguCode = "N/A";
-                    for (const auto &k : kosguForDropdown) {
-                        if (k.id == paymentDetails[i].kosgu_id) {
-                            kosguCode = k.code.c_str();
-                            break;
+                    if (!need_to_break) {
+                        ImGui::TableNextColumn();
+                        const char *kosguCode = "N/A";
+                        for (const auto &k : kosguForDropdown) {
+                            if (k.id == paymentDetails[i].kosgu_id) {
+                                kosguCode = k.code.c_str();
+                                break;
+                            }
                         }
-                    }
-                    ImGui::Text("%s", kosguCode);
+                        ImGui::Text("%s", kosguCode);
 
-                    ImGui::TableNextColumn();
-                    const char *contractNumber = "N/A";
-                    for (const auto &c : contractsForDropdown) {
-                        if (c.id == paymentDetails[i].contract_id) {
-                            contractNumber = c.number.c_str();
-                            break;
+                        ImGui::TableNextColumn();
+                        const char *contractNumber = "N/A";
+                        for (const auto &c : contractsForDropdown) {
+                            if (c.id == paymentDetails[i].contract_id) {
+                                contractNumber = c.number.c_str();
+                                break;
+                            }
                         }
-                    }
-                    ImGui::Text("%s", contractNumber);
+                        ImGui::Text("%s", contractNumber);
 
-                    ImGui::TableNextColumn();
-                    const char *invoiceNumber = "N/A";
-                    for (const auto &inv : invoicesForDropdown) {
-                        if (inv.id == paymentDetails[i].invoice_id) {
-                            invoiceNumber = inv.number.c_str();
-                            break;
+                        ImGui::TableNextColumn();
+                        const char *invoiceNumber = "N/A";
+                        for (const auto &inv : invoicesForDropdown) {
+                            if (inv.id == paymentDetails[i].invoice_id) {
+                                invoiceNumber = inv.number.c_str();
+                                break;
+                            }
                         }
+                        ImGui::Text("%s", invoiceNumber);
                     }
-                    ImGui::Text("%s", invoiceNumber);
                 }
                 ImGui::EndTable();
             }

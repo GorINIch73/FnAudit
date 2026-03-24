@@ -84,7 +84,15 @@ UIManager::UIManager()
     LoadRecentDbPaths();
 }
 
-UIManager::~UIManager() { SaveRecentDbPaths(); }
+UIManager::~UIManager() {
+    // Save changes in all visible views before destruction
+    for (auto &view : allViews) {
+        if (view->IsVisible) {
+            view->OnDeactivate();
+        }
+    }
+    SaveRecentDbPaths();
+}
 
 void UIManager::AddRecentDbPath(std::string path) {
     recentDbPaths.erase(

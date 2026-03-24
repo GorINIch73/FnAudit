@@ -57,19 +57,14 @@ void RegexesView::SaveChanges() {
             dbManager->updateRegex(selectedRegex);
         }
 
-        std::string current_name = selectedRegex.name;
-        RefreshData();
-
+        // Note: We don't call RefreshData() here to avoid invalidating
+        // indices during iteration. Just update selectedRegex with the new data
         auto it =
             std::find_if(regexes.begin(), regexes.end(), [&](const Regex &r) {
-                return r.name == current_name;
+                return r.id == selectedRegex.id;
             });
-
         if (it != regexes.end()) {
-            selectedRegexIndex = std::distance(regexes.begin(), it);
             selectedRegex = *it;
-        } else {
-            selectedRegexIndex = -1;
         }
     }
 
@@ -146,7 +141,8 @@ void RegexesView::Render() {
             ImGui::TableSetupColumn("Имя");
             ImGui::TableHeadersRow();
 
-            for (int i = 0; i < regexes.size(); ++i) {
+            bool need_to_break = false;
+            for (int i = 0; i < (int)regexes.size() && !need_to_break; i++) {
                 if (filterText[0] != '\0' &&
                     strcasestr(regexes[i].name.c_str(), filterText) ==
                         nullptr) {
@@ -155,18 +151,45 @@ void RegexesView::Render() {
 
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                bool is_selected = (selectedRegexIndex == i);
+                int regex_id = regexes[i].id;
+                auto original_it = std::find_if(
+                    regexes.begin(), regexes.end(),
+                    [&](const Regex &r) {
+                        return r.id == regex_id;
+                    });
+                int original_index =
+                    (original_it == regexes.end())
+                        ? -1
+                        : std::distance(regexes.begin(), original_it);
+
+                bool is_selected = (selectedRegexIndex == original_index);
                 char label[128];
                 sprintf(label, "%d##%d", regexes[i].id, i);
                 if (ImGui::Selectable(label, is_selected,
                                       ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedRegexIndex != i) {
+                    if (selectedRegexIndex != original_index &&
+                        original_index != -1) {
                         SaveChanges();
-                        selectedRegexIndex = i;
-                        selectedRegex = regexes[i];
-                        originalRegex = regexes[i];
-                        isAdding = false;
-                        isDirty = false;
+                        // Now refresh the data
+                        RefreshData();
+                        // Re-find the regex by ID
+                        auto new_it = std::find_if(
+                            regexes.begin(), regexes.end(),
+                            [&](const Regex &r) {
+                                return r.id == regex_id;
+                            });
+                        int new_index =
+                            (new_it == regexes.end())
+                                ? -1
+                                : std::distance(regexes.begin(), new_it);
+                        if (new_index != -1 && new_index < (int)regexes.size()) {
+                            selectedRegexIndex = new_index;
+                            selectedRegex = regexes[new_index];
+                            originalRegex = regexes[new_index];
+                            isAdding = false;
+                            isDirty = false;
+                        }
+                        need_to_break = true;
                     }
                 }
                 ImGui::TableNextColumn();
@@ -180,7 +203,7 @@ void RegexesView::Render() {
 
         // --- Editor ---
         ImGui::BeginChild("RegexEditor", ImVec2(0, 0), true);
-        if (selectedRegexIndex != -1 || isAdding) {
+        if ((selectedRegexIndex != -1 && selectedRegexIndex < (int)regexes.size()) || isAdding) {
             if (isAdding) {
                 ImGui::Text("Добавление нового выражения");
             } else {

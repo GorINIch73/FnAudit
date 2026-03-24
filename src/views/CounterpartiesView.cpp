@@ -80,17 +80,14 @@ void CounterpartiesView::SaveChanges() {
             dbManager->updateCounterparty(selectedCounterparty);
         }
 
-        // После сохранения обновляем данные и находим сохранённый элемент по ID
-        RefreshData();
-
-        // Находим контрагента по ID после обновления
+        // Note: We don't call RefreshData() here to avoid invalidating
+        // m_filtered_counterparties during iteration. The data will be refreshed
+        // when switching to another counterparty or when leaving the view.
+        // Just update selectedCounterparty with the new data from DB
         auto it = std::find_if(counterparties.begin(), counterparties.end(),
                                [&](const Counterparty &c) {
-                                   return c.id == saved_id ||
-                                          (saved_id == -1 &&
-                                           c.name == selectedCounterparty.name);
+                                   return c.id == saved_id;
                                });
-
         if (it != counterparties.end()) {
             selectedCounterparty = *it;
         }
@@ -318,7 +315,8 @@ void CounterpartiesView::Render() {
             const float items_height = ImGui::GetTextLineHeightWithSpacing();
 
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-            for (int i = 0; i < items_count; i++) {
+            bool need_to_break = false;
+            for (int i = 0; i < items_count && !need_to_break; i++) {
                 const Counterparty &cp = m_filtered_counterparties[i];
                 bool is_selected = (selectedCounterpartyId == cp.id);
 
@@ -331,31 +329,44 @@ void CounterpartiesView::Render() {
                                       ImGuiSelectableFlags_SpanAllColumns)) {
                     if (selectedCounterpartyId != cp.id) {
                         SaveChanges();
-                        selectedCounterpartyId = cp.id;
-                        selectedCounterparty = cp;
-                        originalCounterparty = cp;
-                        isAdding = false;
-                        isDirty = false;
-                        m_sorted_payment_info.clear();
-                        if (dbManager) {
-                            payment_info =
-                                dbManager->getPaymentInfoForCounterparty(
-                                    selectedCounterparty.id);
+                        // Now refresh the data
+                        RefreshData();
+                        // Re-find the counterparty by ID
+                        auto it = std::find_if(
+                            counterparties.begin(), counterparties.end(),
+                            [&](const Counterparty &c) {
+                                return c.id == cp.id;
+                            });
+                        if (it != counterparties.end()) {
+                            selectedCounterpartyId = cp.id;
+                            selectedCounterparty = *it;
+                            originalCounterparty = *it;
+                            isAdding = false;
+                            isDirty = false;
+                            m_sorted_payment_info.clear();
+                            if (dbManager) {
+                                payment_info =
+                                    dbManager->getPaymentInfoForCounterparty(
+                                        selectedCounterparty.id);
+                            }
                         }
+                        need_to_break = true;
                     }
                 }
-                if (is_selected) {
+                if (!need_to_break && is_selected) {
                     ImGui::SetItemDefaultFocus();
                 }
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", cp.name.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", cp.inn.c_str());
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", cp.is_contract_optional ? "Да" : "Нет");
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", cp.total_amount);
+                if (!need_to_break) {
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", cp.name.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", cp.inn.c_str());
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%s", cp.is_contract_optional ? "Да" : "Нет");
+                    ImGui::TableNextColumn();
+                    ImGui::Text("%.2f", cp.total_amount);
+                }
             }
             ImGui::PopStyleVar();
             ImGui::EndTable();

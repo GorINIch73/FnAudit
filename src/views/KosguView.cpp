@@ -62,18 +62,16 @@ void KosguView::SaveChanges() {
             dbManager->updateKosguEntry(selectedKosgu);
         }
 
-        std::string current_code = selectedKosgu.code;
-        RefreshData();
-
+        // Note: We don't call RefreshData() here to avoid invalidating
+        // m_filtered_kosgu_entries during iteration. The data will be refreshed
+        // when switching to another entry or when leaving the view.
+        // Just update selectedKosgu with the new data from DB
         auto it = std::find_if(
-            kosguEntries.begin(), kosguEntries.end(),
-            [&](const Kosgu &k) { return k.code == current_code; });
-
+            kosguEntries.begin(), kosguEntries.end(), [&](const Kosgu &k) {
+                return k.id == selectedKosgu.id;
+            });
         if (it != kosguEntries.end()) {
-            selectedKosguIndex = std::distance(kosguEntries.begin(), it);
             selectedKosgu = *it;
-        } else {
-            selectedKosguIndex = -1;
         }
     }
 
@@ -391,16 +389,18 @@ void KosguView::Render() {
 
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_kosgu_entries.size());
-            while (clipper.Step()) {
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd;
+            bool need_to_break = false;
+            while (clipper.Step() && !need_to_break) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd && !need_to_break;
                      ++i) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
 
+                    int kosgu_id = m_filtered_kosgu_entries[i].id;
                     auto original_it = std::find_if(
                         kosguEntries.begin(), kosguEntries.end(),
                         [&](const Kosgu &k) {
-                            return k.id == m_filtered_kosgu_entries[i].id;
+                            return k.id == kosgu_id;
                         });
                     int original_index =
                         (original_it == kosguEntries.end())
@@ -416,30 +416,47 @@ void KosguView::Render() {
                         if (selectedKosguIndex != original_index &&
                             original_index != -1) {
                             SaveChanges();
-                            selectedKosguIndex = original_index;
-                            selectedKosgu = kosguEntries[original_index];
-                            originalKosgu = kosguEntries[original_index];
-                            isAdding = false;
-                            isDirty = false;
-                            if (dbManager) {
-                                payment_info =
-                                    dbManager->getPaymentInfoForKosgu(
-                                        selectedKosgu.id);
-                                filter_changed = true; 
+                            // Now refresh the data to update kosguEntries and m_filtered_kosgu_entries
+                            RefreshData();
+                            // Re-find the entry by ID in the refreshed kosguEntries
+                            auto new_it = std::find_if(
+                                kosguEntries.begin(), kosguEntries.end(),
+                                [&](const Kosgu &k) {
+                                    return k.id == kosgu_id;
+                                });
+                            int new_index =
+                                (new_it == kosguEntries.end())
+                                    ? -1
+                                    : std::distance(kosguEntries.begin(), new_it);
+                            if (new_index != -1 && new_index < (int)kosguEntries.size()) {
+                                selectedKosguIndex = new_index;
+                                selectedKosgu = kosguEntries[new_index];
+                                originalKosgu = kosguEntries[new_index];
+                                isAdding = false;
+                                isDirty = false;
+                                if (dbManager) {
+                                    payment_info =
+                                        dbManager->getPaymentInfoForKosgu(
+                                            selectedKosgu.id);
+                                    filter_changed = true;
+                                }
                             }
+                            need_to_break = true;
                         }
                     }
-                    if (is_selected) {
+                    if (!need_to_break && is_selected) {
                         ImGui::SetItemDefaultFocus();
                     }
 
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", m_filtered_kosgu_entries[i].code.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", m_filtered_kosgu_entries[i].name.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%.2f",
-                                m_filtered_kosgu_entries[i].total_amount);
+                    if (!need_to_break) {
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", m_filtered_kosgu_entries[i].code.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", m_filtered_kosgu_entries[i].name.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%.2f",
+                                    m_filtered_kosgu_entries[i].total_amount);
+                    }
                 }
             }
             ImGui::EndTable();
@@ -448,7 +465,7 @@ void KosguView::Render() {
 
         CustomWidgets::HorizontalSplitter("h_splitter", &list_view_height);
 
-        if (selectedKosguIndex != -1 || isAdding) {
+        if ((selectedKosguIndex != -1 && selectedKosguIndex < (int)kosguEntries.size()) || isAdding) {
             ImGui::BeginChild("KosguEditor", ImVec2(editor_width, 0), true);
 
             if (isAdding) {
