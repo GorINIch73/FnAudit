@@ -87,9 +87,9 @@ int main(int, char **) {
     if (!uiManager.recentDbPaths.empty()) {
         uiManager.LoadDatabase(uiManager.recentDbPaths.front());
     } else {
-        Settings initialSettings = dbManager.getSettings();
-        uiManager.ApplyTheme(initialSettings.theme);
-        uiManager.ApplyFont(initialSettings.font_size);
+        // Database not opened yet, use default theme and font
+        uiManager.ApplyTheme(0);
+        uiManager.ApplyFont(24);
     }
 
     // Установка стиля ImGui
