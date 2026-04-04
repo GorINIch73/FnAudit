@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake *)",
+      "Bash(make *)"
+    ]
+  },
+  "$version": 3
+}

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -422,6 +423,50 @@ bool ImportManager::importIKZFromFile(
         std::string contract_number = trim(row[0]);
         std::string contract_date_raw = trim(row[1]);
         std::string ikz = trim(row[2]);
+
+        // Удаляем все невидимые символы Unicode из начала номера договора
+        while (!contract_number.empty()) {
+            unsigned char c0 = static_cast<unsigned char>(contract_number[0]);
+            
+            // 1. Проверка на UTF-8 BOM (EF BB BF) - U+FEFF
+            if (contract_number.size() >= 3 && c0 == 0xEF &&
+                static_cast<unsigned char>(contract_number[1]) == 0xBB &&
+                static_cast<unsigned char>(contract_number[2]) == 0xBF) {
+                contract_number.erase(0, 3);
+            }
+            // 2. Проверка на неразрывный пробел U+00A0 (C2 A0 в UTF-8)
+            else if (contract_number.size() >= 2 && c0 == 0xC2 &&
+                     static_cast<unsigned char>(contract_number[1]) == 0xA0) {
+                contract_number.erase(0, 2);
+            }
+            // 3. Пробельные символы Unicode U+200x (EN SPACE, EM SPACE, THIN SPACE, ZERO WIDTH SPACE и т.д.)
+            // U+2000..U+200F -> E2 80 80 .. E2 80 8F
+            else if (contract_number.size() >= 3 && c0 == 0xE2 &&
+                     static_cast<unsigned char>(contract_number[1]) == 0x80 &&
+                     static_cast<unsigned char>(contract_number[2]) >= 0x80 &&
+                     static_cast<unsigned char>(contract_number[2]) <= 0x8F) {
+                contract_number.erase(0, 3);
+            }
+            // 4. U+202F NARROW NO-BREAK SPACE (E2 80 AF)
+            else if (contract_number.size() >= 3 && c0 == 0xE2 &&
+                     static_cast<unsigned char>(contract_number[1]) == 0x80 &&
+                     static_cast<unsigned char>(contract_number[2]) == 0xAF) {
+                contract_number.erase(0, 3);
+            }
+            // 5. U+205F MEDIUM MATHEMATICAL SPACE (E2 81 9F)
+            else if (contract_number.size() >= 3 && c0 == 0xE2 &&
+                     static_cast<unsigned char>(contract_number[1]) == 0x81 &&
+                     static_cast<unsigned char>(contract_number[2]) == 0x9F) {
+                contract_number.erase(0, 3);
+            }
+            // 6. Обычные ASCII пробелы
+            else if (std::isspace(c0)) {
+                contract_number.erase(0, 1);
+            }
+            else {
+                break;
+            }
+        }
 
         if (contract_number.empty() || contract_date_raw.empty() || ikz.empty()) {
             continue; // Skip lines with essential missing data

@@ -643,8 +643,8 @@ int DatabaseManager::updateContractProcurementCode(
     if (!db)
         return 0;
     std::string sql =
-        "UPDATE Contracts SET procurement_code = ? WHERE number = ? AND date = "
-        "? AND (procurement_code IS NULL OR procurement_code = '');";
+        "UPDATE Contracts SET procurement_code = ? WHERE number = ? AND "
+        "(date = ? OR date = ?) AND (procurement_code IS NULL OR procurement_code = '');";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -658,6 +658,13 @@ int DatabaseManager::updateContractProcurementCode(
     sqlite3_bind_text(stmt, 1, procurement_code.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, number.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3, date.c_str(), -1, SQLITE_STATIC);
+    // Передаем дату в формате dd.mm.yyyy для альтернативного поиска
+    std::string date_ddmmyyyy;
+    if (date.length() == 10 && date[4] == '-' && date[7] == '-') {
+        // Конвертируем yyyy-mm-dd -> dd.mm.yyyy
+        date_ddmmyyyy = date.substr(8, 2) + "." + date.substr(5, 2) + "." + date.substr(0, 4);
+    }
+    sqlite3_bind_text(stmt, 4, date_ddmmyyyy.c_str(), -1, SQLITE_STATIC);
 
     int rc_step = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

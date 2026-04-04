@@ -26,6 +26,7 @@ public:
     bool createDatabase(const std::string& filepath);
     bool backupTo(const std::string& backupFilepath);
     bool is_open() const;
+    sqlite3* getDatabase() const { return db; }
 
     // Settings
     Settings getSettings();
