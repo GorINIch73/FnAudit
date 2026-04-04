@@ -8,7 +8,7 @@
 #include "../Kosgu.h"
 #include "../PaymentDetail.h"
 #include "../Contract.h"
-#include "../Invoice.h"
+#include "../BasePaymentDocument.h"
 #include "../Regex.h"
 #include "imgui.h"
 #include "CustomWidgets.h"
@@ -24,6 +24,7 @@ public:
     void SetUIManager(UIManager* uiManager);
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
     void OnDeactivate() override;
+    void ForceSave() override;
 
 private:
     void RefreshData();
@@ -54,7 +55,7 @@ private:
     std::vector<Counterparty> counterpartiesForDropdown;
     std::vector<Kosgu> kosguForDropdown;
     std::vector<Contract> contractsForDropdown;
-    std::vector<Invoice> invoicesForDropdown;
+    std::vector<BasePaymentDocument> baseDocsForDropdown;
     std::vector<SuspiciousWord> suspiciousWordsForFilter;
     char filterText[256];
     char counterpartyFilter[256];

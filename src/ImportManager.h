@@ -47,4 +47,18 @@ public:
             bool is_return_import,
             const std::string& custom_note
         );
+
+    // Импорт журнала ордера №4 из TSV
+    bool ImportJournalOrder4FromTsv(
+        const std::string& filepath,
+        DatabaseManager* dbManager,
+        const ColumnMapping& mapping,
+        std::atomic<float>& progress,
+        std::string& message,
+        std::mutex& message_mutex,
+        std::atomic<bool>& cancel_flag,
+        int& importedDocuments,
+        int& importedDetails,
+        std::vector<std::string>& errors
+    );
 };

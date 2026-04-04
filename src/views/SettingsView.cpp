@@ -36,6 +36,11 @@ void SettingsView::OnDeactivate() {
         SaveChanges();
     }
 }
+void SettingsView::ForceSave() {
+    if (isDirty) {
+        SaveChanges();
+    }
+}
 
 void SettingsView::Render() {
     if (!IsVisible) {

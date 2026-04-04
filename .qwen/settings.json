@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(cmake *)",
-      "Bash(make *)"
+      "Bash(make *)",
+      "Bash(rm *)"
     ]
   },
   "$version": 3

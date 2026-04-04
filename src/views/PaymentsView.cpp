@@ -1,7 +1,7 @@
 #include "PaymentsView.h"
 #include "../Contract.h"
 #include "../IconsFontAwesome6.h"
-#include "../Invoice.h"
+#include "../BasePaymentDocument.h"
 #include "../UIManager.h"
 #include "CustomWidgets.h"
 #include <algorithm> // для std::sort
@@ -59,7 +59,7 @@ void PaymentsView::RefreshDropdownData() {
         counterpartiesForDropdown = dbManager->getCounterparties();
         kosguForDropdown = dbManager->getKosguEntries();
         contractsForDropdown = dbManager->getContracts();
-        invoicesForDropdown = dbManager->getInvoices();
+        baseDocsForDropdown = dbManager->getBasePaymentDocuments();
         suspiciousWordsForFilter = dbManager->getSuspiciousWords();
     }
 }
@@ -79,6 +79,10 @@ PaymentsView::GetDataAsStrings() {
 }
 
 void PaymentsView::OnDeactivate() {
+    SaveChanges();
+    SaveDetailChanges();
+}
+void PaymentsView::ForceSave() {
     SaveChanges();
     SaveDetailChanges();
 }
@@ -104,6 +108,7 @@ void PaymentsView::SaveChanges() {
             payments.begin(), payments.end(),
             [&](const Payment &p) { return p.id == selectedPayment.id; });
         if (it != payments.end()) {
+            *it = selectedPayment;
             selectedPayment = *it;
             originalPayment = *it;
             descriptionBuffer = selectedPayment.description;
@@ -112,6 +117,10 @@ void PaymentsView::SaveChanges() {
                 paymentDetails =
                     dbManager->getPaymentDetails(selectedPayment.id);
             }
+        }
+        // Обновляем m_filtered_payments напрямую
+        for (auto& fp : m_filtered_payments) {
+            if (fp.id == selectedPayment.id) { fp = selectedPayment; break; }
         }
     }
     isAdding = false;
@@ -409,6 +418,7 @@ void PaymentsView::Render() {
         ImGui::PopItemWidth();
 
         if (filter_changed) {
+            SaveChanges();
             UpdateFilteredPayments();
         }
 
@@ -587,11 +597,13 @@ void PaymentsView::Render() {
                     sizeof(replacement_contract_filter), 0);
             } else {
                 std::vector<CustomWidgets::ComboItem> invoiceItems;
-                for (const auto &i : invoicesForDropdown) {
-                    invoiceItems.push_back({i.id, i.number + " " + i.date});
+                for (const auto &d : baseDocsForDropdown) {
+                    std::string display = d.number + " " + d.date;
+                    if (!d.document_name.empty()) display += " (" + d.document_name + ")";
+                    invoiceItems.push_back({d.id, display});
                 }
                 CustomWidgets::ComboWithFilter(
-                    "Новая Накладная", replacement_invoice_id, invoiceItems,
+                    "Новый Документ", replacement_invoice_id, invoiceItems,
                     replacement_invoice_filter,
                     sizeof(replacement_invoice_filter), 0);
             }
@@ -695,10 +707,8 @@ void PaymentsView::Render() {
                         if (selectedPaymentIndex != original_index) {
                             SaveChanges();
                             SaveDetailChanges();
-                            // Now refresh the data to update payments
-                            RefreshData();
-                            // Re-find the payment by ID in the refreshed
-                            // payments
+                            // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
+                            // Просто обновляем выбранный платеж из локального массива
                             int new_index = -1;
                             for (size_t j = 0; j < payments.size(); ++j) {
                                 if (payments[j].id == payment.id) {
@@ -882,7 +892,7 @@ void PaymentsView::Render() {
                                             extracted_number, extracted_date);
                                 } else {
                                     existing_entity_id =
-                                        dbManager->getInvoiceIdByNumberDate(
+                                        dbManager->getBasePaymentDocumentIdByNumberDate(
                                             extracted_number, extracted_date);
                                 }
 
@@ -965,7 +975,7 @@ void PaymentsView::Render() {
 
                 ImGui::RadioButton("Договор", &entity_to_create, 0);
                 ImGui::SameLine();
-                ImGui::RadioButton("Накладная", &entity_to_create, 1);
+                ImGui::RadioButton("Документ", &entity_to_create, 1);
                 ImGui::Separator();
 
                 ImGui::Text("Номер: %s", extracted_number.c_str());
@@ -990,9 +1000,12 @@ void PaymentsView::Render() {
                                 selectedPayment.counterparty_id, 0.0};
                             new_id = dbManager->addContract(new_contract);
                         } else {
-                            Invoice new_invoice = {-1, extracted_number,
-                                                   extracted_date, -1, 0.0};
-                            new_id = dbManager->addInvoice(new_invoice);
+                            BasePaymentDocument new_doc;
+                            new_doc.number = extracted_number;
+                            new_doc.date = extracted_date;
+                            new_doc.contract_id = -1;
+                            new_doc.document_name = "Накладная";
+                            new_id = dbManager->addBasePaymentDocument(new_doc);
                         }
                     }
 
@@ -1192,14 +1205,14 @@ void PaymentsView::Render() {
                         ImGui::Text("%s", contractNumber);
 
                         ImGui::TableNextColumn();
-                        const char *invoiceNumber = "N/A";
-                        for (const auto &inv : invoicesForDropdown) {
-                            if (inv.id == paymentDetails[i].invoice_id) {
-                                invoiceNumber = inv.number.c_str();
+                        const char *docNumber = "N/A";
+                        for (const auto &doc : baseDocsForDropdown) {
+                            if (doc.id == paymentDetails[i].invoice_id) {
+                                docNumber = doc.number.c_str();
                                 break;
                             }
                         }
-                        ImGui::Text("%s", invoiceNumber);
+                        ImGui::Text("%s", docNumber);
                     }
                 }
                 ImGui::EndTable();
@@ -1241,14 +1254,16 @@ void PaymentsView::Render() {
                 }
 
                 // Dropdown for Invoice
-                std::vector<CustomWidgets::ComboItem> invoiceItems;
-                for (const auto &i : invoicesForDropdown) {
-                    std::string display = i.number + "  " + i.date;
-                    invoiceItems.push_back({i.id, display});
+                std::vector<CustomWidgets::ComboItem> docItems;
+                docItems.push_back({-1, "Не выбрано"});
+                for (const auto &d : baseDocsForDropdown) {
+                    std::string display = d.number + "  " + d.date;
+                    if (!d.document_name.empty()) display += " (" + d.document_name + ")";
+                    docItems.push_back({d.id, display});
                 }
-                if (CustomWidgets::ComboWithFilter("Накладная##detail",
+                if (CustomWidgets::ComboWithFilter("Документ Основания##detail",
                                                    selectedDetail.invoice_id,
-                                                   invoiceItems, invoiceFilter,
+                                                   docItems, invoiceFilter,
                                                    sizeof(invoiceFilter), 0)) {
                     isDetailDirty = true;
                 }
@@ -1601,14 +1616,17 @@ void PaymentsView::ProcessGroupOperation() {
                                     id_to_set =
                                         dbManager->addContract(new_contract);
                                 }
-                            } else { // Invoice
-                                id_to_set = dbManager->getInvoiceIdByNumberDate(
+                            } else { // Base Document
+                                id_to_set = dbManager->getBasePaymentDocumentIdByNumberDate(
                                     number, date);
                                 if (id_to_set == -1) {
-                                    Invoice new_invoice = {-1, number, date, -1,
-                                                           0.0};
+                                    BasePaymentDocument new_doc;
+                                    new_doc.number = number;
+                                    new_doc.date = date;
+                                    new_doc.contract_id = -1;
+                                    new_doc.document_name = "Накладная";
                                     id_to_set =
-                                        dbManager->addInvoice(new_invoice);
+                                        dbManager->addBasePaymentDocument(new_doc);
                                 }
                             }
 

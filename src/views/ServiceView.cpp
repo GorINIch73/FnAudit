@@ -85,7 +85,7 @@ void ServiceView::Render() {
         return;
     }
 
-    ImGui::SetNextWindowSize(ImVec2(700, 500), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(700, 650), ImGuiCond_FirstUseEver);
     if (ImGui::Begin(Title.c_str(), &IsVisible)) {
         // --- IKZ Import Section ---
         ImGui::TextUnformatted("Импорт ИКЗ из файла (Колонки: Номер, Дата, ИКЗ)");

@@ -48,6 +48,7 @@ KosguView::GetDataAsStrings() {
 }
 
 void KosguView::OnDeactivate() { SaveChanges(); }
+void KosguView::ForceSave() { SaveChanges(); }
 
 void KosguView::SaveChanges() {
     if (!isDirty) {
@@ -71,7 +72,12 @@ void KosguView::SaveChanges() {
                 return k.id == selectedKosgu.id;
             });
         if (it != kosguEntries.end()) {
+            *it = selectedKosgu;
             selectedKosgu = *it;
+        }
+        // Обновляем m_filtered_kosgu_entries напрямую
+        for (auto& fk : m_filtered_kosgu_entries) {
+            if (fk.id == selectedKosgu.id) { fk = selectedKosgu; break; }
         }
     }
 
@@ -364,6 +370,7 @@ void KosguView::Render() {
         ImGui::PopItemWidth();
 
         if (filter_changed) {
+            SaveChanges();
             UpdateFilteredKosgu();
         }
 
@@ -416,22 +423,18 @@ void KosguView::Render() {
                         if (selectedKosguIndex != original_index &&
                             original_index != -1) {
                             SaveChanges();
-                            // Now refresh the data to update kosguEntries and m_filtered_kosgu_entries
-                            RefreshData();
-                            // Re-find the entry by ID in the refreshed kosguEntries
+                            // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
+                            // Просто обновляем выбранную запись из локального массива
                             auto new_it = std::find_if(
                                 kosguEntries.begin(), kosguEntries.end(),
                                 [&](const Kosgu &k) {
                                     return k.id == kosgu_id;
                                 });
-                            int new_index =
-                                (new_it == kosguEntries.end())
-                                    ? -1
-                                    : std::distance(kosguEntries.begin(), new_it);
-                            if (new_index != -1 && new_index < (int)kosguEntries.size()) {
+                            if (new_it != kosguEntries.end()) {
+                                int new_index = std::distance(kosguEntries.begin(), new_it);
                                 selectedKosguIndex = new_index;
-                                selectedKosgu = kosguEntries[new_index];
-                                originalKosgu = kosguEntries[new_index];
+                                selectedKosgu = *new_it;
+                                originalKosgu = *new_it;
                                 isAdding = false;
                                 isDirty = false;
                                 if (dbManager) {

@@ -35,9 +35,9 @@ void SelectiveCleanView::Render() {
         show_confirmation_modal_internal = true;
     }
 
-    if (ImGui::Button(ICON_FA_FILE_INVOICE " Удалить все накладные")) {
-        currentCleanTarget = CleanTarget::Invoices;
-        confirmationMessage = "Вы уверены, что хотите удалить ВСЕ накладные? Это может нарушить целостность данных, если существуют связанные платежи.";
+    if (ImGui::Button(ICON_FA_FILE_LINES " Удалить все документы основания")) {
+        currentCleanTarget = CleanTarget::BasePaymentDocuments;
+        confirmationMessage = "Вы уверены, что хотите удалить ВСЕ документы основания и связанные расшифровки? Это может нарушить целостность данных, если существуют связанные платежи.";
         ImGui::OpenPopup("ConfirmationModal");
         show_confirmation_modal_internal = true;
     }
@@ -69,7 +69,7 @@ void SelectiveCleanView::ShowConfirmationModal() {
                 case CleanTarget::Payments:       success = dbManager->ClearPayments(); break;
                 case CleanTarget::Counterparties: success = dbManager->ClearCounterparties(); break;
                 case CleanTarget::Contracts:      success = dbManager->ClearContracts(); break;
-                case CleanTarget::Invoices:       success = dbManager->ClearInvoices(); break;
+                case CleanTarget::BasePaymentDocuments: success = dbManager->ClearBasePaymentDocuments(); break;
                 case CleanTarget::OrphanDetails:  success = dbManager->CleanOrphanPaymentDetails(); break;
                 case CleanTarget::None: break;
             }

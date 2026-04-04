@@ -22,6 +22,7 @@ public:
     virtual void SetTitle(const std::string& title) { Title = title; }
 
     virtual void OnDeactivate() {}
+    virtual void ForceSave() {}
 
     bool IsVisible = false;
 

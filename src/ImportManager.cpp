@@ -234,15 +234,21 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                 std::string invoice_number = invoice_matches[1].str();
                 std::string invoice_date_db_format =
                     convertDateToDBFormat(invoice_matches[2].str());
-                current_invoice_id = dbManager->getInvoiceIdByNumberDate(
+                
+                // Используем новую таблицу BasePaymentDocuments вместо Invoices
+                current_invoice_id = dbManager->getBasePaymentDocumentIdByNumberDate(
                     invoice_number, invoice_date_db_format);
                 if (current_invoice_id == -1) {
-                    Invoice invoice_obj{-1, invoice_number,
-                                        invoice_date_db_format,
-                                        current_contract_id};
-                    int new_invoice_id = dbManager->addInvoice(invoice_obj);
-                    if (new_invoice_id != -1) {
-                        current_invoice_id = new_invoice_id;
+                    // Создаем документ основания
+                    BasePaymentDocument doc;
+                    doc.number = invoice_number;
+                    doc.date = invoice_date_db_format;
+                    doc.contract_id = current_contract_id;
+                    doc.document_name = "Накладная"; // По умолчанию
+                    
+                    int new_doc_id = dbManager->addBasePaymentDocument(doc);
+                    if (new_doc_id != -1) {
+                        current_invoice_id = new_doc_id;
                     }
                 }
             }
@@ -490,6 +496,214 @@ bool ImportManager::importIKZFromFile(
     {
         std::lock_guard<std::mutex> lock(message_mutex);
         message = "Импорт завершен. Обновлено: " + std::to_string(successfulImports) + ". Не найдено: " + std::to_string(unfoundContracts.size());
+    }
+    progress = 1.0f;
+    return true;
+}
+
+// Вспомогательная функция для получения значения из строки по mapping
+static std::string get_jo4_value(const std::vector<std::string>& row, const ColumnMapping& mapping, const std::string& field) {
+    auto it = mapping.find(field);
+    if (it == mapping.end()) return "";
+    int col_index = it->second;
+    if (col_index < 0 || col_index >= static_cast<int>(row.size())) return "";
+    return trim(row[col_index]);
+}
+
+bool ImportManager::ImportJournalOrder4FromTsv(
+    const std::string& filepath,
+    DatabaseManager* dbManager,
+    const ColumnMapping& mapping,
+    std::atomic<float>& progress,
+    std::string& message,
+    std::mutex& message_mutex,
+    std::atomic<bool>& cancel_flag,
+    int& importedDocuments,
+    int& importedDetails,
+    std::vector<std::string>& errors
+) {
+    if (!dbManager) {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Ошибка: Менеджер базы данных не инициализирован.";
+        return false;
+    }
+
+    std::ifstream file(filepath);
+    if (!file.is_open()) {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Ошибка: Не удалось открыть TSV файл: " + filepath;
+        return false;
+    }
+
+    // Подсчёт строк для прогресса
+    file.seekg(0, std::ios::beg);
+    size_t total_lines = std::count(std::istreambuf_iterator<char>(file),
+                                    std::istreambuf_iterator<char>(), '\n');
+    file.clear();
+    file.seekg(0, std::ios::beg);
+
+    std::string line;
+    std::getline(file, line); // Пропуск заголовка
+
+    importedDocuments = 0;
+    importedDetails = 0;
+    errors.clear();
+    size_t line_num = 0;
+
+    // Карта для отслеживания созданных документов (key: number+date)
+    std::map<std::string, int> doc_cache;
+
+    // Функция для очистки невидимых символов
+    auto strip_invisible = [](std::string& str) {
+        while (!str.empty()) {
+            unsigned char c0 = static_cast<unsigned char>(str[0]);
+            if (str.size() >= 3 && c0 == 0xEF &&
+                static_cast<unsigned char>(str[1]) == 0xBB &&
+                static_cast<unsigned char>(str[2]) == 0xBF) {
+                str.erase(0, 3);
+            } else if (str.size() >= 2 && c0 == 0xC2 &&
+                       static_cast<unsigned char>(str[1]) == 0xA0) {
+                str.erase(0, 2);
+            } else if (str.size() >= 3 && c0 == 0xE2 &&
+                       static_cast<unsigned char>(str[1]) == 0x80 &&
+                       static_cast<unsigned char>(str[2]) >= 0x80 &&
+                       static_cast<unsigned char>(str[2]) <= 0x8F) {
+                str.erase(0, 3);
+            } else if (str.size() >= 3 && c0 == 0xE2 &&
+                       static_cast<unsigned char>(str[1]) == 0x80 &&
+                       static_cast<unsigned char>(str[2]) == 0xAF) {
+                str.erase(0, 3);
+            } else if (std::isspace(c0)) {
+                str.erase(0, 1);
+            } else {
+                break;
+            }
+        }
+    };
+
+    while (std::getline(file, line)) {
+        if (cancel_flag) {
+            std::lock_guard<std::mutex> lock(message_mutex);
+            message = "Импорт ЖО4 отменен пользователем.";
+            progress = 0.0f;
+            return false;
+        }
+
+        line_num++;
+        progress = static_cast<float>(line_num) / total_lines;
+        {
+            std::lock_guard<std::mutex> lock(message_mutex);
+            message = "Импорт ЖО4 строки " + std::to_string(line_num) + " из " +
+                      std::to_string(total_lines);
+        }
+
+        if (line.empty()) continue;
+
+        std::vector<std::string> row = split(line, '\t');
+
+        // Извлекаем поля
+        std::string doc_date = get_jo4_value(row, mapping, "Дата документа");
+        std::string doc_number = get_jo4_value(row, mapping, "Номер документа");
+        std::string doc_name = get_jo4_value(row, mapping, "Наименование документа");
+        std::string counterparty_name = get_jo4_value(row, mapping, "Наименование показателя");
+        std::string operation_content = get_jo4_value(row, mapping, "Содержание операции");
+        std::string debit_account = get_jo4_value(row, mapping, "Счет дебет");
+        std::string credit_account = get_jo4_value(row, mapping, "Счет кредит");
+        std::string amount_str = get_jo4_value(row, mapping, "Сумма");
+
+        // Конвертация даты
+        std::string date_db = doc_date;
+        if (doc_date.length() >= 8) {
+            date_db = convertDateToDBFormat(doc_date);
+        }
+
+        // Очистка от невидимых символов
+        strip_invisible(doc_number);
+        strip_invisible(doc_name);
+        strip_invisible(counterparty_name);
+
+        double amount = 0.0;
+        try {
+            // Заменяем запятую на точку
+            std::replace(amount_str.begin(), amount_str.end(), ',', '.');
+            amount = std::stod(amount_str);
+        } catch (...) {
+            errors.push_back("Строка " + std::to_string(line_num) + ": неверная сумма '" + amount_str + "'");
+            continue;
+        }
+
+        // Поиск или создание контрагента
+        int counterparty_id = -1;
+        if (!counterparty_name.empty()) {
+            counterparty_id = dbManager->getCounterpartyIdByName(counterparty_name);
+            if (counterparty_id == -1) {
+                Counterparty new_cp{-1, counterparty_name, ""};
+                counterparty_id = dbManager->addCounterparty(new_cp);
+            }
+        }
+
+        // Поиск или создание документа основания
+        int doc_id = -1;
+        std::string cache_key = doc_number + "|" + date_db;
+        
+        auto cache_it = doc_cache.find(cache_key);
+        if (cache_it != doc_cache.end()) {
+            doc_id = cache_it->second;
+        } else {
+            doc_id = dbManager->getBasePaymentDocumentIdByNumberDate(doc_number, date_db);
+        }
+
+        if (doc_id == -1 && !doc_number.empty() && !date_db.empty()) {
+            BasePaymentDocument new_doc;
+            new_doc.date = date_db;
+            new_doc.number = doc_number;
+            new_doc.document_name = doc_name;
+            new_doc.counterparty_id = counterparty_id;
+            new_doc.contract_id = -1;
+            new_doc.payment_id = -1;
+            
+            doc_id = dbManager->addBasePaymentDocument(new_doc);
+            if (doc_id != -1) {
+                doc_cache[cache_key] = doc_id;
+                importedDocuments++;
+            }
+        }
+
+        // Создание расшифровки документа
+        if (doc_id != -1) {
+            BasePaymentDocumentDetail new_detail;
+            new_detail.document_id = doc_id;
+            new_detail.operation_content = operation_content;
+            new_detail.debit_account = debit_account;
+            new_detail.credit_account = credit_account;
+            new_detail.amount = amount;
+
+            // Автоопределение КОСГУ по счёту дебета
+            if (!debit_account.empty()) {
+                // Поиск КОСГУ по коду (например, "201" -> КОСГУ 201)
+                std::string kosgu_code = debit_account.substr(0, 3);
+                int kosgu_id = dbManager->getKosguIdByCode(kosgu_code);
+                new_detail.kosgu_id = kosgu_id;
+            }
+
+            if (dbManager->addBasePaymentDocumentDetail(new_detail)) {
+                importedDetails++;
+            } else {
+                errors.push_back("Строка " + std::to_string(line_num) + ": ошибка создания расшифровки");
+            }
+        } else {
+            errors.push_back("Строка " + std::to_string(line_num) + ": не удалось создать документ");
+        }
+    }
+
+    file.close();
+    {
+        std::lock_guard<std::mutex> lock(message_mutex);
+        message = "Импорт ЖО4 завершен. Документов: " + std::to_string(importedDocuments) +
+                  ", Расшифровок: " + std::to_string(importedDetails);
+        if (!errors.empty()) {
+            message += ". Ошибок: " + std::to_string(errors.size());
+        }
     }
     progress = 1.0f;
     return true;

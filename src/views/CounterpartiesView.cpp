@@ -64,6 +64,7 @@ CounterpartiesView::GetDataAsStrings() {
 }
 
 void CounterpartiesView::OnDeactivate() { SaveChanges(); }
+void CounterpartiesView::ForceSave() { SaveChanges(); }
 
 void CounterpartiesView::SaveChanges() {
     if (!isDirty) {
@@ -89,7 +90,12 @@ void CounterpartiesView::SaveChanges() {
                                    return c.id == saved_id;
                                });
         if (it != counterparties.end()) {
+            *it = selectedCounterparty;
             selectedCounterparty = *it;
+        }
+        // Обновляем m_filtered_counterparties напрямую
+        for (auto& fc : m_filtered_counterparties) {
+            if (fc.id == saved_id) { fc = selectedCounterparty; break; }
         }
     }
 
@@ -281,6 +287,7 @@ void CounterpartiesView::Render() {
         }
 
         if (filter_changed) {
+            SaveChanges();
             UpdateFilteredCounterparties();
         }
 
@@ -329,9 +336,8 @@ void CounterpartiesView::Render() {
                                       ImGuiSelectableFlags_SpanAllColumns)) {
                     if (selectedCounterpartyId != cp.id) {
                         SaveChanges();
-                        // Now refresh the data
-                        RefreshData();
-                        // Re-find the counterparty by ID
+                        // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
+                        // Просто обновляем выбранный контрагент из локального массива
                         auto it = std::find_if(
                             counterparties.begin(), counterparties.end(),
                             [&](const Counterparty &c) {

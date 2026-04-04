@@ -8,7 +8,6 @@
 #include "Counterparty.h"
 #include "Contract.h"
 #include "Payment.h"
-#include "Invoice.h"
 #include "PaymentDetail.h"
 #include "Settings.h"
 #include "Regex.h"
@@ -58,13 +57,6 @@ public:
     void transferPaymentDetails(int from_contract_id, int to_contract_id);
     std::vector<ContractPaymentInfo> getPaymentInfoForContract(int contract_id);
 
-    int addInvoice(Invoice& invoice); // Pass by reference to get the id back
-    int getInvoiceIdByNumberDate(const std::string& number, const std::string& date);
-    std::vector<Invoice> getInvoices();
-    bool updateInvoice(const Invoice& invoice);
-    bool deleteInvoice(int id);
-    std::vector<ContractPaymentInfo> getPaymentInfoForInvoice(int invoice_id);
-
     // BasePaymentDocument methods
     int addBasePaymentDocument(BasePaymentDocument& doc);
     int getBasePaymentDocumentIdByNumberDate(const std::string& number, const std::string& date);
@@ -83,6 +75,36 @@ public:
     bool deleteAllBasePaymentDocumentDetails(int document_id);
     bool bulkUpdateBasePaymentDocumentDetails(const std::vector<int>& document_ids, const std::string& field_to_update, int new_id);
     int getBasePaymentDocumentDetailIdByContent(int document_id, const std::string& operation_content);
+
+    // Сверка
+    struct ReconciliationRecord {
+        int payment_id;
+        std::string payment_date;
+        std::string payment_doc_number;
+        double payment_amount;
+        std::string payment_description;
+        std::string counterparty_name;
+        int payment_detail_id;
+        double detail_amount;
+        std::string kosgu_code;
+
+        int base_doc_id;
+        std::string base_doc_date;
+        std::string base_doc_number;
+        std::string base_doc_name;
+        double base_doc_total;
+        bool base_doc_for_checking;
+        bool base_doc_checked;
+
+        int base_detail_id;
+        std::string base_detail_content;
+        std::string base_detail_debit;
+        std::string base_detail_credit;
+        std::string base_detail_kosgu;
+        double base_detail_amount;
+    };
+
+    std::vector<ReconciliationRecord> getReconciliationData(const std::string& filter = "");
 
     std::vector<Payment> getPayments();
     bool addPayment(Payment& payment);
@@ -121,7 +143,7 @@ public:
     bool ClearPayments();
     bool ClearCounterparties();
     bool ClearContracts();
-    bool ClearInvoices();
+    bool ClearBasePaymentDocuments();
     bool CleanOrphanPaymentDetails();
     
     bool executeSelect(const std::string& sql, std::vector<std::string>& columns, std::vector<std::vector<std::string>>& rows);

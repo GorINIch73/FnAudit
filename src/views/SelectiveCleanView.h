@@ -26,7 +26,7 @@ private:
         Payments,
         Counterparties,
         Contracts,
-        Invoices,
+        BasePaymentDocuments,
         OrphanDetails
     };
 

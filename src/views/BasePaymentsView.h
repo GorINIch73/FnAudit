@@ -20,6 +20,7 @@ public:
     void SetUIManager(UIManager* manager) override;
     std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
     void OnDeactivate() override;
+    void ForceSave() override;
 
 private:
     void RefreshData();
@@ -42,6 +43,8 @@ private:
     char counterpartyFilter[256];
     float list_view_height = 200.0f;
     float editor_width = 400.0f;
+    float split_pos = 250.0f;
+    bool m_dataDirty = true;
 
     std::vector<BasePaymentDocumentDetail> docDetails;
     BasePaymentDocumentDetail selectedDetail;
@@ -79,4 +82,5 @@ private:
 
     std::vector<BasePaymentDocument> m_filtered_documents;
     void UpdateFilteredDocuments();
+    void SortDocuments(const struct ImGuiTableSortSpecs* sort_specs);
 };

@@ -195,6 +195,12 @@ void UIManager::ShowServiceView() {
     CreateView<ServiceView>();
 }
 
+void UIManager::SaveAllViews() {
+    for (const auto& view : allViews) {
+        view->ForceSave();
+    }
+}
+
 SpecialQueryView *UIManager::CreateSpecialQueryView(const std::string &title,
                                                     const std::string &query) {
     auto view = std::make_unique<SpecialQueryView>(title, query);
@@ -304,6 +310,17 @@ void UIManager::HandleFileDialogs() {
                 CreateView<ImportMapView>()->Open(filePathName);
             } else {
                 // TODO: Show error message that a database must be open first.
+            }
+        }
+        ImGuiFileDialog::Instance()->Close();
+    }
+
+    if (ImGuiFileDialog::Instance()->Display("ImportJO4FileDlgKey")) {
+        if (ImGuiFileDialog::Instance()->IsOk()) {
+            std::string filePathName =
+                ImGuiFileDialog::Instance()->GetFilePathName();
+            if (dbManager->is_open()) {
+                CreateView<JO4ImportMapView>()->Open(filePathName);
             }
         }
         ImGuiFileDialog::Instance()->Close();

@@ -71,8 +71,9 @@ set(APP_SOURCES
     src/views/KosguView.cpp
     src/views/CounterpartiesView.cpp
     src/views/ContractsView.cpp
-    src/views/InvoicesView.cpp
     src/views/BasePaymentsView.cpp
+    src/views/JO4ImportMapView.cpp
+    src/views/ReconciliationView.cpp
     src/views/SqlQueryView.cpp
     src/views/SettingsView.cpp
     src/views/ImportMapView.cpp

@@ -69,6 +69,7 @@ ContractsView::GetDataAsStrings() {
 }
 
 void ContractsView::OnDeactivate() { SaveChanges(); }
+void ContractsView::ForceSave() { SaveChanges(); }
 
 void ContractsView::SaveChanges() {
     if (!isDirty) {
@@ -92,7 +93,12 @@ void ContractsView::SaveChanges() {
                 return c.id == selectedContract.id;
             });
         if (it != contracts.end()) {
+            *it = selectedContract; // Обновляем contracts напрямую
             selectedContract = *it;
+        }
+        // Обновляем m_filtered_contracts напрямую
+        for (auto& fc : m_filtered_contracts) {
+            if (fc.id == selectedContract.id) { fc = selectedContract; break; }
         }
     }
 
@@ -554,6 +560,7 @@ void ContractsView::Render() {
         ImGui::PopItemWidth();
 
         if (filter_changed) {
+            SaveChanges();
             UpdateFilteredContracts();
         }
 
@@ -691,33 +698,27 @@ void ContractsView::Render() {
                         if (selectedContractIndex != original_index &&
                             original_index != -1) {
                             SaveChanges();
-                            // Now refresh the data to update contracts and m_filtered_contracts
-                            RefreshData();
-                            // Re-find the contract by ID in the refreshed contracts
-                            auto new_it = std::find_if(
-                                contracts.begin(), contracts.end(),
-                                [&](const Contract &c) {
-                                    return c.id == contract_id;
-                                });
-                            int new_index =
-                                (new_it == contracts.end())
-                                    ? -1
-                                    : std::distance(contracts.begin(), new_it);
-                            if (new_index != -1 && new_index < (int)contracts.size()) {
-                                selectedContractIndex = new_index;
-                                selectedContract = contracts[new_index];
-                                originalContract = contracts[new_index];
-                                isAdding = false;
-                                isDirty = false;
-                                m_sorted_payment_info.clear();
-                                if (dbManager) {
+                            // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
+                            // Просто обновляем выбранный контракт из базы
+                            if (dbManager) {
+                                auto updated_it = std::find_if(
+                                    contracts.begin(), contracts.end(),
+                                    [&](const Contract &c) {
+                                        return c.id == contract_id;
+                                    });
+                                if (updated_it != contracts.end()) {
+                                    int new_index = std::distance(contracts.begin(), updated_it);
+                                    selectedContractIndex = new_index;
+                                    selectedContract = *updated_it;
+                                    originalContract = *updated_it;
+                                    isAdding = false;
+                                    isDirty = false;
+                                    m_sorted_payment_info.clear();
                                     payment_info =
                                         dbManager->getPaymentInfoForContract(
                                             selectedContract.id);
                                 }
                             }
-                            // Break out of the loop to avoid accessing invalid indices
-                            // in the refreshed m_filtered_contracts
                             need_to_break = true;
                         }
                     }

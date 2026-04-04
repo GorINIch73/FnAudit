@@ -16,8 +16,9 @@
 #include "views/KosguView.h"
 #include "views/CounterpartiesView.h"
 #include "views/ContractsView.h"
-#include "views/InvoicesView.h"
 #include "views/BasePaymentsView.h"
+#include "views/JO4ImportMapView.h"
+#include "views/ReconciliationView.h"
 #include "views/SqlQueryView.h"
 #include "views/SettingsView.h"
 #include "views/ImportMapView.h"
@@ -46,6 +47,7 @@ public:
     void HandleFileDialogs();
     void SetWindowTitle(const std::string& db_path);
     void ShowServiceView();
+    void SaveAllViews();
     SpecialQueryView* CreateSpecialQueryView(const std::string& title, const std::string& query);
     void ApplyTheme(int theme_index);
     void ApplyFont(int font_size);
@@ -67,7 +69,7 @@ public:
         view->SetDatabaseManager(dbManager);
         view->SetPdfReporter(pdfReporter);
 
-        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, KosguView> || std::is_same_v<T, CounterpartiesView> || std::is_same_v<T, SettingsView> || std::is_same_v<T, ServiceView>) {
+        if constexpr (std::is_same_v<T, ImportMapView> || std::is_same_v<T, JO4ImportMapView> || std::is_same_v<T, PaymentsView> || std::is_same_v<T, ContractsView> || std::is_same_v<T, KosguView> || std::is_same_v<T, CounterpartiesView> || std::is_same_v<T, SettingsView> || std::is_same_v<T, ServiceView>) {
             viewPtr->SetUIManager(this);
         }
         
@@ -77,7 +79,7 @@ public:
 
         std::string title = std::string(view->GetTitle());
         // Only add a unique ID if it's not a singleton view like Settings or ImportMap
-        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView> && !std::is_same_v<T, SelectiveCleanView> && !std::is_same_v<T, SuspiciousWordsView> && !std::is_same_v<T, ServiceView>) {
+        if constexpr (!std::is_same_v<T, SettingsView> && !std::is_same_v<T, ImportMapView> && !std::is_same_v<T, JO4ImportMapView> && !std::is_same_v<T, SelectiveCleanView> && !std::is_same_v<T, SuspiciousWordsView> && !std::is_same_v<T, ServiceView>) {
              title += "###" + std::to_string(viewIdCounter++);
         }
         view->SetTitle(title);

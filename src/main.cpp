@@ -139,6 +139,7 @@ int main(int, char **) {
                 ImGui::Separator();
                 if (ImGui::MenuItem(ICON_FA_ARROW_RIGHT_FROM_BRACKET
                                     " Выход")) {
+                    uiManager.SaveAllViews();
                     glfwSetWindowShouldClose(window, true);
                 }
                 ImGui::Separator();
@@ -166,9 +167,6 @@ int main(int, char **) {
                 if (ImGui::MenuItem(ICON_FA_FILE_CONTRACT " Договоры")) {
                     uiManager.CreateView<ContractsView>();
                 }
-                if (ImGui::MenuItem(ICON_FA_FILE_INVOICE " Накладные")) {
-                    uiManager.CreateView<InvoicesView>();
-                }
                 if (ImGui::MenuItem(ICON_FA_FILE_LINES " Документы Основания")) {
                     uiManager.CreateView<BasePaymentsView>();
                 }
@@ -177,6 +175,9 @@ int main(int, char **) {
             if (ImGui::BeginMenu(ICON_FA_FILE_PDF " Отчеты")) {
                 if (ImGui::MenuItem(ICON_FA_DATABASE " SQL Запрос")) {
                     uiManager.CreateView<SqlQueryView>();
+                }
+                if (ImGui::MenuItem(ICON_FA_SCALE_BALANCED " Сверка: Банк ↔ ДО")) {
+                    uiManager.CreateView<ReconciliationView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Экспорт в PDF")) {
                     ImGuiFileDialog::Instance()->OpenDialog(
@@ -192,6 +193,11 @@ int main(int, char **) {
                     ImGuiFileDialog::Instance()->OpenDialog(
                         "ImportTsvFileDlgKey", "Выберите TSV файл для импорта",
                         ".tsv");
+                }
+                if (ImGui::MenuItem(ICON_FA_FILE_IMPORT " Импорт ЖО4 из TSV")) {
+                    ImGuiFileDialog::Instance()->OpenDialog(
+                        "ImportJO4FileDlgKey", "Выберите TSV файл ЖО4 для импорта",
+                        ".tsv,.csv");
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_SIGNATURE
                                     " Экспорт Импорт ИКЗ")) {
