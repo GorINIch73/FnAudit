@@ -149,7 +149,9 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "note TEXT,"
         "import_preview_lines INTEGER DEFAULT 20,"
         "theme INTEGER DEFAULT 0,"
-        "font_size INTEGER DEFAULT 24"
+        "font_size INTEGER DEFAULT 24,"
+        "zakupki_url_template TEXT,"
+        "zakupki_url_search_template TEXT"
         ");";
     if (!execute(create_settings_table_sql)) {
         close();
@@ -159,8 +161,12 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
     std::string insert_default_settings =
         "INSERT OR IGNORE INTO Settings (id, organization_name, "
         "period_start_date, period_end_date, note, import_preview_lines, "
-        "theme, font_size) "
-        "VALUES (1, '', '', '', '', 20, 0, 24);";
+        "theme, font_size, zakupki_url_template, zakupki_url_search_template) "
+        "VALUES (1, '', '', '', '', 20, 0, 24, "
+        "'https://zakupki.gov.ru/epz/contract/contractCard/"
+        "common-info.html?reestrNumber={IKZ}', "
+        "'https://zakupki.gov.ru/epz/contract/search/"
+        "results.html?searchString={NUMBER}');";
     if (!execute(insert_default_settings)) {
         close();
         return false;
@@ -534,7 +540,8 @@ DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description, k.code AS kosgu_code "
+    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description, "
+                      "k.code AS kosgu_code "
                       "FROM Payments p "
                       "LEFT JOIN PaymentDetails pd ON p.id = pd.payment_id "
                       "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
@@ -552,10 +559,10 @@ DatabaseManager::getPaymentInfoForCounterparty(int counterparty_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
-        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
-        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
-        const char* kosgu_text = (const char*)sqlite3_column_text(stmt, 4);
+        const char *date_text = (const char *)sqlite3_column_text(stmt, 0);
+        const char *doc_text = (const char *)sqlite3_column_text(stmt, 1);
+        const char *desc_text = (const char *)sqlite3_column_text(stmt, 3);
+        const char *kosgu_text = (const char *)sqlite3_column_text(stmt, 4);
 
         info.date = date_text ? date_text : "";
         info.doc_number = doc_text ? doc_text : "";
@@ -644,7 +651,8 @@ int DatabaseManager::updateContractProcurementCode(
         return 0;
     std::string sql =
         "UPDATE Contracts SET procurement_code = ? WHERE number = ? AND "
-        "(date = ? OR date = ?) AND (procurement_code IS NULL OR procurement_code = '');";
+        "(date = ? OR date = ?) AND (procurement_code IS NULL OR "
+        "procurement_code = '');";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
@@ -662,7 +670,8 @@ int DatabaseManager::updateContractProcurementCode(
     std::string date_ddmmyyyy;
     if (date.length() == 10 && date[4] == '-' && date[7] == '-') {
         // Конвертируем yyyy-mm-dd -> dd.mm.yyyy
-        date_ddmmyyyy = date.substr(8, 2) + "." + date.substr(5, 2) + "." + date.substr(0, 4);
+        date_ddmmyyyy = date.substr(8, 2) + "." + date.substr(5, 2) + "." +
+                        date.substr(0, 4);
     }
     sqlite3_bind_text(stmt, 4, date_ddmmyyyy.c_str(), -1, SQLITE_STATIC);
 
@@ -678,14 +687,18 @@ int DatabaseManager::updateContractProcurementCode(
     return sqlite3_changes(db);
 }
 
-bool DatabaseManager::updateContractProcurementCode(int contract_id, const std::string& procurement_code) {
-    if (!db) return false;
+bool DatabaseManager::updateContractProcurementCode(
+    int contract_id, const std::string &procurement_code) {
+    if (!db)
+        return false;
 
     std::string sql = "UPDATE Contracts SET procurement_code = ? WHERE id = ?;";
-    sqlite3_stmt* stmt = nullptr;
+    sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for updateContractProcurementCode by id: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to prepare statement for "
+                     "updateContractProcurementCode by id: "
+                  << sqlite3_errmsg(db) << std::endl;
         return false;
     }
     sqlite3_bind_text(stmt, 1, procurement_code.c_str(), -1, SQLITE_STATIC);
@@ -695,7 +708,8 @@ bool DatabaseManager::updateContractProcurementCode(int contract_id, const std::
     sqlite3_finalize(stmt);
 
     if (rc_step != SQLITE_DONE) {
-        std::cerr << "Failed to update Contract procurement code by id: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to update Contract procurement code by id: "
+                  << sqlite3_errmsg(db) << std::endl;
         return false;
     }
     return true;
@@ -829,14 +843,18 @@ bool DatabaseManager::deleteContract(int id) {
     return true;
 }
 
-bool DatabaseManager::updateContractFlags(int contract_id, bool is_for_checking, bool is_for_special_control) {
-    if (!db) return false;
+bool DatabaseManager::updateContractFlags(int contract_id, bool is_for_checking,
+                                          bool is_for_special_control) {
+    if (!db)
+        return false;
 
-    std::string sql = "UPDATE Contracts SET is_for_checking = ?, is_for_special_control = ? WHERE id = ?;";
-    sqlite3_stmt* stmt = nullptr;
+    std::string sql = "UPDATE Contracts SET is_for_checking = ?, "
+                      "is_for_special_control = ? WHERE id = ?;";
+    sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
-        std::cerr << "Failed to prepare statement for updateContractFlags: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to prepare statement for updateContractFlags: "
+                  << sqlite3_errmsg(db) << std::endl;
         return false;
     }
     sqlite3_bind_int(stmt, 1, is_for_checking ? 1 : 0);
@@ -847,7 +865,8 @@ bool DatabaseManager::updateContractFlags(int contract_id, bool is_for_checking,
     sqlite3_finalize(stmt);
 
     if (rc != SQLITE_DONE) {
-        std::cerr << "Failed to update contract flags: " << sqlite3_errmsg(db) << std::endl;
+        std::cerr << "Failed to update contract flags: " << sqlite3_errmsg(db)
+                  << std::endl;
         return false;
     }
     return true;
@@ -887,11 +906,12 @@ DatabaseManager::getPaymentInfoForContract(int contract_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description, k.code "
-                      "FROM Payments p "
-                      "JOIN PaymentDetails pd ON p.id = pd.payment_id "
-                      "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
-                      "WHERE pd.contract_id = ?;";
+    std::string sql =
+        "SELECT p.date, p.doc_number, pd.amount, p.description, k.code "
+        "FROM Payments p "
+        "JOIN PaymentDetails pd ON p.id = pd.payment_id "
+        "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
+        "WHERE pd.contract_id = ?;";
 
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -905,10 +925,10 @@ DatabaseManager::getPaymentInfoForContract(int contract_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
-        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
-        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
-        const char* kosgu_text = (const char*)sqlite3_column_text(stmt, 4);
+        const char *date_text = (const char *)sqlite3_column_text(stmt, 0);
+        const char *doc_text = (const char *)sqlite3_column_text(stmt, 1);
+        const char *desc_text = (const char *)sqlite3_column_text(stmt, 3);
+        const char *kosgu_text = (const char *)sqlite3_column_text(stmt, 4);
 
         info.date = date_text ? date_text : "";
         info.doc_number = doc_text ? doc_text : "";
@@ -1102,10 +1122,10 @@ DatabaseManager::getPaymentInfoForInvoice(int invoice_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
-        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
-        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
-        
+        const char *date_text = (const char *)sqlite3_column_text(stmt, 0);
+        const char *doc_text = (const char *)sqlite3_column_text(stmt, 1);
+        const char *desc_text = (const char *)sqlite3_column_text(stmt, 3);
+
         info.date = date_text ? date_text : "";
         info.doc_number = doc_text ? doc_text : "";
         info.amount = sqlite3_column_double(stmt, 2);
@@ -1284,11 +1304,12 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
     if (!db)
         return results;
 
-    std::string sql = "SELECT p.date, p.doc_number, pd.amount, p.description, c.name "
-                      "FROM Payments p "
-                      "JOIN PaymentDetails pd ON p.id = pd.payment_id "
-                      "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
-                      "WHERE pd.kosgu_id = ?;";
+    std::string sql =
+        "SELECT p.date, p.doc_number, pd.amount, p.description, c.name "
+        "FROM Payments p "
+        "JOIN PaymentDetails pd ON p.id = pd.payment_id "
+        "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
+        "WHERE pd.kosgu_id = ?;";
 
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -1301,16 +1322,18 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        const char* date_text = (const char*)sqlite3_column_text(stmt, 0);
-        const char* doc_text = (const char*)sqlite3_column_text(stmt, 1);
-        const char* desc_text = (const char*)sqlite3_column_text(stmt, 3);
-        const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 4);
-        
+        const char *date_text = (const char *)sqlite3_column_text(stmt, 0);
+        const char *doc_text = (const char *)sqlite3_column_text(stmt, 1);
+        const char *desc_text = (const char *)sqlite3_column_text(stmt, 3);
+        const unsigned char *counterparty_name_text =
+            sqlite3_column_text(stmt, 4);
+
         info.date = date_text ? date_text : "";
         info.doc_number = doc_text ? doc_text : "";
         info.amount = sqlite3_column_double(stmt, 2);
         info.description = desc_text ? desc_text : "";
-        info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
+        info.counterparty_name =
+            counterparty_name_text ? (const char *)counterparty_name_text : "";
         results.push_back(info);
     }
 
@@ -1319,25 +1342,29 @@ DatabaseManager::getPaymentInfoForKosgu(int kosgu_id) {
 }
 
 std::vector<ContractPaymentInfo>
-DatabaseManager::getDecodingForKosgu(int kosgu_id, const std::string& filterText) {
+DatabaseManager::getDecodingForKosgu(int kosgu_id,
+                                     const std::string &filterText) {
     std::vector<ContractPaymentInfo> results;
     if (!db)
         return results;
 
-    std::string sql = "SELECT k.code AS kosgu_code, p.date, p.doc_number, pd.amount, "
-                      "p.description, c.name AS counterparty_name "
-                      "FROM PaymentDetails pd "
-                      "JOIN Payments p ON pd.payment_id = p.id "
-                      "JOIN KOSGU k ON pd.kosgu_id = k.id "
-                      "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
-                      "WHERE pd.kosgu_id = ?";
-    
+    std::string sql =
+        "SELECT k.code AS kosgu_code, p.date, p.doc_number, pd.amount, "
+        "p.description, c.name AS counterparty_name "
+        "FROM PaymentDetails pd "
+        "JOIN Payments p ON pd.payment_id = p.id "
+        "JOIN KOSGU k ON pd.kosgu_id = k.id "
+        "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
+        "WHERE pd.kosgu_id = ?";
+
     if (!filterText.empty()) {
-        sql += " AND (LOWER(p.date) LIKE LOWER(?) OR LOWER(p.doc_number) LIKE LOWER(?) "
-               "OR LOWER(pd.amount) LIKE LOWER(?) OR LOWER(p.description) LIKE LOWER(?) "
+        sql += " AND (LOWER(p.date) LIKE LOWER(?) OR LOWER(p.doc_number) LIKE "
+               "LOWER(?) "
+               "OR LOWER(pd.amount) LIKE LOWER(?) OR LOWER(p.description) LIKE "
+               "LOWER(?) "
                "OR LOWER(c.name) LIKE LOWER(?) OR LOWER(k.code) LIKE LOWER(?))";
     }
-    
+
     sql += ";";
 
     sqlite3_stmt *stmt = nullptr;
@@ -1348,28 +1375,31 @@ DatabaseManager::getDecodingForKosgu(int kosgu_id, const std::string& filterText
     }
 
     sqlite3_bind_int(stmt, 1, kosgu_id);
-    
+
     if (!filterText.empty()) {
         std::string filterParam = "%" + filterText + "%";
         for (int i = 0; i < 6; i++) {
-            sqlite3_bind_text(stmt, 2 + i, filterParam.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 2 + i, filterParam.c_str(), -1,
+                              SQLITE_TRANSIENT);
         }
     }
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         ContractPaymentInfo info;
-        const char* kosgu_text = (const char*)sqlite3_column_text(stmt, 0);
-        const char* date_text = (const char*)sqlite3_column_text(stmt, 1);
-        const char* doc_text = (const char*)sqlite3_column_text(stmt, 2);
-        const char* desc_text = (const char*)sqlite3_column_text(stmt, 4);
-        const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 5);
-        
+        const char *kosgu_text = (const char *)sqlite3_column_text(stmt, 0);
+        const char *date_text = (const char *)sqlite3_column_text(stmt, 1);
+        const char *doc_text = (const char *)sqlite3_column_text(stmt, 2);
+        const char *desc_text = (const char *)sqlite3_column_text(stmt, 4);
+        const unsigned char *counterparty_name_text =
+            sqlite3_column_text(stmt, 5);
+
         info.kosgu_code = kosgu_text ? kosgu_text : "";
         info.date = date_text ? date_text : "";
         info.doc_number = doc_text ? doc_text : "";
         info.amount = sqlite3_column_double(stmt, 3);
         info.description = desc_text ? desc_text : "";
-        info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
+        info.counterparty_name =
+            counterparty_name_text ? (const char *)counterparty_name_text : "";
         results.push_back(info);
     }
 
@@ -1382,12 +1412,12 @@ std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
     if (!db)
         return results;
 
-    std::string sql =
-        "SELECT pd.kosgu_id, p.date, p.doc_number, pd.amount, p.description, c.name "
-        "FROM PaymentDetails pd "
-        "JOIN Payments p ON pd.payment_id = p.id "
-        "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
-        "WHERE pd.kosgu_id IS NOT NULL;";
+    std::string sql = "SELECT pd.kosgu_id, p.date, p.doc_number, pd.amount, "
+                      "p.description, c.name "
+                      "FROM PaymentDetails pd "
+                      "JOIN Payments p ON pd.payment_id = p.id "
+                      "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
+                      "WHERE pd.kosgu_id IS NOT NULL;";
 
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -1406,8 +1436,10 @@ std::vector<KosguPaymentDetailInfo> DatabaseManager::getAllKosguPaymentInfo() {
         info.amount = sqlite3_column_double(stmt, 3);
         const unsigned char *desc_text = sqlite3_column_text(stmt, 4);
         info.description = desc_text ? (const char *)desc_text : "";
-        const unsigned char* counterparty_name_text = sqlite3_column_text(stmt, 5);
-        info.counterparty_name = counterparty_name_text ? (const char*)counterparty_name_text : "";
+        const unsigned char *counterparty_name_text =
+            sqlite3_column_text(stmt, 5);
+        info.counterparty_name =
+            counterparty_name_text ? (const char *)counterparty_name_text : "";
         results.push_back(info);
     }
 
@@ -1445,12 +1477,12 @@ std::vector<ContractPaymentInfo> DatabaseManager::getAllContractPaymentInfo() {
     if (!db)
         return results;
 
-    std::string sql =
-        "SELECT pd.contract_id, p.date, p.doc_number, pd.amount, p.description, k.code AS kosgu_code "
-        "FROM PaymentDetails pd "
-        "JOIN Payments p ON pd.payment_id = p.id "
-        "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
-        "WHERE pd.contract_id IS NOT NULL;";
+    std::string sql = "SELECT pd.contract_id, p.date, p.doc_number, pd.amount, "
+                      "p.description, k.code AS kosgu_code "
+                      "FROM PaymentDetails pd "
+                      "JOIN Payments p ON pd.payment_id = p.id "
+                      "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
+                      "WHERE pd.contract_id IS NOT NULL;";
 
     char *errmsg = nullptr;
     int rc = sqlite3_exec(db, sql.c_str(),
@@ -2176,13 +2208,26 @@ bool DatabaseManager::executeSelect(
 
 // Settings
 Settings DatabaseManager::getSettings() {
-    Settings settings = {1, "", "", "", "", 20, 0, 24}; // Default settings
+    Settings settings = {
+        1,
+        "",
+        "",
+        "",
+        "",
+        20,
+        0,
+        24,
+        "https://zakupki.gov.ru/epz/contract/contractCard/"
+        "common-info.html?reestrNumber={IKZ}",
+        "https://zakupki.gov.ru/epz/contract/search/"
+        "results.html?searchString={NUMBER}"}; // Default settings
     if (!db)
         return settings;
 
     std::string sql =
         "SELECT organization_name, period_start_date, "
-        "period_end_date, note, import_preview_lines, theme, font_size FROM "
+        "period_end_date, note, import_preview_lines, theme, font_size, "
+        "zakupki_url_template, zakupki_url_search_template FROM "
         "Settings WHERE id = 1;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -2207,6 +2252,14 @@ Settings DatabaseManager::getSettings() {
         settings.period_start_date = start_date ? (const char *)start_date : "";
         settings.period_end_date = end_date ? (const char *)end_date : "";
         settings.note = note ? (const char *)note : "";
+        const unsigned char *zakupki_url = sqlite3_column_text(stmt, 7);
+        settings.zakupki_url_template = zakupki_url
+                                            ? (const char *)zakupki_url
+                                            : settings.zakupki_url_template;
+        const unsigned char *zakupki_search_url = sqlite3_column_text(stmt, 8);
+        settings.zakupki_url_search_template = zakupki_search_url
+                                            ? (const char *)zakupki_search_url
+                                            : settings.zakupki_url_search_template;
     }
 
     sqlite3_finalize(stmt);
@@ -2220,7 +2273,7 @@ bool DatabaseManager::updateSettings(const Settings &settings) {
     std::string sql =
         "UPDATE Settings SET organization_name = ?, period_start_date = ?, "
         "period_end_date = ?, note = ?, import_preview_lines = ?, theme = ?, "
-        "font_size = ? "
+        "font_size = ?, zakupki_url_template = ?, zakupki_url_search_template = ? "
         "WHERE id = 1;";
     sqlite3_stmt *stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -2241,6 +2294,10 @@ bool DatabaseManager::updateSettings(const Settings &settings) {
     sqlite3_bind_int(stmt, 6, settings.theme);
 
     sqlite3_bind_int(stmt, 7, settings.font_size);
+    sqlite3_bind_text(stmt, 8, settings.zakupki_url_template.c_str(), -1,
+                      SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 9, settings.zakupki_url_search_template.c_str(), -1,
+                      SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
     sqlite3_finalize(stmt);

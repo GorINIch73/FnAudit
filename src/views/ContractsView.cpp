@@ -4,6 +4,7 @@
 #include "../SuspiciousWord.h"
 #include "../UIManager.h" // Added include for UIManager
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <iostream>
 #include <sstream> // For std::ostringstream
@@ -862,13 +863,102 @@ void ContractsView::Render() {
                               " Открыть на ГосЗакупках")) {
                 std::string url;
                 if (!selectedContract.procurement_code.empty()) {
-                    url = "https://zakupki.gov.ru/epz/contract/contractCard/"
-                          "common-info.html?reestrNumber=" +
-                          selectedContract.procurement_code;
+                    // Используем шаблон из настроек
+                    Settings settings = dbManager->getSettings();
+                    std::string template_url = settings.zakupki_url_template;
+                    
+                    // Очищаем ИКЗ от невидимых символов
+                    std::string clean_ikz = selectedContract.procurement_code;
+                    while (!clean_ikz.empty()) {
+                        unsigned char c0 = static_cast<unsigned char>(clean_ikz[0]);
+                        
+                        // UTF-8 BOM (EF BB BF) - U+FEFF
+                        if (clean_ikz.size() >= 3 && c0 == 0xEF &&
+                            static_cast<unsigned char>(clean_ikz[1]) == 0xBB &&
+                            static_cast<unsigned char>(clean_ikz[2]) == 0xBF) {
+                            clean_ikz.erase(0, 3);
+                        }
+                        // Неразрывный пробел U+00A0 (C2 A0)
+                        else if (clean_ikz.size() >= 2 && c0 == 0xC2 &&
+                                 static_cast<unsigned char>(clean_ikz[1]) == 0xA0) {
+                            clean_ikz.erase(0, 2);
+                        }
+                        // U+2000..U+200F (E2 80 80 .. E2 80 8F)
+                        else if (clean_ikz.size() >= 3 && c0 == 0xE2 &&
+                                 static_cast<unsigned char>(clean_ikz[1]) == 0x80 &&
+                                 static_cast<unsigned char>(clean_ikz[2]) >= 0x80 &&
+                                 static_cast<unsigned char>(clean_ikz[2]) <= 0x8F) {
+                            clean_ikz.erase(0, 3);
+                        }
+                        // U+202F NARROW NO-BREAK SPACE (E2 80 AF)
+                        else if (clean_ikz.size() >= 3 && c0 == 0xE2 &&
+                                 static_cast<unsigned char>(clean_ikz[1]) == 0x80 &&
+                                 static_cast<unsigned char>(clean_ikz[2]) == 0xAF) {
+                            clean_ikz.erase(0, 3);
+                        }
+                        // U+205F MEDIUM MATHEMATICAL SPACE (E2 81 9F)
+                        else if (clean_ikz.size() >= 3 && c0 == 0xE2 &&
+                                 static_cast<unsigned char>(clean_ikz[1]) == 0x81 &&
+                                 static_cast<unsigned char>(clean_ikz[2]) == 0x9F) {
+                            clean_ikz.erase(0, 3);
+                        }
+                        // Обычные ASCII пробелы
+                        else if (std::isspace(c0)) {
+                            clean_ikz.erase(0, 1);
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                    
+                    // Заменяем {IKZ} на реальный номер закупки
+                    size_t pos = template_url.find("{IKZ}");
+                    if (pos != std::string::npos) {
+                        template_url.replace(pos, 5, clean_ikz);
+                    }
+                    url = template_url;
                 } else {
-                    url = "https://zakupki.gov.ru/epz/contract/search/"
-                          "results.html?searchString=" +
-                          selectedContract.number;
+                    // Используем шаблон поиска из настроек
+                    Settings settings = dbManager->getSettings();
+                    std::string template_url = settings.zakupki_url_search_template;
+                    
+                    // Очищаем номер договора от невидимых символов
+                    std::string clean_number = selectedContract.number;
+                    while (!clean_number.empty()) {
+                        unsigned char c0 = static_cast<unsigned char>(clean_number[0]);
+                        if (clean_number.size() >= 3 && c0 == 0xEF &&
+                            static_cast<unsigned char>(clean_number[1]) == 0xBB &&
+                            static_cast<unsigned char>(clean_number[2]) == 0xBF) {
+                            clean_number.erase(0, 3);
+                        } else if (clean_number.size() >= 2 && c0 == 0xC2 &&
+                                   static_cast<unsigned char>(clean_number[1]) == 0xA0) {
+                            clean_number.erase(0, 2);
+                        } else if (clean_number.size() >= 3 && c0 == 0xE2 &&
+                                   static_cast<unsigned char>(clean_number[1]) == 0x80 &&
+                                   static_cast<unsigned char>(clean_number[2]) >= 0x80 &&
+                                   static_cast<unsigned char>(clean_number[2]) <= 0x8F) {
+                            clean_number.erase(0, 3);
+                        } else if (clean_number.size() >= 3 && c0 == 0xE2 &&
+                                   static_cast<unsigned char>(clean_number[1]) == 0x80 &&
+                                   static_cast<unsigned char>(clean_number[2]) == 0xAF) {
+                            clean_number.erase(0, 3);
+                        } else if (clean_number.size() >= 3 && c0 == 0xE2 &&
+                                   static_cast<unsigned char>(clean_number[1]) == 0x81 &&
+                                   static_cast<unsigned char>(clean_number[2]) == 0x9F) {
+                            clean_number.erase(0, 3);
+                        } else if (std::isspace(c0)) {
+                            clean_number.erase(0, 1);
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    // Заменяем {NUMBER} на реальный номер договора
+                    size_t pos = template_url.find("{NUMBER}");
+                    if (pos != std::string::npos) {
+                        template_url.replace(pos, 8, clean_number);
+                    }
+                    url = template_url;
                 }
                 std::string command = "xdg-open \"" + url + "\"";
                 system(command.c_str());

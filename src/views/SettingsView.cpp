@@ -94,6 +94,25 @@ void SettingsView::Render() {
         if (ImGui::IsItemHovered()) {
             ImGui::SetTooltip("Требуется перезапуск.");
         }
+
+        ImGui::Separator();
+        ImGui::Text("Шаблон ссылки для ГосЗакупок");
+        if (CustomWidgets::InputText("##zakupki_url", &currentSettings.zakupki_url_template)) {
+            isDirty = true;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Используйте {IKZ} как placeholder для номера закупки.\n"
+                              "Пример: https://zakupki.gov.ru/epz/contract/contractCard/common-info.html?reestrNumber={IKZ}");
+        }
+
+        ImGui::Text("Шаблон поиска договора на ГосЗакупках (без ИКЗ)");
+        if (CustomWidgets::InputText("##zakupki_search_url", &currentSettings.zakupki_url_search_template)) {
+            isDirty = true;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("Используйте {NUMBER} как placeholder для номера договора.\n"
+                              "Пример: https://zakupki.gov.ru/epz/contract/search/results.html?searchString={NUMBER}");
+        }
     }
     ImGui::End();
 }
