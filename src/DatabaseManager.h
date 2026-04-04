@@ -13,6 +13,7 @@
 #include "Settings.h"
 #include "Regex.h"
 #include "SuspiciousWord.h"
+#include "BasePaymentDocument.h"
 
 struct ContractExportData; // Forward declaration
 
@@ -64,6 +65,24 @@ public:
     bool deleteInvoice(int id);
     std::vector<ContractPaymentInfo> getPaymentInfoForInvoice(int invoice_id);
 
+    // BasePaymentDocument methods
+    int addBasePaymentDocument(BasePaymentDocument& doc);
+    int getBasePaymentDocumentIdByNumberDate(const std::string& number, const std::string& date);
+    std::vector<BasePaymentDocument> getBasePaymentDocuments();
+    bool updateBasePaymentDocument(const BasePaymentDocument& doc);
+    bool deleteBasePaymentDocument(int id);
+    bool clearBasePaymentDocuments();
+    std::vector<ContractPaymentInfo> getPaymentInfoForBasePaymentDocument(int doc_id);
+
+    // BasePaymentDocumentDetail methods
+    bool addBasePaymentDocumentDetail(BasePaymentDocumentDetail& detail);
+    std::vector<BasePaymentDocumentDetail> getBasePaymentDocumentDetails(int document_id);
+    std::vector<BasePaymentDocumentDetail> getAllBasePaymentDocumentDetails();
+    bool updateBasePaymentDocumentDetail(const BasePaymentDocumentDetail& detail);
+    bool deleteBasePaymentDocumentDetail(int id);
+    bool deleteAllBasePaymentDocumentDetails(int document_id);
+    bool bulkUpdateBasePaymentDocumentDetails(const std::vector<int>& document_ids, const std::string& field_to_update, int new_id);
+    int getBasePaymentDocumentDetailIdByContent(int document_id, const std::string& operation_content);
 
     std::vector<Payment> getPayments();
     bool addPayment(Payment& payment);

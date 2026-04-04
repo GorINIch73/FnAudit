@@ -169,6 +169,9 @@ int main(int, char **) {
                 if (ImGui::MenuItem(ICON_FA_FILE_INVOICE " Накладные")) {
                     uiManager.CreateView<InvoicesView>();
                 }
+                if (ImGui::MenuItem(ICON_FA_FILE_LINES " Документы Основания")) {
+                    uiManager.CreateView<BasePaymentsView>();
+                }
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu(ICON_FA_FILE_PDF " Отчеты")) {

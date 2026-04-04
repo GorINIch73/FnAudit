@@ -1,0 +1,82 @@
+#pragma once
+
+#include "BaseView.h"
+#include <functional>
+#include <atomic>
+#include <vector>
+#include "../BasePaymentDocument.h"
+#include "../Contract.h"
+#include "../Counterparty.h"
+#include "../Kosgu.h"
+
+class UIManager;
+
+class BasePaymentsView : public BaseView {
+public:
+    BasePaymentsView();
+    void Render() override;
+    void SetDatabaseManager(DatabaseManager* dbManager) override;
+    void SetPdfReporter(PdfReporter* pdfReporter) override;
+    void SetUIManager(UIManager* manager) override;
+    std::pair<std::vector<std::string>, std::vector<std::vector<std::string>>> GetDataAsStrings() override;
+    void OnDeactivate() override;
+
+private:
+    void RefreshData();
+    void RefreshDropdownData();
+    void SaveChanges();
+
+    std::vector<BasePaymentDocument> documents;
+    BasePaymentDocument selectedDoc;
+    BasePaymentDocument originalDoc;
+    int selectedDocIndex;
+    bool showEditModal;
+    bool isAdding;
+    bool isDirty = false;
+    char doc_search_buffer[256] = {0};
+
+    std::vector<Counterparty> counterpartiesForDropdown;
+    std::vector<Contract> contractsForDropdown;
+    std::vector<Kosgu> kosguForDropdown;
+    char filterText[256];
+    char counterpartyFilter[256];
+    float list_view_height = 200.0f;
+    float editor_width = 400.0f;
+
+    std::vector<BasePaymentDocumentDetail> docDetails;
+    BasePaymentDocumentDetail selectedDetail;
+    bool isDetailDirty = false;
+    bool showDetailAddPopup = false;
+
+    UIManager* uiManager = nullptr;
+
+    // Групповые операции
+    enum GroupOperationType {
+        NONE,
+        ADD_KOSGU,
+        REPLACE,
+        DELETE_DETAILS,
+        APPLY_REGEX,
+        SET_FOR_CHECKING,
+        UNSET_FOR_CHECKING,
+        SET_CHECKED,
+        UNSET_CHECKED
+    };
+    GroupOperationType current_operation = NONE;
+    int processed_items = 0;
+    std::vector<BasePaymentDocument> items_to_process;
+    bool show_group_operation_progress_popup = false;
+    bool show_group_operation_confirmation_popup = false;
+    std::function<void()> on_group_operation_confirm;
+    std::atomic<bool> cancel_group_operation;
+    void ProcessGroupOperation();
+
+    int groupKosguId = -1;
+    char groupKosguFilter[256];
+
+    // Фильтры
+    int doc_filter_index = 0; // 0: Все, 1: Для сверки, 2: Сверенные, 3: Не сверенные
+
+    std::vector<BasePaymentDocument> m_filtered_documents;
+    void UpdateFilteredDocuments();
+};

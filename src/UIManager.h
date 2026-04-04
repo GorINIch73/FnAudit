@@ -17,6 +17,7 @@
 #include "views/CounterpartiesView.h"
 #include "views/ContractsView.h"
 #include "views/InvoicesView.h"
+#include "views/BasePaymentsView.h"
 #include "views/SqlQueryView.h"
 #include "views/SettingsView.h"
 #include "views/ImportMapView.h"
