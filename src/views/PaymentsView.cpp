@@ -100,10 +100,9 @@ void PaymentsView::SaveChanges() {
         // m_filtered_payments during iteration. The data will be refreshed
         // when switching to another payment or when leaving the view.
         // Just update selectedPayment with the new data from DB
-        auto it = std::find_if(payments.begin(), payments.end(),
-                               [&](const Payment &p) {
-                                   return p.id == selectedPayment.id;
-                               });
+        auto it = std::find_if(
+            payments.begin(), payments.end(),
+            [&](const Payment &p) { return p.id == selectedPayment.id; });
         if (it != payments.end()) {
             selectedPayment = *it;
             originalPayment = *it;
@@ -131,7 +130,8 @@ void PaymentsView::SaveDetailChanges() {
         }
 
         // Note: We don't refresh paymentDetails here to avoid invalidating
-        // indices during iteration. Just update selectedDetail with the new data.
+        // indices during iteration. Just update selectedDetail with the new
+        // data.
         int old_detail_id = selectedDetail.id;
         auto it = std::find_if(
             paymentDetails.begin(), paymentDetails.end(),
@@ -299,21 +299,37 @@ void PaymentsView::Render() {
                     "JOIN PaymentDetails pd ON p.id = pd.payment_id "
                     "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
                     "LEFT JOIN Counterparties c ON p.counterparty_id = c.id ";
-                
+
                 // Добавляем WHERE для фильтрации по выбранным платежам
                 if (filterText[0] != '\0') {
-                    query += "WHERE (LOWER(p.date) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(p.doc_number) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(p.amount) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(p.description) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(p.recipient) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(k.code) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(k.name) LIKE LOWER('%" + std::string(filterText) + "%') "
-                             "OR LOWER(c.name) LIKE LOWER('%" + std::string(filterText) + "%'))";
+                    query += "WHERE (LOWER(p.date) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(p.doc_number) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(p.amount) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(p.description) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(p.recipient) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(k.code) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(k.name) LIKE LOWER('%" +
+                             std::string(filterText) +
+                             "%') "
+                             "OR LOWER(c.name) LIKE LOWER('%" +
+                             std::string(filterText) + "%'))";
                 }
                 query += ";";
-                
-                uiManager->CreateSpecialQueryView("Отчет по расшифровкам платежей", query);
+
+                uiManager->CreateSpecialQueryView(
+                    "Отчет по расшифровкам платежей", query);
             }
         }
         ImGui::SameLine();
@@ -328,7 +344,7 @@ void PaymentsView::Render() {
                     "JOIN Payments AS p  ON pd.payment_id = p.id JOIN KOSGU AS "
                     "k ON pd.kosgu_id = k.id WHERE k.code IS NOT NULL AND "
                     "k.code != '' GROUP BY payment_year, payment_type, "
-                    "kosgu_code, kosgu_name ORDER BY payment_year, "
+                    "kosgu_code ORDER BY payment_year, "
                     "payment_type, kosgu_code;";
                 uiManager->CreateSpecialQueryView("Сверка с банком", query);
             }
@@ -655,8 +671,8 @@ void PaymentsView::Render() {
             clipper.Begin(m_filtered_payments.size());
             bool need_to_break = false;
             while (clipper.Step() && !need_to_break) {
-                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd && !need_to_break;
-                     ++i) {
+                for (int i = clipper.DisplayStart;
+                     i < clipper.DisplayEnd && !need_to_break; ++i) {
                     const auto &payment = m_filtered_payments[i];
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
@@ -681,7 +697,8 @@ void PaymentsView::Render() {
                             SaveDetailChanges();
                             // Now refresh the data to update payments
                             RefreshData();
-                            // Re-find the payment by ID in the refreshed payments
+                            // Re-find the payment by ID in the refreshed
+                            // payments
                             int new_index = -1;
                             for (size_t j = 0; j < payments.size(); ++j) {
                                 if (payments[j].id == payment.id) {
@@ -689,15 +706,17 @@ void PaymentsView::Render() {
                                     break;
                                 }
                             }
-                            if (new_index != -1 && new_index < (int)payments.size()) {
+                            if (new_index != -1 &&
+                                new_index < (int)payments.size()) {
                                 selectedPaymentIndex = new_index;
                                 selectedPayment = payments[new_index];
                                 originalPayment = payments[new_index];
                                 descriptionBuffer = selectedPayment.description;
                                 noteBuffer = selectedPayment.note;
                                 if (dbManager) {
-                                    paymentDetails = dbManager->getPaymentDetails(
-                                        selectedPayment.id);
+                                    paymentDetails =
+                                        dbManager->getPaymentDetails(
+                                            selectedPayment.id);
                                 }
                                 isAdding = false;
                                 isDirty = false;
@@ -747,7 +766,9 @@ void PaymentsView::Render() {
         ImGui::BeginChild("Editors", ImVec2(0, 0), false);
 
         ImGui::BeginChild("PaymentEditor", ImVec2(editor_width, 0), true);
-        if ((selectedPaymentIndex != -1 && selectedPaymentIndex < (int)payments.size()) || isAdding) {
+        if ((selectedPaymentIndex != -1 &&
+             selectedPaymentIndex < (int)payments.size()) ||
+            isAdding) {
             if (isAdding) {
                 ImGui::Text("Добавление нового платежа");
             } else {
@@ -1097,11 +1118,12 @@ void PaymentsView::Render() {
                 ImGui::TableHeadersRow();
 
                 bool need_to_break = false;
-                for (int i = 0; i < (int)paymentDetails.size() && !need_to_break; ++i) {
+                for (int i = 0;
+                     i < (int)paymentDetails.size() && !need_to_break; ++i) {
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
                     int detail_id = paymentDetails[i].id;
-                    
+
                     // Find original index
                     int original_index = -1;
                     for (size_t j = 0; j < paymentDetails.size(); ++j) {
@@ -1110,8 +1132,9 @@ void PaymentsView::Render() {
                             break;
                         }
                     }
-                    
-                    bool is_detail_selected = (selectedDetailIndex == original_index);
+
+                    bool is_detail_selected =
+                        (selectedDetailIndex == original_index);
                     char detail_label[128];
                     sprintf(detail_label, "%.2f##detail_%d",
                             paymentDetails[i].amount, paymentDetails[i].id);
@@ -1122,7 +1145,8 @@ void PaymentsView::Render() {
                             original_index != -1) {
                             SaveDetailChanges();
                             // Refresh payment details
-                            paymentDetails = dbManager->getPaymentDetails(selectedPayment.id);
+                            paymentDetails = dbManager->getPaymentDetails(
+                                selectedPayment.id);
                             // Re-find by ID
                             int new_index = -1;
                             for (size_t j = 0; j < paymentDetails.size(); ++j) {
@@ -1131,7 +1155,8 @@ void PaymentsView::Render() {
                                     break;
                                 }
                             }
-                            if (new_index != -1 && new_index < (int)paymentDetails.size()) {
+                            if (new_index != -1 &&
+                                new_index < (int)paymentDetails.size()) {
                                 selectedDetailIndex = new_index;
                                 selectedDetail = paymentDetails[new_index];
                                 originalDetail = paymentDetails[new_index];

@@ -136,6 +136,12 @@ int main(int, char **) {
                             ".db", config);
                     }
                 }
+                ImGui::Separator();
+                if (ImGui::MenuItem(ICON_FA_ARROW_RIGHT_FROM_BRACKET
+                                    " Выход")) {
+                    glfwSetWindowShouldClose(window, true);
+                }
+                ImGui::Separator();
                 if (ImGui::BeginMenu(ICON_FA_CLOCK_ROTATE_LEFT
                                      " Недавние файлы")) {
                     for (const auto &path : uiManager.recentDbPaths) {
@@ -144,11 +150,6 @@ int main(int, char **) {
                         }
                     }
                     ImGui::EndMenu();
-                }
-                ImGui::Separator();
-                if (ImGui::MenuItem(ICON_FA_ARROW_RIGHT_FROM_BRACKET
-                                    " Выход")) {
-                    glfwSetWindowShouldClose(window, true);
                 }
                 ImGui::EndMenu();
             }

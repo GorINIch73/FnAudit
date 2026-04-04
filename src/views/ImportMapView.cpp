@@ -188,14 +188,16 @@ void ImportMapView::Render() {
         ImGui::Spacing();
 
         // --- Data Preview Table ---
-        ImGui::Text("Предпросмотр данных (первые 30 строк):");
+        ImGui::Text("Предпросмотр данных (первые %d строк):", (int)sampleData.size());
         float bottom_part_height = ImGui::GetTextLineHeightWithSpacing() * 16;
         ImGui::BeginChild("PreviewScrollRegion",
                           ImVec2(0, -bottom_part_height), true,
                           ImGuiWindowFlags_HorizontalScrollbar);
-        if (ImGui::BeginTable("preview_table", fileHeaders.size(),
+        // Добавляем колонку '#' для порядкового номера
+        if (ImGui::BeginTable("preview_table", fileHeaders.size() + 1,
                               ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
                                   ImGuiTableFlags_ScrollX)) {
+            ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 30.0f);
             for (const auto &header : fileHeaders) {
                 ImGui::TableSetupColumn(header.c_str());
             }
@@ -203,6 +205,9 @@ void ImportMapView::Render() {
 
             for (int i = 0; i < sampleData.size(); ++i) {
                 ImGui::TableNextRow();
+                // Порядковый номер
+                ImGui::TableNextColumn();
+                ImGui::Text("%d", i + 1);
                 for (int j = 0; j < sampleData[i].size(); ++j) {
                     ImGui::TableNextColumn();
                     if (ImGui::Selectable(
