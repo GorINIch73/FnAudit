@@ -645,7 +645,7 @@ bool ImportManager::ImportJournalOrder4FromTsv(
         // Поиск или создание документа основания
         int doc_id = -1;
         std::string cache_key = doc_number + "|" + date_db;
-        
+
         auto cache_it = doc_cache.find(cache_key);
         if (cache_it != doc_cache.end()) {
             doc_id = cache_it->second;
@@ -658,10 +658,10 @@ bool ImportManager::ImportJournalOrder4FromTsv(
             new_doc.date = date_db;
             new_doc.number = doc_number;
             new_doc.document_name = doc_name;
-            new_doc.counterparty_id = counterparty_id;
+            new_doc.counterparty_name = counterparty_name;
             new_doc.contract_id = -1;
             new_doc.payment_id = -1;
-            
+
             doc_id = dbManager->addBasePaymentDocument(new_doc);
             if (doc_id != -1) {
                 doc_cache[cache_key] = doc_id;

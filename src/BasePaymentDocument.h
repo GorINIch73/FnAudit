@@ -9,7 +9,7 @@ struct BasePaymentDocument {
     std::string date;                    // YYYY-MM-DD
     std::string number;                  // номер документа
     std::string document_name;           // наименование документа (тип: накладная, акт и т.д.)
-    int counterparty_id = -1;            // id контрагента (наименование показателя)
+    std::string counterparty_name;       // наименование контрагента (импортируется из файла)
     int contract_id = -1;                // id договора
     int payment_id = -1;                 // id платежа из банка (связь)
     std::string note;                    // примечание

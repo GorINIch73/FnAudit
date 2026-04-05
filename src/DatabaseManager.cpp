@@ -2,6 +2,7 @@
 #include "ExportManager.h"
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 #include <vector>
 
 DatabaseManager::DatabaseManager()
@@ -118,13 +119,12 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "date TEXT NOT NULL,"
         "number TEXT NOT NULL,"
         "document_name TEXT,"
-        "counterparty_id INTEGER,"
+        "counterparty_name TEXT,"
         "contract_id INTEGER,"
         "payment_id INTEGER,"
         "note TEXT,"
         "is_for_checking INTEGER DEFAULT 0,"
         "is_checked INTEGER DEFAULT 0,"
-        "FOREIGN KEY(counterparty_id) REFERENCES Counterparties(id),"
         "FOREIGN KEY(contract_id) REFERENCES Contracts(id),"
         "FOREIGN KEY(payment_id) REFERENCES Payments(id));",
 
@@ -2190,7 +2190,7 @@ int DatabaseManager::addBasePaymentDocument(BasePaymentDocument& doc) {
     if (!db) return -1;
     std::string sql =
         "INSERT INTO BasePaymentDocuments (date, number, document_name, "
-        "counterparty_id, contract_id, payment_id, note, is_for_checking, is_checked) "
+        "counterparty_name, contract_id, payment_id, note, is_for_checking, is_checked) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);";
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -2202,7 +2202,7 @@ int DatabaseManager::addBasePaymentDocument(BasePaymentDocument& doc) {
     sqlite3_bind_text(stmt, 1, doc.date.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, doc.number.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3, doc.document_name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 4, doc.counterparty_id);
+    sqlite3_bind_text(stmt, 4, doc.counterparty_name.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 5, doc.contract_id);
     sqlite3_bind_int(stmt, 6, doc.payment_id);
     sqlite3_bind_text(stmt, 7, doc.note.c_str(), -1, SQLITE_STATIC);
@@ -2248,13 +2248,13 @@ std::vector<BasePaymentDocument> DatabaseManager::getBasePaymentDocuments() {
 
     std::string sql =
         "SELECT bpd.id, bpd.date, bpd.number, bpd.document_name, "
-        "bpd.counterparty_id, bpd.contract_id, bpd.payment_id, bpd.note, "
+        "bpd.counterparty_name, bpd.contract_id, bpd.payment_id, bpd.note, "
         "bpd.is_for_checking, bpd.is_checked, "
         "IFNULL(SUM(bpdd.amount), 0.0) as total_amount "
         "FROM BasePaymentDocuments bpd "
         "LEFT JOIN BasePaymentDocumentDetails bpdd ON bpd.id = bpdd.document_id "
         "GROUP BY bpd.id, bpd.date, bpd.number, bpd.document_name, "
-        "bpd.counterparty_id, bpd.contract_id, bpd.payment_id, bpd.note, "
+        "bpd.counterparty_name, bpd.contract_id, bpd.payment_id, bpd.note, "
         "bpd.is_for_checking, bpd.is_checked;";
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -2273,7 +2273,8 @@ std::vector<BasePaymentDocument> DatabaseManager::getBasePaymentDocuments() {
         doc.number = number ? (const char*)number : "";
         const unsigned char* doc_name = sqlite3_column_text(stmt, 3);
         doc.document_name = doc_name ? (const char*)doc_name : "";
-        doc.counterparty_id = sqlite3_column_int(stmt, 4);
+        const unsigned char* cp_name = sqlite3_column_text(stmt, 4);
+        doc.counterparty_name = cp_name ? (const char*)cp_name : "";
         doc.contract_id = sqlite3_column_int(stmt, 5);
         doc.payment_id = sqlite3_column_int(stmt, 6);
         const unsigned char* note = sqlite3_column_text(stmt, 7);
@@ -2291,7 +2292,7 @@ bool DatabaseManager::updateBasePaymentDocument(const BasePaymentDocument& doc) 
     if (!db) return false;
     std::string sql =
         "UPDATE BasePaymentDocuments SET date = ?, number = ?, document_name = ?, "
-        "counterparty_id = ?, contract_id = ?, payment_id = ?, note = ?, "
+        "counterparty_name = ?, contract_id = ?, payment_id = ?, note = ?, "
         "is_for_checking = ?, is_checked = ? WHERE id = ?;";
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -2303,7 +2304,7 @@ bool DatabaseManager::updateBasePaymentDocument(const BasePaymentDocument& doc) 
     sqlite3_bind_text(stmt, 1, doc.date.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 2, doc.number.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_text(stmt, 3, doc.document_name.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 4, doc.counterparty_id);
+    sqlite3_bind_text(stmt, 4, doc.counterparty_name.c_str(), -1, SQLITE_STATIC);
     sqlite3_bind_int(stmt, 5, doc.contract_id);
     sqlite3_bind_int(stmt, 6, doc.payment_id);
     sqlite3_bind_text(stmt, 7, doc.note.c_str(), -1, SQLITE_STATIC);
@@ -2611,6 +2612,304 @@ int DatabaseManager::getBasePaymentDocumentDetailIdByContent(int document_id, co
     return id;
 }
 
+// ==================== Автоподбор платежа из банка ====================
+
+// Вспомогательная функция для улучшенного сравнения наименований контрагентов
+// Учитывает сокращения, кавычки, организационно-правовые формы
+static std::string normalizeCounterpartyName(const std::string& name) {
+    std::string result = name;
+    
+    // Приводим к нижнему регистру
+    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+    
+    // Удаляем кавычки и спецсимволы
+    std::string special_chars = "\"'`«»〈〉<>";
+    result.erase(std::remove_if(result.begin(), result.end(),
+        [&special_chars](char c) {
+            return special_chars.find(c) != std::string::npos;
+        }), result.end());
+    
+    // Удаляем полные формы ОПФ (могут быть в начале/конце/середине строки)
+    std::vector<std::string> full_legal_forms = {
+        "общество с ограниченной ответственностью",
+        "общество с дополнительной ответственностью",
+        "акционерное общество",
+        "публичное акционерное общество",
+        "закрытое акционерное общество",
+        "открытое акционерное общество",
+        "индивидуальный предприниматель",
+        "некоммерческая организация",
+        "крестьянское фермерское хозяйство",
+        "полное товарищество",
+        "товарищество на вере",
+        "производственный кооператив",
+        "унитарное предприятие",
+        "государственное унитарное предприятие",
+        "муниципальное унитарное предприятие",
+        "автономная некоммерческая организация",
+        "бюджетное учреждение",
+        "казённое учреждение",
+        "некоммерческий фонд",
+    };
+
+    // Удаляем сокращённые ОПФ в середине строки (в окружении пробелов)
+    std::vector<std::string> legal_forms = {
+        " ооо ", " ао ", " зао ", " оао ", " пао ", " нко ", " фоп ",
+        " ип ", " кфх ", " пбоюл ", " сп ", " филиал ",
+    };
+    for (const auto& form : legal_forms) {
+        size_t pos;
+        while ((pos = result.find(form)) != std::string::npos) {
+            result.replace(pos, form.length(), " ");
+        }
+    }
+
+    // Удаляем полные ОПФ в начале, середине и конце строки
+    for (const auto& form : full_legal_forms) {
+        std::string form_with_space = " " + form;
+        // В начале строки
+        if (result.find(form) == 0) {
+            result.erase(0, form.length());
+            if (!result.empty() && result[0] == ' ') {
+                result.erase(0, 1);
+            }
+        }
+        // В середине строки (с пробелом перед)
+        size_t pos;
+        while ((pos = result.find(form_with_space)) != std::string::npos) {
+            result.replace(pos, form_with_space.length(), " ");
+        }
+        // В конце строки
+        if (result.length() >= form.length() &&
+            result.substr(result.length() - form.length()) == form) {
+            result.erase(result.length() - form.length());
+            if (!result.empty() && result.back() == ' ') {
+                result.pop_back();
+            }
+        }
+    }
+
+    // Удаляем сокращённые ОПФ в начале, середине и конце строки
+    std::vector<std::string> short_forms = {
+        "ооо", "ао", "зао", "оао", "пао", "нко", "фоп",
+        "ип", "кфх", "пбоюл", "сп",
+    };
+    for (const auto& form : short_forms) {
+        std::string form_with_space = " " + form;
+        // В начале строки
+        if (result.find(form) == 0 && (result.length() == form.length() || result[form.length()] == ' ')) {
+            result.erase(0, form.length());
+            if (!result.empty() && result[0] == ' ') {
+                result.erase(0, 1);
+            }
+        }
+        // В середине строки (с пробелами)
+        size_t pos;
+        while ((pos = result.find(form_with_space)) != std::string::npos) {
+            result.replace(pos, form_with_space.length(), " ");
+        }
+        // В конце строки
+        if (result.length() >= form.length() &&
+            result.substr(result.length() - form.length()) == form) {
+            result.erase(result.length() - form.length());
+            if (!result.empty() && result.back() == ' ') {
+                result.pop_back();
+            }
+        }
+    }
+    
+    // Удаляем точки, запятые, тире
+    std::string punct = ".,;:-–—/\\|";
+    result.erase(std::remove_if(result.begin(), result.end(),
+        [& punct](char c) {
+            return punct.find(c) != std::string::npos;
+        }), result.end());
+    
+    // Сжимаем множественные пробелы в один
+    std::string trimmed;
+    bool last_was_space = false;
+    for (char c : result) {
+        if (c == ' ') {
+            if (!last_was_space) {
+                trimmed += ' ';
+                last_was_space = true;
+            }
+        } else {
+            trimmed += c;
+            last_was_space = false;
+        }
+    }
+    
+    // Убираем пробелы по краям
+    size_t start = trimmed.find_first_not_of(' ');
+    size_t end = trimmed.find_last_not_of(' ');
+    if (start == std::string::npos) return "";
+    return trimmed.substr(start, end - start + 1);
+}
+
+// Улучшенная проверка частичного совпадения контрагентов
+// Возвращает true, если имена совпадают после нормализации или одно содержится в другом
+static bool counterpartyNamesMatch(const std::string& name1, const std::string& name2) {
+    std::string n1 = normalizeCounterpartyName(name1);
+    std::string n2 = normalizeCounterpartyName(name2);
+    
+    if (n1.empty() || n2.empty()) return false;
+    
+    // Полное совпадение после нормализации
+    if (n1 == n2) return true;
+    
+    // Частичное: одно имя содержится в другом
+    if (n1.find(n2) != std::string::npos || n2.find(n1) != std::string::npos) return true;
+    
+    // Проверяем по словам (если >= 70% слов одного имени есть в другом)
+    std::vector<std::string> words1, words2;
+    std::istringstream iss1(n1), iss2(n2);
+    std::string word;
+    while (iss1 >> word) words1.push_back(word);
+    while (iss2 >> word) words2.push_back(word);
+    
+    if (words1.empty() || words2.empty()) return false;
+    
+    int matches = 0;
+    for (const auto& w1 : words1) {
+        for (const auto& w2 : words2) {
+            if (w1.find(w2) != std::string::npos || w2.find(w1) != std::string::npos) {
+                matches++;
+                break;
+            }
+        }
+    }
+    
+    double threshold = std::max(1, (int)(words1.size() * 0.7));
+    return matches >= threshold;
+}
+
+std::vector<DatabaseManager::PaymentMatch> DatabaseManager::findMatchingPayments(const BasePaymentDocument& doc, bool require_counterparty) {
+    std::vector<PaymentMatch> matches;
+    if (!db) return matches;
+
+    // Получаем все платежи из банка
+    std::string sql = 
+        "SELECT p.id, p.date, p.doc_number, p.amount, "
+        "       c.name as counterparty_name, p.description "
+        "FROM Payments p "
+        "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
+        "WHERE p.id IS NOT NULL "
+        "ORDER BY p.date DESC";
+
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for findMatchingPayments: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return matches;
+    }
+
+    // Используем имя контрагента напрямую из документа
+    std::string doc_counterparty_name = doc.counterparty_name;
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        PaymentMatch match;
+        match.payment_id = sqlite3_column_int(stmt, 0);
+        match.date = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        match.doc_number = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        match.amount = sqlite3_column_double(stmt, 3);
+        
+        const char* cp_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        match.counterparty_name = cp_text ? cp_text : "";
+        
+        const char* desc_text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        match.description = desc_text ? desc_text : "";
+
+        match.match_score = 0;
+        match.match_reasons.clear();
+
+        // Критерии совпадения:
+        
+        // 1. Совпадение по сумме
+        if (std::abs(match.amount - doc.total_amount) < 0.01) {
+            match.match_score += 30;
+            match.match_reasons += "Сумма; ";
+        }
+
+        // 2. Совпадение по дате
+        if (!doc.date.empty() && match.date == doc.date) {
+            match.match_score += 20;
+            match.match_reasons += "Дата; ";
+        }
+
+        // 3. Номер документа в назначении платежа (description) — самый весомый
+        if (!doc.number.empty() && !match.description.empty()) {
+            std::string doc_num = doc.number;
+            std::string desc = match.description;
+            std::transform(doc_num.begin(), doc_num.end(), doc_num.begin(), ::tolower);
+            std::transform(desc.begin(), desc.end(), desc.begin(), ::tolower);
+            
+            if (desc.find(doc_num) != std::string::npos) {
+                match.match_score += 45;
+                match.match_reasons += "Номер в назначении; ";
+            }
+        }
+
+        // 4. Совпадение по контрагенту
+        bool counterparty_match = false;
+        if (!doc.counterparty_name.empty() && !match.counterparty_name.empty()) {
+            counterparty_match = counterpartyNamesMatch(doc.counterparty_name, match.counterparty_name);
+            if (counterparty_match) {
+                match.match_score += 5;
+                match.match_reasons += "Контрагент; ";
+            }
+        }
+
+        // Контрагент — обязательный критерий (если включён)
+        if (require_counterparty && !counterparty_match) {
+            continue;
+        }
+
+        // Добавляем только если есть хоть какое-то совпадение помимо контрагента
+        if (match.match_score <= 5) {
+            continue;
+        }
+
+        matches.push_back(match);
+    }
+
+    sqlite3_finalize(stmt);
+
+    // Сортируем по score (по убыванию)
+    std::sort(matches.begin(), matches.end(), 
+        [](const PaymentMatch& a, const PaymentMatch& b) {
+            return a.match_score > b.match_score;
+        });
+
+    return matches;
+}
+
+bool DatabaseManager::linkBasePaymentDocumentToPayment(int doc_id, int payment_id) {
+    if (!db) return false;
+    
+    std::string sql = "UPDATE BasePaymentDocuments SET payment_id = ? WHERE id = ?;";
+    sqlite3_stmt* stmt = nullptr;
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Failed to prepare statement for linkBasePaymentDocumentToPayment: "
+                  << sqlite3_errmsg(db) << std::endl;
+        return false;
+    }
+    
+    sqlite3_bind_int(stmt, 1, payment_id);
+    sqlite3_bind_int(stmt, 2, doc_id);
+    
+    bool success = (sqlite3_step(stmt) == SQLITE_DONE);
+    if (!success) {
+        std::cerr << "Failed to link BasePaymentDocument to Payment: "
+                  << sqlite3_errmsg(db) << std::endl;
+    }
+    
+    sqlite3_finalize(stmt);
+    return success;
+}
+
 // ==================== Reconciliation Methods ====================
 
 std::vector<DatabaseManager::ReconciliationRecord> DatabaseManager::getReconciliationData(const std::string& filter) {
@@ -2626,6 +2925,8 @@ std::vector<DatabaseManager::ReconciliationRecord> DatabaseManager::getReconcili
         "  bpd.document_name as bpd_name, "
         "  IFNULL(SUM(bpdd2.amount), 0.0) as bpd_total, "
         "  bpd.is_for_checking, bpd.is_checked, "
+        "  bpd.contract_id as contract_id, "
+        "  ctr.number as contract_number, ctr.date as contract_date, "
         "  bpdd.id as bpdd_id, bpdd.operation_content, bpdd.debit_account, "
         "  bpdd.credit_account, bpdd_k.code as bpdd_kosgu, bpdd.amount as bpdd_amount "
         "FROM Payments p "
@@ -2633,6 +2934,7 @@ std::vector<DatabaseManager::ReconciliationRecord> DatabaseManager::getReconcili
         "LEFT JOIN Counterparties c ON p.counterparty_id = c.id "
         "LEFT JOIN KOSGU k ON pd.kosgu_id = k.id "
         "LEFT JOIN BasePaymentDocuments bpd ON pd.invoice_id = bpd.id "
+        "LEFT JOIN Contracts ctr ON bpd.contract_id = ctr.id "
         "LEFT JOIN BasePaymentDocumentDetails bpdd ON bpd.id = bpdd.document_id "
         "LEFT JOIN KOSGU bpdd_k ON bpdd.kosgu_id = bpdd_k.id "
         "LEFT JOIN BasePaymentDocumentDetails bpdd2 ON bpd.id = bpdd2.document_id "
@@ -2675,17 +2977,22 @@ std::vector<DatabaseManager::ReconciliationRecord> DatabaseManager::getReconcili
         rec.base_doc_total = sqlite3_column_double(stmt, 13);
         rec.base_doc_for_checking = sqlite3_column_int(stmt, 14) != 0;
         rec.base_doc_checked = sqlite3_column_int(stmt, 15) != 0;
-
-        rec.base_detail_id = sqlite3_column_int(stmt, 16);
+        rec.contract_id = sqlite3_column_int(stmt, 16);
         v = sqlite3_column_text(stmt, 17);
-        rec.base_detail_content = v ? (const char*)v : "";
+        rec.contract_number = v ? (const char*)v : "";
         v = sqlite3_column_text(stmt, 18);
-        rec.base_detail_debit = v ? (const char*)v : "";
-        v = sqlite3_column_text(stmt, 19);
-        rec.base_detail_credit = v ? (const char*)v : "";
+        rec.contract_date = v ? (const char*)v : "";
+
+        rec.base_detail_id = sqlite3_column_int(stmt, 19);
         v = sqlite3_column_text(stmt, 20);
+        rec.base_detail_content = v ? (const char*)v : "";
+        v = sqlite3_column_text(stmt, 21);
+        rec.base_detail_debit = v ? (const char*)v : "";
+        v = sqlite3_column_text(stmt, 22);
+        rec.base_detail_credit = v ? (const char*)v : "";
+        v = sqlite3_column_text(stmt, 23);
         rec.base_detail_kosgu = v ? (const char*)v : "";
-        rec.base_detail_amount = sqlite3_column_double(stmt, 21);
+        rec.base_detail_amount = sqlite3_column_double(stmt, 24);
 
         // Фильтрация
         if (!filter.empty()) {

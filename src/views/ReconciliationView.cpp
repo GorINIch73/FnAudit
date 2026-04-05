@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <set>
 #include <sstream>
 
 ReconciliationView::ReconciliationView() {
@@ -89,7 +90,7 @@ void ReconciliationView::Render() {
     // --- Панель фильтров ---
     ImGui::Text("Фильтр:");
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(300);
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 100.0f);
     if (ImGui::InputText("##ReconFilter", filter_buffer, sizeof(filter_buffer),
                          ImGuiInputTextFlags_EnterReturnsTrue)) {
         RefreshData();
@@ -159,96 +160,180 @@ void ReconciliationView::Render() {
     if (selected_index >= 0 && selected_index < payment_groups.size()) {
         const auto& group = payment_groups[selected_index];
 
-        ImGui::Text("Платёжное поручение: %s от %s", group.payment_doc_number.c_str(),
-                    group.payment_date.c_str());
+        // Шапка платёжного поручения
+        ImGui::TextColored(ImVec4(1, 0.84, 0, 1), ICON_FA_FILE_INVOICE " Платёжное поручение:");
+        ImGui::Indent();
+        ImGui::Text("№ %s от %s", group.payment_doc_number.c_str(), group.payment_date.c_str());
         ImGui::Text("Контрагент: %s", group.counterparty_name.c_str());
         ImGui::Text("Сумма ПП: %.2f", group.payment_amount);
+        ImGui::Unindent();
         ImGui::Separator();
 
-        // Таблица расшифровок
-        if (ImGui::BeginTable("reconDetailsTable", 8,
-                              ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
-                              ImGuiTableFlags_ScrollY)) {
-            ImGui::TableSetupColumn("Дата ДО", ImGuiTableColumnFlags_WidthFixed, 80.0f);
-            ImGui::TableSetupColumn("№ ДО", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-            ImGui::TableSetupColumn("Тип ДО");
-            ImGui::TableSetupColumn("Содержание операции");
-            ImGui::TableSetupColumn("Дебет", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-            ImGui::TableSetupColumn("Кредит", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-            ImGui::TableSetupColumn("КОСГУ", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-            ImGui::TableSetupColumn("Сумма ДО", ImGuiTableColumnFlags_WidthFixed, 100.0f);
-            ImGui::TableHeadersRow();
+        // Собираем уникальные ДО в группе
+        std::set<int> unique_doc_ids;
+        for (int idx : group.record_indices) {
+            if (records[idx].base_doc_id != -1) {
+                unique_doc_ids.insert(records[idx].base_doc_id);
+            }
+        }
 
-            double total_base_detail = 0.0;
-            for (int idx : group.record_indices) {
-                const auto& rec = records[idx];
-                ImGui::TableNextRow();
+        // Собираем уникальные детали платежа
+        std::set<int> unique_detail_ids;
+        for (int idx : group.record_indices) {
+            if (records[idx].payment_detail_id != -1) {
+                unique_detail_ids.insert(records[idx].payment_detail_id);
+            }
+        }
 
-                // Подсветка если не совпадает сумма
-                double diff = rec.payment_amount - rec.base_doc_total;
-                if (std::abs(diff) > 0.01 && rec.base_doc_id != -1) {
-                    ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, IM_COL32(60, 40, 40, 255));
+        // --- Детали платежа ---
+        if (!unique_detail_ids.empty()) {
+            ImGui::TextColored(ImVec4(0.3, 0.7, 1, 1), ICON_FA_LIST " Детали платежа:");
+            ImGui::Indent();
+
+            for (int pd_id : unique_detail_ids) {
+                double pd_amount = 0;
+                std::string pd_kosgu;
+                for (int idx : group.record_indices) {
+                    if (records[idx].payment_detail_id == pd_id) {
+                        pd_amount = records[idx].detail_amount;
+                        pd_kosgu = records[idx].kosgu_code;
+                        break;
+                    }
+                }
+                ImGui::BulletText("Сумма: %.2f | КОСГУ: %s", pd_amount, pd_kosgu.c_str());
+            }
+            ImGui::Unindent();
+            ImGui::Separator();
+        }
+
+        // --- Документы основания ---
+        if (!unique_doc_ids.empty()) {
+            ImGui::TextColored(ImVec4(0.3, 0.9, 0.3, 1), ICON_FA_FOLDER_OPEN " Документы основания:");
+
+            for (int doc_id : unique_doc_ids) {
+                // Находим все записи для этого ДО
+                std::vector<int> doc_record_indices;
+                for (int idx : group.record_indices) {
+                    if (records[idx].base_doc_id == doc_id) {
+                        doc_record_indices.push_back(idx);
+                    }
+                }
+                if (doc_record_indices.empty()) continue;
+
+                const auto& first_rec = records[doc_record_indices[0]];
+
+                // Заголовок ДО
+                ImGui::Indent();
+                char header_buf[512];
+                snprintf(header_buf, sizeof(header_buf), "%s %s от %s",
+                         first_rec.base_doc_name.c_str(),
+                         first_rec.base_doc_number.c_str(),
+                         first_rec.base_doc_date.c_str());
+                bool doc_expanded = ImGui::TreeNodeEx(header_buf, ImGuiTreeNodeFlags_DefaultOpen);
+                ImGui::SameLine(ImGui::GetCursorPosX() + 200);
+                ImGui::Text("Сумма ДО: %.2f", first_rec.base_doc_total);
+
+                // Контрагент, договор
+                ImGui::SameLine();
+                ImGui::Text("| Контрагент: %s", group.counterparty_name.c_str());
+
+                if (!first_rec.contract_number.empty()) {
+                    ImGui::SameLine();
+                    ImGui::Text("| Договор: %s от %s", first_rec.contract_number.c_str(),
+                                first_rec.contract_date.c_str());
                 }
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", rec.base_doc_date.c_str());
+                // Метки
+                if (first_rec.base_doc_for_checking) {
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(1, 0.6, 0, 1), ICON_FA_TRIANGLE_EXCLAMATION " Для сверки");
+                }
+                if (first_rec.base_doc_checked) {
+                    ImGui::SameLine();
+                    ImGui::TextColored(ImVec4(0, 0.8, 0, 1), ICON_FA_CHECK " Сверено");
+                }
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", rec.base_doc_number.c_str());
+                if (doc_expanded) {
+                    // Таблица расшифровок ДО
+                    if (ImGui::BeginTable(("detailsTable_" + std::to_string(doc_id)).c_str(), 6,
+                                          ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg |
+                                          ImGuiTableFlags_ScrollY)) {
+                        ImGui::TableSetupColumn("Содержание операции");
+                        ImGui::TableSetupColumn("Дебет", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+                        ImGui::TableSetupColumn("Кредит", ImGuiTableColumnFlags_WidthFixed, 60.0f);
+                        ImGui::TableSetupColumn("КОСГУ", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+                        ImGui::TableSetupColumn("Сумма", ImGuiTableColumnFlags_WidthFixed, 100.0f);
+                        ImGui::TableSetupColumn("Разница", ImGuiTableColumnFlags_WidthFixed, 80.0f);
+                        ImGui::TableHeadersRow();
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", rec.base_doc_name.c_str());
+                        double total_base_detail = 0.0;
 
-                ImGui::TableNextColumn();
-                ImGui::TextWrapped("%s", rec.base_detail_content.c_str());
+                        // Собираем уникальные расшифровки
+                        std::set<int> shown_details;
+                        for (int idx : doc_record_indices) {
+                            const auto& rec = records[idx];
+                            if (rec.base_detail_id == -1 || shown_details.count(rec.base_detail_id))
+                                continue;
+                            shown_details.insert(rec.base_detail_id);
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", rec.base_detail_debit.c_str());
+                            ImGui::TableNextRow();
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", rec.base_detail_credit.c_str());
+                            // Подсветка если есть расхождения
+                            double diff = rec.detail_amount - rec.base_detail_amount;
+                            if (std::abs(diff) > 0.01) {
+                                ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, IM_COL32(60, 40, 40, 255));
+                            }
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", rec.base_detail_kosgu.c_str());
+                            ImGui::TableNextColumn();
+                            ImGui::TextWrapped("%s", rec.base_detail_content.c_str());
 
-                ImGui::TableNextColumn();
-                ImGui::Text("%.2f", rec.base_detail_amount);
-                total_base_detail += rec.base_detail_amount;
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%s", rec.base_detail_debit.c_str());
+
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%s", rec.base_detail_credit.c_str());
+
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%s", rec.base_detail_kosgu.c_str());
+
+                            ImGui::TableNextColumn();
+                            ImGui::Text("%.2f", rec.base_detail_amount);
+                            total_base_detail += rec.base_detail_amount;
+
+                            ImGui::TableNextColumn();
+                            ImU32 diff_color = std::abs(diff) < 0.01 ? IM_COL32(40, 80, 40, 255) : IM_COL32(120, 40, 40, 255);
+                            ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, diff_color);
+                            ImGui::TextColored(diff_color < 0x80000000 ? ImVec4(0.5, 1, 0.5, 1) : ImVec4(1, 0.5, 0.5, 1),
+                                               "%.2f", diff);
+                        }
+
+                        // Итого
+                        ImGui::TableNextRow();
+                        for (int i = 0; i < 4; i++) ImGui::TableNextColumn();
+                        ImGui::TableNextColumn();
+                        ImGui::Text("Итого ДО: %.2f", total_base_detail);
+                        ImGui::TableNextColumn();
+                        double total_diff = 0;
+                        for (int idx : doc_record_indices) {
+                            if (records[idx].payment_detail_id != -1) {
+                                total_diff += records[idx].detail_amount;
+                                break;
+                            }
+                        }
+                        total_diff -= total_base_detail;
+                        ImU32 td_color = std::abs(total_diff) < 0.01 ? IM_COL32(40, 80, 40, 255) : IM_COL32(120, 40, 40, 255);
+                        ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, td_color);
+                        ImGui::Text("Разница: %.2f", total_diff);
+
+                        ImGui::EndTable();
+                    }
+
+                    ImGui::TreePop();
+                }
+                ImGui::Unindent();
             }
-
-            // Итоговая строка
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::Text("Итого ДО: %.2f", total_base_detail);
-
-            // Разница
-            ImGui::TableNextRow();
-            for (int i = 0; i < 7; i++) {
-                ImGui::TableNextColumn();
-            }
-            double diff = group.payment_amount - total_base_detail;
-            ImU32 diff_color = std::abs(diff) < 0.01 ? IM_COL32(40, 80, 40, 255) : IM_COL32(120, 40, 40, 255);
-            ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, diff_color);
-            ImGui::TextUnformatted("");
-            ImGui::TableNextColumn();
-            ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, diff_color);
-            ImGui::Text("Разница: %.2f", diff);
-
-            ImGui::EndTable();
+        } else {
+            ImGui::TextUnformatted("Документы основания не привязаны к этому платежу.");
         }
     } else {
         ImGui::TextUnformatted("Выберите платёжное поручение для просмотра");

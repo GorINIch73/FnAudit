@@ -76,6 +76,20 @@ public:
     bool bulkUpdateBasePaymentDocumentDetails(const std::vector<int>& document_ids, const std::string& field_to_update, int new_id);
     int getBasePaymentDocumentDetailIdByContent(int document_id, const std::string& operation_content);
 
+    // Автоподбор платежа из банка для документа основания
+    struct PaymentMatch {
+        int payment_id;
+        std::string date;
+        std::string doc_number;
+        double amount;
+        std::string counterparty_name;
+        std::string description;
+        int match_score; // 0-100, процент совпадения
+        std::string match_reasons; // описание совпадений
+    };
+    std::vector<PaymentMatch> findMatchingPayments(const BasePaymentDocument& doc, bool require_counterparty = true);
+    bool linkBasePaymentDocumentToPayment(int doc_id, int payment_id);
+
     // Сверка
     struct ReconciliationRecord {
         int payment_id;
@@ -95,6 +109,9 @@ public:
         double base_doc_total;
         bool base_doc_for_checking;
         bool base_doc_checked;
+        int contract_id;
+        std::string contract_number;
+        std::string contract_date;
 
         int base_detail_id;
         std::string base_detail_content;

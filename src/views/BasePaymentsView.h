@@ -8,6 +8,7 @@
 #include "../Contract.h"
 #include "../Counterparty.h"
 #include "../Kosgu.h"
+#include "../Payment.h"
 
 class UIManager;
 
@@ -39,6 +40,7 @@ private:
     std::vector<Counterparty> counterpartiesForDropdown;
     std::vector<Contract> contractsForDropdown;
     std::vector<Kosgu> kosguForDropdown;
+    std::vector<Payment> paymentsForDropdown;
     char filterText[256];
     char counterpartyFilter[256];
     float list_view_height = 200.0f;
@@ -63,7 +65,9 @@ private:
         SET_FOR_CHECKING,
         UNSET_FOR_CHECKING,
         SET_CHECKED,
-        UNSET_CHECKED
+        UNSET_CHECKED,
+        CLEAR_PAYMENT_LINK,
+        AUTO_MATCH_PAYMENTS
     };
     GroupOperationType current_operation = NONE;
     int processed_items = 0;
@@ -77,10 +81,28 @@ private:
     int groupKosguId = -1;
     char groupKosguFilter[256];
 
+    // Автоподбор платежа
+    bool show_payment_match_popup = false;
+    std::vector<DatabaseManager::PaymentMatch> payment_matches;
+    int selected_payment_match_index = -1;
+
+    // Групповой автоподбор платежей
+    bool show_auto_match_popup = false;
+    int group_auto_match_min_score = 50;
+    bool group_auto_match_require_counterparty = true;
+    std::vector<BasePaymentDocument> group_auto_match_docs;
+    int group_auto_match_total;
+    int group_auto_match_linked;
+    int group_auto_match_no_match;
+    int group_auto_match_chunk_start = 0;
+    std::vector<std::string> group_auto_match_log;
+
     // Фильтры
     int doc_filter_index = 0; // 0: Все, 1: Для сверки, 2: Сверенные, 3: Не сверенные
 
     std::vector<BasePaymentDocument> m_filtered_documents;
     void UpdateFilteredDocuments();
     void SortDocuments(const struct ImGuiTableSortSpecs* sort_specs);
+    void AutoMatchPayment();
+    void ProcessAutoMatchPayments();
 };
