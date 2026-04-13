@@ -67,7 +67,6 @@ void ImportMapView::Reset() {
     sample_description.clear();
     contract_pattern_buffer.clear();
     kosgu_pattern_buffer.clear();
-    invoice_pattern_buffer.clear();
     import_started = false;
     custom_note_buffer.clear();
 }
@@ -320,16 +319,14 @@ void ImportMapView::Render() {
         render_regex_selector("Договор", contract_regex_index, contract_match,
                               contract_pattern_buffer);
         render_regex_selector("КОСГУ", kosgu_regex_index, kosgu_match,
-                                                             kosgu_pattern_buffer);
-                                              render_regex_selector("Накладная", invoice_regex_index, invoice_match,
-                                                                    invoice_pattern_buffer);
-                                      
-                                              ImGui::EndDisabled(); // Re-enable UI for the buttons
-                                              ImGui::Separator();
-                                              
-                                              ImGui::BeginDisabled(import_started);
-                                              ImGui::InputText("Добавить к примечанию", &custom_note_buffer);
-                                              ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);        ImGui::SameLine();
+                              kosgu_pattern_buffer);
+
+        ImGui::EndDisabled(); // Re-enable UI for the buttons
+        ImGui::Separator();
+
+        ImGui::BeginDisabled(import_started);
+        ImGui::InputText("Добавить к примечанию", &custom_note_buffer);
+        ImGui::Checkbox("Принудительно установить тип 'Поступление'", &force_income_type);        ImGui::SameLine();
         ImGui::Checkbox("Возврат", &is_return_import);
         if (ImGui::Button("Импортировать")) {
             if (dbManager && uiManager && uiManager->importManager && cancel_flag) {
@@ -340,9 +337,9 @@ void ImportMapView::Render() {
                     uiManager->importManager->ImportPaymentsFromTsv(
                         importFilePath, dbManager, currentMapping,
                         uiManager->importProgress, uiManager->importMessage,
-                        uiManager->importMutex, *(this->cancel_flag), // Pass the cancel_flag
+                        uiManager->importMutex, *(this->cancel_flag),
                         contract_pattern_buffer,
-                        kosgu_pattern_buffer, invoice_pattern_buffer,
+                        kosgu_pattern_buffer,
                         force_income_type, is_return_import,
                         custom_note_buffer);
                     uiManager->isImporting = false;

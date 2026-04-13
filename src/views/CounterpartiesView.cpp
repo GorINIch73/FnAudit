@@ -385,79 +385,77 @@ void CounterpartiesView::Render() {
             // Используем ID для отслеживания выделения вместо индекса
             static int selectedCounterpartyId = -1;
 
-            // Для таблиц с ImGuiListClipper нужно использовать другой подход
-            const int items_count = (int)m_filtered_counterparties.size();
-            const float items_height = ImGui::GetTextLineHeightWithSpacing();
-
             // Прокрутка к новой записи: SetScrollY вызывается ОДИН раз
-            if (scroll_to_item_index >= 0 && scroll_to_item_index < items_count) {
+            if (scroll_to_item_index >= 0 && scroll_to_item_index < (int)m_filtered_counterparties.size()) {
                 if (!scroll_pending) {
-                    float row_y = scroll_to_item_index * items_height;
+                    float row_y = scroll_to_item_index * ImGui::GetTextLineHeightWithSpacing();
                     ImGui::SetScrollY(row_y);
                     scroll_pending = true;
                 }
             }
 
-            ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+            ImGuiListClipper clipper;
+            clipper.Begin(m_filtered_counterparties.size());
+
             bool need_to_break = false;
-            for (int i = 0; i < items_count && !need_to_break; i++) {
-                const Counterparty &cp = m_filtered_counterparties[i];
-                bool is_selected = (selectedCounterpartyId == cp.id);
+            while (clipper.Step() && !need_to_break) {
+                for (int i = clipper.DisplayStart; i < clipper.DisplayEnd && !need_to_break;
+                     ++i) {
+                    const Counterparty &cp = m_filtered_counterparties[i];
+                    bool is_selected = (selectedCounterpartyId == cp.id);
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
 
-                char label[256];
-                sprintf(label, "%d##%d", cp.id, i);
-                if (ImGui::Selectable(label, is_selected,
-                                      ImGuiSelectableFlags_SpanAllColumns)) {
-                    if (selectedCounterpartyId != cp.id) {
-                        SaveChanges();
-                        // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
-                        // Просто обновляем выбранный контрагент из локального массива
-                        auto it = std::find_if(
-                            counterparties.begin(), counterparties.end(),
-                            [&](const Counterparty &c) {
-                                return c.id == cp.id;
-                            });
-                        if (it != counterparties.end()) {
-                            selectedCounterpartyId = cp.id;
-                            selectedCounterparty = *it;
-                            originalCounterparty = *it;
-                            isAdding = false;
-                            isDirty = false;
-                            m_sorted_payment_info.clear();
-                            if (dbManager) {
-                                payment_info =
-                                    dbManager->getPaymentInfoForCounterparty(
-                                        selectedCounterparty.id);
+                    char label[256];
+                    sprintf(label, "%d##%d", cp.id, i);
+                    if (ImGui::Selectable(label, is_selected,
+                                          ImGuiSelectableFlags_SpanAllColumns)) {
+                        if (selectedCounterpartyId != cp.id) {
+                            SaveChanges();
+                            auto it = std::find_if(
+                                counterparties.begin(), counterparties.end(),
+                                [&](const Counterparty &c) {
+                                    return c.id == cp.id;
+                                });
+                            if (it != counterparties.end()) {
+                                selectedCounterpartyId = cp.id;
+                                selectedCounterparty = *it;
+                                originalCounterparty = *it;
+                                isAdding = false;
+                                isDirty = false;
+                                m_sorted_payment_info.clear();
+                                if (dbManager) {
+                                    payment_info =
+                                        dbManager->getPaymentInfoForCounterparty(
+                                            selectedCounterparty.id);
+                                }
                             }
+                            need_to_break = true;
                         }
-                        need_to_break = true;
+                    }
+                    if (!need_to_break && is_selected) {
+                        ImGui::SetItemDefaultFocus();
+                    }
+                    // Прокрутка завершена — строка отрисована, сбрасываем оба флага
+                    if (!need_to_break && scroll_to_item_index >= 0 && scroll_to_item_index == i) {
+                        ImGui::SetScrollHereY(0.5f);
+                        scroll_to_item_index = -1;
+                        scroll_pending = false;
+                    }
+
+                    if (!need_to_break) {
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", cp.name.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", cp.inn.c_str());
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%s", cp.is_contract_optional ? "Да" : "Нет");
+                        ImGui::TableNextColumn();
+                        ImGui::Text("%.2f", cp.total_amount);
                     }
                 }
-                if (!need_to_break && is_selected) {
-                    ImGui::SetItemDefaultFocus();
-                }
-                // Прокрутка завершена — строка отрисована, сбрасываем оба флага
-                if (!need_to_break && scroll_to_item_index >= 0 && scroll_to_item_index == i) {
-                    ImGui::SetScrollHereY(0.5f);
-                    scroll_to_item_index = -1;
-                    scroll_pending = false;
-                }
-
-                if (!need_to_break) {
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", cp.name.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", cp.inn.c_str());
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%s", cp.is_contract_optional ? "Да" : "Нет");
-                    ImGui::TableNextColumn();
-                    ImGui::Text("%.2f", cp.total_amount);
-                }
             }
-            ImGui::PopStyleVar();
             ImGui::EndTable();
         }
         ImGui::EndChild();

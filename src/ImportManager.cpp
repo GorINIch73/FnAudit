@@ -83,7 +83,6 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                                           std::atomic<bool> &cancel_flag,
                                           const std::string& contract_regex_str,
                                           const std::string& kosgu_regex_str,
-                                          const std::string& invoice_regex_str,
                                           bool force_income_type,
                                           bool is_return_import,
                                           const std::string& custom_note
@@ -112,7 +111,6 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
     std::getline(file, line); // Skip header line
 
     std::regex contract_regex(contract_regex_str);
-    std::regex invoice_regex(invoice_regex_str);
     std::regex kosgu_regex(kosgu_regex_str);
     std::regex amount_regex(
         "\\((\\d{3}-\\d{4}-\\d{10}-\\d{3}):\\s*([\\d=,]+)\\s*ЛС\\)");
@@ -226,34 +224,6 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
             }
         }
 
-        int current_invoice_id = -1;
-        std::smatch invoice_matches;
-        if (std::regex_search(payment.description, invoice_matches,
-                              invoice_regex)) {
-            if (invoice_matches.size() >= 3) {
-                std::string invoice_number = invoice_matches[1].str();
-                std::string invoice_date_db_format =
-                    convertDateToDBFormat(invoice_matches[2].str());
-                
-                // Используем новую таблицу BasePaymentDocuments вместо Invoices
-                current_invoice_id = dbManager->getBasePaymentDocumentIdByNumberDate(
-                    invoice_number, invoice_date_db_format);
-                if (current_invoice_id == -1) {
-                    // Создаем документ основания
-                    BasePaymentDocument doc;
-                    doc.number = invoice_number;
-                    doc.date = invoice_date_db_format;
-                    doc.contract_id = current_contract_id;
-                    doc.document_name = "Накладная"; // По умолчанию
-                    
-                    int new_doc_id = dbManager->addBasePaymentDocument(doc);
-                    if (new_doc_id != -1) {
-                        current_invoice_id = new_doc_id;
-                    }
-                }
-            }
-        }
-
         // Apply force_income_type override if set
         if (force_income_type) {
             payment.type = true; // true is 'income'
@@ -302,7 +272,6 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
                         detail.payment_id = new_payment_id;
                         detail.kosgu_id = kosgu_id;
                         detail.contract_id = current_contract_id;
-                        detail.invoice_id = current_invoice_id;
                         detail.amount = detail_amount;
                         details_to_add.push_back(detail);
                     } catch (const std::exception& e) {
@@ -345,7 +314,6 @@ bool ImportManager::ImportPaymentsFromTsv(const std::string &filepath,
             // --- END FIX ---
 
             detail.contract_id = current_contract_id;
-            detail.invoice_id = current_invoice_id;
             detail.amount = payment.amount;
             dbManager->addPaymentDetail(detail);
         }

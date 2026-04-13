@@ -536,9 +536,7 @@ void PaymentsView::Render() {
             ImGui::Separator();
             ImGui::RadioButton("Договор", &regex_target, 0);
             ImGui::SameLine();
-            ImGui::RadioButton("Накладная", &regex_target, 1);
-            ImGui::SameLine();
-            ImGui::RadioButton("КОСГУ", &regex_target, 2);
+            ImGui::RadioButton("КОСГУ", &regex_target, 1);
             ImGui::Separator();
 
             std::vector<CustomWidgets::ComboItem> regexItems;
@@ -620,8 +618,6 @@ void PaymentsView::Render() {
             ImGui::RadioButton("КОСГУ", &replacement_target, 0);
             ImGui::SameLine();
             ImGui::RadioButton("Договор", &replacement_target, 1);
-            ImGui::SameLine();
-            ImGui::RadioButton("Накладную", &replacement_target, 2);
 
             ImGui::Separator();
 
@@ -634,7 +630,7 @@ void PaymentsView::Render() {
                     "Новый КОСГУ", replacement_kosgu_id, kosguItems,
                     replacement_kosgu_filter, sizeof(replacement_kosgu_filter),
                     0);
-            } else if (replacement_target == 1) {
+            } else {
                 std::vector<CustomWidgets::ComboItem> contractItems;
                 for (const auto &c : contractsForDropdown) {
                     contractItems.push_back({c.id, c.number + " " + c.date});
@@ -643,17 +639,6 @@ void PaymentsView::Render() {
                     "Новый Договор", replacement_contract_id, contractItems,
                     replacement_contract_filter,
                     sizeof(replacement_contract_filter), 0);
-            } else {
-                std::vector<CustomWidgets::ComboItem> invoiceItems;
-                for (const auto &d : baseDocsForDropdown) {
-                    std::string display = d.number + " " + d.date;
-                    if (!d.document_name.empty()) display += " (" + d.document_name + ")";
-                    invoiceItems.push_back({d.id, display});
-                }
-                CustomWidgets::ComboWithFilter(
-                    "Новый Документ", replacement_invoice_id, invoiceItems,
-                    replacement_invoice_filter,
-                    sizeof(replacement_invoice_filter), 0);
             }
 
             ImGui::Separator();
@@ -1547,17 +1532,12 @@ void PaymentsView::ProcessGroupOperation() {
             if (replacement_target == 0) {
                 field_to_update = "kosgu_id";
                 new_id = replacement_kosgu_id;
-            } else if (replacement_target == 1) {
+            } else {
                 field_to_update = "contract_id";
                 new_id = replacement_contract_id;
-            } else {
-                field_to_update = "invoice_id";
-                new_id = replacement_invoice_id;
             }
 
             if (new_id != -1) {
-                // We can't use the bulk update here easily with chunking,
-                // so we update payment by payment.
                 dbManager->bulkUpdatePaymentDetails({payment.id},
                                                     field_to_update, new_id);
             }
@@ -1579,7 +1559,7 @@ void PaymentsView::ProcessGroupOperation() {
                         match.size() >
                             1) { // Changed to > 1 as KOSGU only needs 1 group
 
-                        if (regex_target == 2) { // Target is KOSGU
+                        if (regex_target == 1) { // Target is KOSGU
                             std::string kosgu_code = match[1].str();
                             kosgu_code.erase(
                                 kosgu_code.find_last_not_of(" \n\r\t") + 1);
@@ -1607,19 +1587,14 @@ void PaymentsView::ProcessGroupOperation() {
                                 }
 
                                 if (details.empty()) {
-                                    // If no details exist, add one with full
-                                    // payment amount
                                     PaymentDetail newDetail;
                                     newDetail.payment_id = payment.id;
                                     newDetail.amount = payment.amount;
                                     newDetail.kosgu_id = kosgu_id;
                                     newDetail.contract_id = -1;
-                                    newDetail.invoice_id = -1;
                                     dbManager->addPaymentDetail(newDetail);
                                 } else if (total_existing_details_amount <
                                            payment.amount) {
-                                    // If details exist and sum is less than
-                                    // payment amount, add missing
                                     double amount_to_add =
                                         payment.amount -
                                         total_existing_details_amount;
@@ -1628,10 +1603,8 @@ void PaymentsView::ProcessGroupOperation() {
                                     newDetail.amount = amount_to_add;
                                     newDetail.kosgu_id = kosgu_id;
                                     newDetail.contract_id = -1;
-                                    newDetail.invoice_id = -1;
                                     dbManager->addPaymentDetail(newDetail);
                                 } else {
-                                    // Find a detail without KOSGU and update it
                                     bool updated_existing = false;
                                     for (auto &detail : details) {
                                         if (detail.kosgu_id == -1) {
@@ -1642,13 +1615,10 @@ void PaymentsView::ProcessGroupOperation() {
                                             break;
                                         }
                                     }
-                                    // If all details have KOSGU, do nothing
-                                    // more for now
                                 }
                             }
-                        } else if (match.size() >
-                                   2) { // Contract or Invoice, requires 2
-                                        // groups (number and date)
+                        } else if (regex_target == 0 && match.size() >
+                                   2) { // Contract, requires 2 groups (number and date)
                             std::string number = match[1].str();
                             std::string date = match[2].str();
 
@@ -1660,29 +1630,15 @@ void PaymentsView::ProcessGroupOperation() {
                             date.erase(0, date.find_first_not_of(" \n\r\t"));
 
                             int id_to_set = -1;
-                            if (regex_target == 0) { // Contract
+                            id_to_set =
+                                dbManager->getContractIdByNumberDate(number,
+                                                                     date);
+                            if (id_to_set == -1) {
+                                Contract new_contract = {
+                                    -1, number, date,
+                                    payment.counterparty_id, 0.0};
                                 id_to_set =
-                                    dbManager->getContractIdByNumberDate(number,
-                                                                         date);
-                                if (id_to_set == -1) {
-                                    Contract new_contract = {
-                                        -1, number, date,
-                                        payment.counterparty_id, 0.0};
-                                    id_to_set =
-                                        dbManager->addContract(new_contract);
-                                }
-                            } else { // Base Document
-                                id_to_set = dbManager->getBasePaymentDocumentIdByNumberDate(
-                                    number, date);
-                                if (id_to_set == -1) {
-                                    BasePaymentDocument new_doc;
-                                    new_doc.number = number;
-                                    new_doc.date = date;
-                                    new_doc.contract_id = -1;
-                                    new_doc.document_name = "Накладная";
-                                    id_to_set =
-                                        dbManager->addBasePaymentDocument(new_doc);
-                                }
+                                    dbManager->addContract(new_contract);
                             }
 
                             if (id_to_set != -1) {
@@ -1692,28 +1648,15 @@ void PaymentsView::ProcessGroupOperation() {
                                     PaymentDetail newDetail;
                                     newDetail.payment_id = payment.id;
                                     newDetail.amount = payment.amount;
-                                    if (regex_target == 0)
-                                        newDetail.contract_id = id_to_set;
-                                    else
-                                        newDetail.invoice_id = id_to_set;
+                                    newDetail.contract_id = id_to_set;
                                     dbManager->addPaymentDetail(newDetail);
                                 } else {
                                     for (auto &detail : details) {
-                                        if (regex_target ==
-                                            0) { // Target is Contract
-                                            if (detail.contract_id == -1) {
-                                                detail.contract_id = id_to_set;
-                                                dbManager->updatePaymentDetail(
-                                                    detail);
-                                                break;
-                                            }
-                                        } else { // Target is Invoice
-                                            if (detail.invoice_id == -1) {
-                                                detail.invoice_id = id_to_set;
-                                                dbManager->updatePaymentDetail(
-                                                    detail);
-                                                break;
-                                            }
+                                        if (detail.contract_id == -1) {
+                                            detail.contract_id = id_to_set;
+                                            dbManager->updatePaymentDetail(
+                                                detail);
+                                            break;
                                         }
                                     }
                                 }

@@ -475,6 +475,37 @@ void KosguView::Render() {
                                 payment_info =
                                     dbManager->getPaymentInfoForKosgu(
                                         selectedKosgu.id);
+                                // Сразу обновляем отфильтрованные расшифровки
+                                m_filtered_payment_info.clear();
+                                std::vector<ContractPaymentInfo>* details_src = &payment_info;
+                                std::vector<ContractPaymentInfo> suspicious_details;
+                                if (m_filter_index == 3 && !suspiciousWordsForFilter.empty()) {
+                                    for (const auto &info : payment_info) {
+                                        for (const auto &word : suspiciousWordsForFilter) {
+                                            if (strcasestr(info.description.c_str(), word.word.c_str()) != nullptr) {
+                                                suspicious_details.push_back(info);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    details_src = &suspicious_details;
+                                }
+                                if (filterText[0] != '\0') {
+                                    for (const auto &info : *details_src) {
+                                        bool match = strcasestr(info.date.c_str(), filterText) != nullptr ||
+                                            strcasestr(info.doc_number.c_str(), filterText) != nullptr ||
+                                            strcasestr(info.counterparty_name.c_str(), filterText) != nullptr ||
+                                            strcasestr(info.description.c_str(), filterText) != nullptr;
+                                        if (!match) {
+                                            char amount_str[32];
+                                            snprintf(amount_str, sizeof(amount_str), "%.2f", info.amount);
+                                            match = strcasestr(amount_str, filterText) != nullptr;
+                                        }
+                                        if (match) m_filtered_payment_info.push_back(info);
+                                    }
+                                } else {
+                                    m_filtered_payment_info = *details_src;
+                                }
                             }
                             need_to_break = true;
                         }

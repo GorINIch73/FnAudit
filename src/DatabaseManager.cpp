@@ -200,11 +200,7 @@ bool DatabaseManager::createDatabase(const std::string &filepath) {
         "№)?\\s*([^\\s,]+)\\s*(?:от\\s*)?(\\d{2}\\.\\d{2}\\.(?:\\d{4}|\\d{2}))'"
         ");",
         "INSERT OR IGNORE INTO Regexes (name, pattern) VALUES ('КОСГУ', "
-        "'К(\\d{3})');",
-        "INSERT OR IGNORE INTO Regexes (name, pattern) VALUES ('Исполнение', "
-        "'(?:акт|сч\\.?|сч-ф|счет на "
-        "оплату|№)\\s*([^\\s,]+)\\s*(?:от\\s*)?(\\d{2}\\.\\d{2}\\.(?:\\d{4}|"
-        "\\d{2}))');"};
+        "'К(\\d{3})');"};
 
     for (const auto &sql : default_regexes) {
         if (!execute(sql)) {

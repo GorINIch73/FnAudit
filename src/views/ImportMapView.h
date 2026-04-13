@@ -40,14 +40,11 @@ private:
     std::vector<Regex> regexes;
     int contract_regex_index = -1;
     int kosgu_regex_index = -1;
-    int invoice_regex_index = -1;
     std::string sample_description;
     std::string contract_match;
     std::string kosgu_match;
-    std::string invoice_match;
     std::string contract_pattern_buffer;
     std::string kosgu_pattern_buffer;
-    std::string invoice_pattern_buffer;
     bool import_started = false;
     bool force_income_type = false;
     bool is_return_import = false;
