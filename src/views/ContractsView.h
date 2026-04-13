@@ -52,6 +52,12 @@ private:
     std::vector<Contract> m_filtered_contracts;
     void UpdateFilteredContracts();
     void SortContracts(const struct ImGuiTableSortSpecs* sort_specs);
+    void ApplyStoredSorting();
+    void StoreSortSpecs(const struct ImGuiTableSortSpecs* sort_specs);
+    struct SortSpec { int column_index; int sort_direction; };
+    std::vector<SortSpec> m_stored_sort_specs;
+    int scroll_to_item_index = -1;
+    bool scroll_pending = false;
     std::map<int, std::vector<ContractPaymentInfo>> m_contract_details_map;
     UIManager* uiManager = nullptr;
 

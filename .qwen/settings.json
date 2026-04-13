@@ -3,7 +3,8 @@
     "allow": [
       "Bash(cmake *)",
       "Bash(make *)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(git checkout *)"
     ]
   },
   "$version": 3

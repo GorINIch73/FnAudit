@@ -260,7 +260,7 @@ std::vector<Kosgu> DatabaseManager::getKosguEntries() {
     return entries;
 }
 
-bool DatabaseManager::addKosguEntry(const Kosgu &entry) {
+bool DatabaseManager::addKosguEntry(Kosgu &entry) {
     if (!db)
         return false;
     std::string sql = "INSERT INTO KOSGU (code, name, note) VALUES (?, ?, ?);";
@@ -276,15 +276,16 @@ bool DatabaseManager::addKosguEntry(const Kosgu &entry) {
     sqlite3_bind_text(stmt, 3, entry.note.c_str(), -1, SQLITE_STATIC);
 
     rc = sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-
     if (rc != SQLITE_DONE) {
         int extended_code = sqlite3_extended_errcode(db);
         std::cerr << "Failed to add KOSGU entry: " << sqlite3_errmsg(db)
                   << " (code: " << rc << ", extended code: " << extended_code
                   << ")" << std::endl;
+        sqlite3_finalize(stmt);
         return false;
     }
+    entry.id = sqlite3_last_insert_rowid(db);
+    sqlite3_finalize(stmt);
     return true;
 }
 
@@ -639,6 +640,7 @@ int DatabaseManager::addContract(Contract &contract) {
         return -1;
     }
     int id = sqlite3_last_insert_rowid(db);
+    contract.id = id; // Записываем ID в объект для последующего использования
     sqlite3_finalize(stmt);
     return id;
 }

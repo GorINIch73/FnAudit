@@ -21,7 +21,8 @@ PaymentsView::PaymentsView()
       isDirty(false),
       selectedDetailIndex(-1),
       isAddingDetail(false),
-      isDetailDirty(false) {
+      isDetailDirty(false),
+      scroll_to_item_index(-1) {
     Title = "Справочник 'Банк' (Платежи)";
     memset(filterText, 0, sizeof(filterText)); // Инициализация filterText
     memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
@@ -91,39 +92,28 @@ void PaymentsView::SaveChanges() {
     if (!isDirty)
         return;
 
-    if (dbManager) {
+    if (dbManager && selectedPayment.id != -1) {
         selectedPayment.description = descriptionBuffer;
         selectedPayment.note = noteBuffer;
-        if (isAdding) {
-            dbManager->addPayment(selectedPayment);
-        } else if (selectedPayment.id != -1) {
-            dbManager->updatePayment(selectedPayment);
-        }
+        dbManager->updatePayment(selectedPayment);
 
-        // Note: We don't call RefreshData() here to avoid invalidating
-        // m_filtered_payments during iteration. The data will be refreshed
-        // when switching to another payment or when leaving the view.
-        // Just update selectedPayment with the new data from DB
-        auto it = std::find_if(
-            payments.begin(), payments.end(),
-            [&](const Payment &p) { return p.id == selectedPayment.id; });
-        if (it != payments.end()) {
-            *it = selectedPayment;
-            selectedPayment = *it;
-            originalPayment = *it;
-            descriptionBuffer = selectedPayment.description;
-            noteBuffer = selectedPayment.note;
-            if (dbManager) {
-                paymentDetails =
-                    dbManager->getPaymentDetails(selectedPayment.id);
+        // Обновляем из БД и применяем сортировку
+        payments = dbManager->getPayments();
+        m_filtered_payments = payments;
+        UpdateFilteredPayments();
+        ApplyStoredSorting();
+        // Находим обновлённую запись
+        for (int i = 0; i < (int)m_filtered_payments.size(); i++) {
+            if (m_filtered_payments[i].id == selectedPayment.id) {
+                selectedPaymentIndex = i;
+                selectedPayment = m_filtered_payments[i];
+                break;
             }
         }
-        // Обновляем m_filtered_payments напрямую
-        for (auto& fp : m_filtered_payments) {
-            if (fp.id == selectedPayment.id) { fp = selectedPayment; break; }
-        }
+        originalPayment = selectedPayment;
+        descriptionBuffer = selectedPayment.description;
+        noteBuffer = selectedPayment.note;
     }
-    isAdding = false;
     isDirty = false;
 }
 
@@ -131,31 +121,24 @@ void PaymentsView::SaveDetailChanges() {
     if (!isDetailDirty)
         return;
 
-    if (dbManager && selectedPayment.id != -1) {
-        if (isAddingDetail) {
-            dbManager->addPaymentDetail(selectedDetail);
-        } else if (selectedDetail.id != -1) {
-            dbManager->updatePaymentDetail(selectedDetail);
-        }
+    if (dbManager && selectedPayment.id != -1 && selectedDetail.id != -1) {
+        dbManager->updatePaymentDetail(selectedDetail);
 
-        // Note: We don't refresh paymentDetails here to avoid invalidating
-        // indices during iteration. Just update selectedDetail with the new
-        // data.
-        int old_detail_id = selectedDetail.id;
         auto it = std::find_if(
             paymentDetails.begin(), paymentDetails.end(),
-            [&](const PaymentDetail &d) { return d.id == old_detail_id; });
+            [&](const PaymentDetail &d) { return d.id == selectedDetail.id; });
         if (it != paymentDetails.end()) {
-            selectedDetail = *it;
-            originalDetail = *it;
+            *it = selectedDetail;
         }
     }
 
-    isAddingDetail = false;
     isDetailDirty = false;
 }
 
 void PaymentsView::SortPayments(const ImGuiTableSortSpecs *sort_specs) {
+    // Сохраняем текущую сортировку
+    StoreSortSpecs(sort_specs);
+
     std::sort(m_filtered_payments.begin(), m_filtered_payments.end(),
               [&](const Payment &a, const Payment &b) {
                   for (int i = 0; i < sort_specs->SpecsCount; i++) {
@@ -216,6 +199,33 @@ void PaymentsView::SortPayments(const ImGuiTableSortSpecs *sort_specs) {
               });
 }
 
+void PaymentsView::StoreSortSpecs(const ImGuiTableSortSpecs* sort_specs) {
+    m_stored_sort_specs.clear();
+    if (sort_specs && sort_specs->SpecsCount > 0) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            m_stored_sort_specs.push_back({
+                sort_specs->Specs[i].ColumnIndex,
+                sort_specs->Specs[i].SortDirection
+            });
+        }
+    }
+}
+
+void PaymentsView::ApplyStoredSorting() {
+    if (m_stored_sort_specs.empty()) {
+        return;
+    }
+    std::vector<ImGuiTableColumnSortSpecs> fake_specs(m_stored_sort_specs.size());
+    for (size_t i = 0; i < m_stored_sort_specs.size(); i++) {
+        fake_specs[i].ColumnIndex = m_stored_sort_specs[i].column_index;
+        fake_specs[i].SortDirection = static_cast<ImGuiSortDirection>(m_stored_sort_specs[i].sort_direction);
+    }
+    ImGuiTableSortSpecs wrapped_specs;
+    wrapped_specs.Specs = fake_specs.data();
+    wrapped_specs.SpecsCount = fake_specs.size();
+    SortPayments(&wrapped_specs);
+}
+
 void PaymentsView::Render() {
     if (!IsVisible) {
         if (isDirty) {
@@ -263,26 +273,64 @@ void PaymentsView::Render() {
             SaveChanges();
             SaveDetailChanges();
 
-            isAdding = true;
-            selectedPaymentIndex = -1;
-            selectedPayment = Payment{};
-            selectedPayment.type = false; // false is 'expense' by default
-
+            Payment newPayment{};
+            newPayment.type = false;
             auto t = std::time(nullptr);
             auto tm = *std::localtime(&t);
             std::ostringstream oss;
             oss << std::put_time(&tm, "%Y-%m-%d");
-            selectedPayment.date = oss.str();
+            newPayment.date = oss.str();
 
-            originalPayment = selectedPayment;
-            descriptionBuffer.clear();
-            noteBuffer.clear();
-            paymentDetails.clear();
-            isDirty = true;
+            int new_id = -1;
+            if (dbManager) {
+                dbManager->addPayment(newPayment);
+                new_id = newPayment.id;
+                payments = dbManager->getPayments();
+                m_filtered_payments = payments;
+                UpdateFilteredPayments();
+                ApplyStoredSorting();
+            }
+
+            // Находим новую запись в отсортированном списке
+            selectedPaymentIndex = -1;
+            scroll_to_item_index = -1;
+            scroll_pending = false;
+            for (int i = 0; i < (int)m_filtered_payments.size(); i++) {
+                if (m_filtered_payments[i].id == new_id) {
+                    selectedPaymentIndex = i;
+                    scroll_to_item_index = i;
+                    break;
+                }
+            }
+            if (selectedPaymentIndex == -1) {
+                // Новая запись отфильтрована — добавляем вручную
+                auto new_it = std::find_if(payments.begin(), payments.end(),
+                    [&](const Payment &p) { return p.id == new_id; });
+                if (new_it != payments.end()) {
+                    m_filtered_payments.push_back(*new_it);
+                    ApplyStoredSorting();
+                    for (int i = 0; i < (int)m_filtered_payments.size(); i++) {
+                        if (m_filtered_payments[i].id == new_id) {
+                            selectedPaymentIndex = i;
+                            scroll_to_item_index = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (selectedPaymentIndex != -1) {
+                selectedPayment = m_filtered_payments[selectedPaymentIndex];
+                originalPayment = selectedPayment;
+            }
+            descriptionBuffer = selectedPayment.description;
+            noteBuffer = selectedPayment.note;
+            paymentDetails = dbManager ? dbManager->getPaymentDetails(new_id > 0 ? new_id : selectedPayment.id) : std::vector<PaymentDetail>();
+            isAdding = false;
+            isDirty = false;
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            if (!isAdding && selectedPaymentIndex != -1) {
+            if (selectedPaymentIndex != -1) {
                 payment_id_to_delete = payments[selectedPaymentIndex].id;
                 show_delete_payment_popup = true;
             }
@@ -679,6 +727,15 @@ void PaymentsView::Render() {
                 }
             }
 
+            // Прокрутка к новой записи: SetScrollY вызывается ОДИН раз
+            if (scroll_to_item_index >= 0 && scroll_to_item_index < (int)m_filtered_payments.size()) {
+                if (!scroll_pending) {
+                    float row_y = scroll_to_item_index * ImGui::GetTextLineHeightWithSpacing();
+                    ImGui::SetScrollY(row_y);
+                    scroll_pending = true;
+                }
+            }
+
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_payments.size());
             bool need_to_break = false;
@@ -698,46 +755,40 @@ void PaymentsView::Render() {
                         }
                     }
 
-                    bool is_selected = (selectedPaymentIndex == original_index);
+                    bool is_selected = (selectedPaymentIndex == i);
                     char label[128];
                     sprintf(label, "%s##%d", payment.date.c_str(), payment.id);
                     if (ImGui::Selectable(
                             label, is_selected,
                             ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedPaymentIndex != original_index) {
+                        if (selectedPaymentIndex != i) {
                             SaveChanges();
                             SaveDetailChanges();
-                            // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
-                            // Просто обновляем выбранный платеж из локального массива
-                            int new_index = -1;
-                            for (size_t j = 0; j < payments.size(); ++j) {
-                                if (payments[j].id == payment.id) {
-                                    new_index = j;
-                                    break;
-                                }
+                            selectedPaymentIndex = i;
+                            selectedPayment = m_filtered_payments[i];
+                            originalPayment = m_filtered_payments[i];
+                            descriptionBuffer = selectedPayment.description;
+                            noteBuffer = selectedPayment.note;
+                            if (dbManager) {
+                                paymentDetails =
+                                    dbManager->getPaymentDetails(
+                                        selectedPayment.id);
                             }
-                            if (new_index != -1 &&
-                                new_index < (int)payments.size()) {
-                                selectedPaymentIndex = new_index;
-                                selectedPayment = payments[new_index];
-                                originalPayment = payments[new_index];
-                                descriptionBuffer = selectedPayment.description;
-                                noteBuffer = selectedPayment.note;
-                                if (dbManager) {
-                                    paymentDetails =
-                                        dbManager->getPaymentDetails(
-                                            selectedPayment.id);
-                                }
-                                isAdding = false;
-                                isDirty = false;
-                                selectedDetailIndex = -1;
-                                isDetailDirty = false;
-                            }
+                            isAdding = false;
+                            isDirty = false;
+                            selectedDetailIndex = -1;
+                            isDetailDirty = false;
                             need_to_break = true;
                         }
                     }
                     if (!need_to_break && is_selected) {
                         ImGui::SetItemDefaultFocus();
+                    }
+                    // Прокрутка завершена — строка отрисована, сбрасываем оба флага
+                    if (!need_to_break && scroll_to_item_index >= 0 && scroll_to_item_index == i) {
+                        ImGui::SetScrollHereY(0.5f);
+                        scroll_to_item_index = -1;
+                        scroll_pending = false;
                     }
 
                     if (!need_to_break) {
@@ -1077,26 +1128,30 @@ void PaymentsView::Render() {
 
             if (ImGui::Button(ICON_FA_PLUS " Добавить деталь")) {
                 SaveDetailChanges();
-                isAddingDetail = true;
-                selectedDetailIndex = -1;
-                selectedDetail =
-                    PaymentDetail{-1, selectedPayment.id, -1, -1, -1, 0.0};
-
-                // Calculate sum of existing payment details
+                // Сразу создаём расшифровку в БД с реальным ID
                 double sum_of_existing_details = 0.0;
                 for (const auto &detail : paymentDetails) {
                     sum_of_existing_details += detail.amount;
                 }
+                double remaining_amount = selectedPayment.amount - sum_of_existing_details;
 
-                // Calculate remaining amount
-                double remaining_amount =
-                    selectedPayment.amount - sum_of_existing_details;
+                PaymentDetail newDetail{-1, selectedPayment.id, -1, -1, -1, remaining_amount};
+                if (dbManager) {
+                    dbManager->addPaymentDetail(newDetail);
+                    paymentDetails.push_back(newDetail);
+                }
 
-                // Assign to selectedDetail.amount
-                selectedDetail.amount = remaining_amount;
-
-                originalDetail = selectedDetail;
-                isDetailDirty = true;
+                selectedDetailIndex = -1;
+                for (int i = 0; i < (int)paymentDetails.size(); i++) {
+                    if (paymentDetails[i].id == newDetail.id) {
+                        selectedDetailIndex = i;
+                        break;
+                    }
+                }
+                selectedDetail = newDetail;
+                originalDetail = newDetail;
+                isAddingDetail = false;  // Уже сохранена!
+                isDetailDirty = false;
             }
             ImGui::SameLine();
             if (ImGui::Button(ICON_FA_TRASH " Удалить деталь") &&

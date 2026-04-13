@@ -17,7 +17,8 @@ ContractsView::ContractsView()
       showEditModal(false),
       isAdding(false),
       isDirty(false),
-      cancel_group_operation(false) {
+      cancel_group_operation(false),
+      scroll_to_item_index(-1) {
     Title = "Справочник 'Договоры'";
     memset(filterText, 0, sizeof(filterText));
     memset(counterpartyFilter, 0, sizeof(counterpartyFilter));
@@ -72,40 +73,49 @@ void ContractsView::OnDeactivate() { SaveChanges(); }
 void ContractsView::ForceSave() { SaveChanges(); }
 
 void ContractsView::SaveChanges() {
-    if (!isDirty) {
+    // Сравниваем поля редактора с оригиналом
+    bool hasChanges = (selectedContract.id != -1) && (
+        selectedContract.number != originalContract.number ||
+        selectedContract.date != originalContract.date ||
+        selectedContract.counterparty_id != originalContract.counterparty_id ||
+        selectedContract.contract_amount != originalContract.contract_amount ||
+        selectedContract.end_date != originalContract.end_date ||
+        selectedContract.procurement_code != originalContract.procurement_code ||
+        selectedContract.note != originalContract.note ||
+        selectedContract.is_for_checking != originalContract.is_for_checking ||
+        selectedContract.is_for_special_control != originalContract.is_for_special_control ||
+        selectedContract.is_found != originalContract.is_found
+    );
+
+    if (!hasChanges) {
         return;
     }
 
-    if (dbManager) {
-        if (isAdding) {
-            dbManager->addContract(selectedContract);
-            isAdding = false;
-        } else if (selectedContract.id != -1) {
-            dbManager->updateContract(selectedContract);
-        }
-
-        // Note: We don't call RefreshData() here to avoid invalidating
-        // m_filtered_contracts during iteration. The data will be refreshed
-        // when switching to another contract or when leaving the view.
-        // Just update selectedContract with the new data from DB
+    if (dbManager && selectedContract.id != -1) {
+        dbManager->updateContract(selectedContract);
+        // Обновляем запись в локальных массивых
         auto it = std::find_if(
             contracts.begin(), contracts.end(), [&](const Contract &c) {
                 return c.id == selectedContract.id;
             });
         if (it != contracts.end()) {
-            *it = selectedContract; // Обновляем contracts напрямую
-            selectedContract = *it;
+            *it = selectedContract;
         }
-        // Обновляем m_filtered_contracts напрямую
         for (auto& fc : m_filtered_contracts) {
             if (fc.id == selectedContract.id) { fc = selectedContract; break; }
         }
+        // Применяем сохранённую сортировку
+        ApplyStoredSorting();
+        originalContract = selectedContract;
     }
 
     isDirty = false;
 }
 
 void ContractsView::SortContracts(const ImGuiTableSortSpecs *sort_specs) {
+    // Сохраняем текущую сортировку для восстановления
+    StoreSortSpecs(sort_specs);
+
     std::sort(
         m_filtered_contracts.begin(), m_filtered_contracts.end(),
         [&](const Contract &a, const Contract &b) {
@@ -186,6 +196,34 @@ void ContractsView::SortContracts(const ImGuiTableSortSpecs *sort_specs) {
             }
             return false;
         });
+}
+
+void ContractsView::StoreSortSpecs(const ImGuiTableSortSpecs* sort_specs) {
+    m_stored_sort_specs.clear();
+    if (sort_specs && sort_specs->SpecsCount > 0) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            m_stored_sort_specs.push_back({
+                sort_specs->Specs[i].ColumnIndex,
+                sort_specs->Specs[i].SortDirection
+            });
+        }
+    }
+}
+
+void ContractsView::ApplyStoredSorting() {
+    if (m_stored_sort_specs.empty()) {
+        return;
+    }
+    // Создаём фейковую ImGuiTableSortSpecs для совместимости с SortContracts
+    std::vector<ImGuiTableColumnSortSpecs> fake_specs(m_stored_sort_specs.size());
+    for (size_t i = 0; i < m_stored_sort_specs.size(); i++) {
+        fake_specs[i].ColumnIndex = m_stored_sort_specs[i].column_index;
+        fake_specs[i].SortDirection = static_cast<ImGuiSortDirection>(m_stored_sort_specs[i].sort_direction);
+    }
+    ImGuiTableSortSpecs wrapped_specs;
+    wrapped_specs.Specs = fake_specs.data();
+    wrapped_specs.SpecsCount = fake_specs.size();
+    SortContracts(&wrapped_specs);
 }
 
 void ContractsView::ProcessGroupOperation() {
@@ -303,15 +341,67 @@ void ContractsView::Render() {
         // Панель управления
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
             SaveChanges();
-            isAdding = true;
+            // Сразу создаём пустую запись в БД с реальным ID
+            Contract newContract;
+            newContract.id = -1;
+            newContract.number = "";
+            newContract.date = "";
+            newContract.counterparty_id = -1;
+            newContract.total_amount = 0.0;
+            newContract.contract_amount = 0.0;
+            newContract.end_date = "";
+            newContract.procurement_code = "";
+            newContract.note = "";
+            newContract.is_for_checking = false;
+            newContract.is_for_special_control = false;
+            newContract.is_found = false;
+            int new_id = -1;
+            if (dbManager) {
+                new_id = dbManager->addContract(newContract);
+            }
+            // Обновляем contracts из БД
+            contracts = dbManager->getContracts();
+            counterpartiesForDropdown = dbManager->getCounterparties();
+            m_filtered_contracts = contracts;
+            UpdateFilteredContracts();
+            ApplyStoredSorting();
+            // Находим новую запись в отсортированном списке
             selectedContractIndex = -1;
-            selectedContract = Contract{-1, "", "", -1};
-            originalContract = selectedContract;
+            scroll_to_item_index = -1;
+            scroll_pending = false;
+            for (int i = 0; i < (int)m_filtered_contracts.size(); i++) {
+                if (m_filtered_contracts[i].id == new_id) {
+                    selectedContractIndex = i;
+                    scroll_to_item_index = i;
+                    break;
+                }
+            }
+            if (selectedContractIndex == -1) {
+                // Новая запись отфильтрована — добавляем вручную
+                auto new_it = std::find_if(contracts.begin(), contracts.end(),
+                    [&](const Contract &c) { return c.id == new_id; });
+                if (new_it != contracts.end()) {
+                    m_filtered_contracts.push_back(*new_it);
+                    ApplyStoredSorting();
+                    for (int i = 0; i < (int)m_filtered_contracts.size(); i++) {
+                        if (m_filtered_contracts[i].id == new_id) {
+                            selectedContractIndex = i;
+                            scroll_to_item_index = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (selectedContractIndex != -1) {
+                selectedContract = m_filtered_contracts[selectedContractIndex];
+                originalContract = selectedContract;
+            }
+            isAdding = false;
             isDirty = false;
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            if (!isAdding && selectedContractIndex != -1 &&
+            if (selectedContractIndex != -1 &&
                 selectedContractIndex < (int)contracts.size()) {
                 contract_id_to_delete = contracts[selectedContractIndex].id;
                 show_delete_popup = true;
@@ -668,6 +758,15 @@ void ContractsView::Render() {
                 }
             }
 
+            // Прокрутка к новой записи: SetScrollY вызывается ОДИН раз
+            if (scroll_to_item_index >= 0 && scroll_to_item_index < (int)m_filtered_contracts.size()) {
+                if (!scroll_pending) {
+                    float row_y = scroll_to_item_index * ImGui::GetTextLineHeightWithSpacing();
+                    ImGui::SetScrollY(row_y);
+                    scroll_pending = true;
+                }
+            }
+
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_contracts.size());
             bool need_to_break = false;
@@ -678,52 +777,49 @@ void ContractsView::Render() {
                     ImGui::TableNextColumn();
 
                     int contract_id = m_filtered_contracts[i].id;
-                    auto original_it = std::find_if(
-                        contracts.begin(), contracts.end(),
-                        [&](const Contract &c) {
-                            return c.id == contract_id;
-                        });
-                    int original_index =
-                        (original_it == contracts.end())
-                            ? -1
-                            : std::distance(contracts.begin(), original_it);
 
-                    bool is_selected =
-                        (selectedContractIndex == original_index);
+                    bool is_selected = (selectedContractIndex == i);
                     char label[256];
                     sprintf(label, "%d##%d", m_filtered_contracts[i].id, i);
                     if (ImGui::Selectable(
                             label, is_selected,
                             ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedContractIndex != original_index &&
-                            original_index != -1) {
+                        if (selectedContractIndex != i) {
                             SaveChanges();
-                            // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
-                            // Просто обновляем выбранный контракт из базы
+                            // Обновляем contracts из БД
                             if (dbManager) {
-                                auto updated_it = std::find_if(
-                                    contracts.begin(), contracts.end(),
-                                    [&](const Contract &c) {
-                                        return c.id == contract_id;
-                                    });
-                                if (updated_it != contracts.end()) {
-                                    int new_index = std::distance(contracts.begin(), updated_it);
-                                    selectedContractIndex = new_index;
-                                    selectedContract = *updated_it;
-                                    originalContract = *updated_it;
-                                    isAdding = false;
-                                    isDirty = false;
-                                    m_sorted_payment_info.clear();
-                                    payment_info =
-                                        dbManager->getPaymentInfoForContract(
-                                            selectedContract.id);
+                                contracts = dbManager->getContracts();
+                                counterpartiesForDropdown = dbManager->getCounterparties();
+                                m_filtered_contracts = contracts;
+                                UpdateFilteredContracts();
+                                ApplyStoredSorting();
+                                // Находим новую строку в отсортированном списке
+                                for (int j = 0; j < (int)m_filtered_contracts.size(); j++) {
+                                    if (m_filtered_contracts[j].id == contract_id) {
+                                        selectedContractIndex = j;
+                                        selectedContract = m_filtered_contracts[j];
+                                        originalContract = selectedContract;
+                                        break;
+                                    }
                                 }
+                                isAdding = false;
+                                isDirty = false;
+                                m_sorted_payment_info.clear();
+                                payment_info =
+                                    dbManager->getPaymentInfoForContract(
+                                        selectedContract.id);
                             }
                             need_to_break = true;
                         }
                     }
                     if (!need_to_break && is_selected) {
                         ImGui::SetItemDefaultFocus();
+                    }
+                    // Прокрутка завершена — строка отрисована, сбрасываем оба флага
+                    if (!need_to_break && scroll_to_item_index >= 0 && scroll_to_item_index == i) {
+                        ImGui::SetScrollHereY(0.5f);
+                        scroll_to_item_index = -1;
+                        scroll_pending = false;
                     }
 
                     if (!need_to_break) {

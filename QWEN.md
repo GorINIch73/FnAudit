@@ -62,3 +62,18 @@
 - Удалена таблица Invoices из CREATE TABLE
 - Удалён пункт меню "Накладные"
 - Теперь вся логика использует BasePaymentDocuments
+- ПРОБЛЕМА ПРОКРУТКИ К НОВОЙ ЗАПИСИ: При создании новой записи в формах (KosguView, ContractsView, PaymentsView, CounterpartiesView) курсор/выделение НЕ переключается на новую запись — выделяется первая строка в таблице, и прокрутка не происходит к новой записи.
+
+Текущая реализация:
+- scroll_to_item_index устанавливается на индекс новой записи при добавлении
+- В цикле отрисовки ДО строки вызывается: if (scroll_to_item_index == i) { float row_y = i * ImGui::GetTextLineHeightWithSpacing(); ImGui::SetScrollY(row_y); scroll_to_item_index = -1; }
+- selectedXIndex правильно устанавливается на индекс новой записи в m_filtered_* массиве
+
+Возможные причины:
+1. ImGuiListClipper пропускает строку до вызова SetScrollY — clipper.DisplayStart может быть > scroll_to_item_index
+2. SetScrollY вызывается слишком рано, до того как scroll area инициализирована
+3. Нужно использовать SetScrollHereY после Selectable, а не SetScrollY до него
+4. Нужно вызывать ImGui::SetKeyboardFocusHere() или использовать SetNextItemSelectionUserData()
+5. Возможно, проблема в том что новая запись добавляется в m_filtered_* ПОСЛЕ ApplyStoredSorting, и clipper уже вычислил DisplayStart/DisplayEnd до того как мы установили scroll_to_item_index
+
+Решение нужно искать в документации ImGui по прокрутке таблиц (ScrollToItem, SetScrollHereY) или использовать подход с ImGui::SetScrollHereY(0.5f) ВЫЗЫВАЕМЫЙ ПОСЛЕ Selectable() для выделенной строки, но на следующем кадре (т.е. scroll_to_item_index должен сохраняться между кадрами пока строка не будет отрисована и прокручена)

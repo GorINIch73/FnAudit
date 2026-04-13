@@ -4,6 +4,7 @@
 #include "../UIManager.h"
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 #include <iostream>
 #include <map>
 
@@ -11,7 +12,8 @@ KosguView::KosguView()
     : selectedKosguIndex(-1),
       showEditModal(false),
       isAdding(false),
-      isDirty(false) {
+      isDirty(false),
+      scroll_to_item_index(-1) {
     Title = "Справочник КОСГУ";
     memset(filterText, 0, sizeof(filterText));
 }
@@ -51,34 +53,32 @@ void KosguView::OnDeactivate() { SaveChanges(); }
 void KosguView::ForceSave() { SaveChanges(); }
 
 void KosguView::SaveChanges() {
-    if (!isDirty) {
+    // Сравниваем поля редактора с оригиналом
+    bool hasChanges = (selectedKosgu.id != -1) && (
+        selectedKosgu.code != originalKosgu.code ||
+        selectedKosgu.name != originalKosgu.name ||
+        selectedKosgu.note != originalKosgu.note
+    );
+
+    if (!hasChanges) {
         return;
     }
 
-    if (dbManager) {
-        if (isAdding) {
-            dbManager->addKosguEntry(selectedKosgu);
-            isAdding = false;
-        } else if (selectedKosgu.id != -1) {
-            dbManager->updateKosguEntry(selectedKosgu);
+    if (dbManager && selectedKosgu.id != -1) {
+        dbManager->updateKosguEntry(selectedKosgu);
+        // Обновляем из БД и применяем сортировку
+        kosguEntries = dbManager->getKosguEntries();
+        m_filtered_kosgu_entries = kosguEntries;
+        UpdateFilteredKosgu();
+        ApplyStoredSorting();
+        // Находим обновлённую запись
+        for (int i = 0; i < (int)m_filtered_kosgu_entries.size(); i++) {
+            if (m_filtered_kosgu_entries[i].id == selectedKosgu.id) {
+                selectedKosgu = m_filtered_kosgu_entries[i];
+                break;
+            }
         }
-
-        // Note: We don't call RefreshData() here to avoid invalidating
-        // m_filtered_kosgu_entries during iteration. The data will be refreshed
-        // when switching to another entry or when leaving the view.
-        // Just update selectedKosgu with the new data from DB
-        auto it = std::find_if(
-            kosguEntries.begin(), kosguEntries.end(), [&](const Kosgu &k) {
-                return k.id == selectedKosgu.id;
-            });
-        if (it != kosguEntries.end()) {
-            *it = selectedKosgu;
-            selectedKosgu = *it;
-        }
-        // Обновляем m_filtered_kosgu_entries напрямую
-        for (auto& fk : m_filtered_kosgu_entries) {
-            if (fk.id == selectedKosgu.id) { fk = selectedKosgu; break; }
-        }
+        originalKosgu = selectedKosgu;
     }
 
     isDirty = false;
@@ -289,15 +289,57 @@ void KosguView::Render() {
         // Панель управления
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
             SaveChanges();
-            isAdding = true;
+            // Генерируем временный уникальный код для новой записи
+            auto t = std::time(nullptr);
+            std::string temp_code = "NEW_" + std::to_string(t);
+            Kosgu newKosgu{-1, temp_code, "", ""};
+            int new_id = -1;
+            if (dbManager) {
+                dbManager->addKosguEntry(newKosgu);
+                // Реальный ID записан в newKosgu.id внутри addKosguEntry
+                new_id = newKosgu.id;
+                kosguEntries = dbManager->getKosguEntries();
+                m_filtered_kosgu_entries = kosguEntries;
+                UpdateFilteredKosgu();
+                ApplyStoredSorting();
+            }
+            // Находим новую запись в отсортированном списке
             selectedKosguIndex = -1;
-            selectedKosgu = Kosgu{-1, "", "", ""};
-            originalKosgu = selectedKosgu;
+            scroll_to_item_index = -1;
+            scroll_pending = false;
+            for (int i = 0; i < (int)m_filtered_kosgu_entries.size(); i++) {
+                if (m_filtered_kosgu_entries[i].id == new_id) {
+                    selectedKosguIndex = i;
+                    scroll_to_item_index = i;
+                    break;
+                }
+            }
+            if (selectedKosguIndex == -1) {
+                // Новая запись отфильтрована — добавляем вручную
+                auto new_it = std::find_if(kosguEntries.begin(), kosguEntries.end(),
+                    [&](const Kosgu &k) { return k.id == new_id; });
+                if (new_it != kosguEntries.end()) {
+                    m_filtered_kosgu_entries.push_back(*new_it);
+                    ApplyStoredSorting();
+                    for (int i = 0; i < (int)m_filtered_kosgu_entries.size(); i++) {
+                        if (m_filtered_kosgu_entries[i].id == new_id) {
+                            selectedKosguIndex = i;
+                            scroll_to_item_index = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (selectedKosguIndex != -1) {
+                selectedKosgu = m_filtered_kosgu_entries[selectedKosguIndex];
+                originalKosgu = selectedKosgu;
+            }
+            isAdding = false;
             isDirty = false;
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            if (!isAdding && selectedKosguIndex != -1) {
+            if (selectedKosguIndex != -1) {
                 kosgu_id_to_delete = kosguEntries[selectedKosguIndex].id;
                 show_delete_popup = true;
             }
@@ -389,13 +431,24 @@ void KosguView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
+                    StoreSortSpecs(sort_specs);
                     SortKosgu(m_filtered_kosgu_entries, sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
             }
 
+            // Прокрутка к новой записи: SetScrollY вызывается ОДИН раз
+            if (scroll_to_item_index >= 0 && scroll_to_item_index < (int)m_filtered_kosgu_entries.size()) {
+                if (!scroll_pending) {
+                    float row_y = scroll_to_item_index * ImGui::GetTextLineHeightWithSpacing();
+                    ImGui::SetScrollY(row_y);
+                    scroll_pending = true;
+                }
+            }
+
             ImGuiListClipper clipper;
             clipper.Begin(m_filtered_kosgu_entries.size());
+
             bool need_to_break = false;
             while (clipper.Step() && !need_to_break) {
                 for (int i = clipper.DisplayStart; i < clipper.DisplayEnd && !need_to_break;
@@ -404,51 +457,36 @@ void KosguView::Render() {
                     ImGui::TableNextColumn();
 
                     int kosgu_id = m_filtered_kosgu_entries[i].id;
-                    auto original_it = std::find_if(
-                        kosguEntries.begin(), kosguEntries.end(),
-                        [&](const Kosgu &k) {
-                            return k.id == kosgu_id;
-                        });
-                    int original_index =
-                        (original_it == kosguEntries.end())
-                            ? -1
-                            : std::distance(kosguEntries.begin(), original_it);
 
-                    bool is_selected = (selectedKosguIndex == original_index);
+                    bool is_selected = (selectedKosguIndex == i);
                     char label[256];
                     sprintf(label, "%d##%d", m_filtered_kosgu_entries[i].id, i);
                     if (ImGui::Selectable(
                             label, is_selected,
                             ImGuiSelectableFlags_SpanAllColumns)) {
-                        if (selectedKosguIndex != original_index &&
-                            original_index != -1) {
+                        if (selectedKosguIndex != i) {
                             SaveChanges();
-                            // НЕ вызываем RefreshData() чтобы не сбрасывать сортировку
-                            // Просто обновляем выбранную запись из локального массива
-                            auto new_it = std::find_if(
-                                kosguEntries.begin(), kosguEntries.end(),
-                                [&](const Kosgu &k) {
-                                    return k.id == kosgu_id;
-                                });
-                            if (new_it != kosguEntries.end()) {
-                                int new_index = std::distance(kosguEntries.begin(), new_it);
-                                selectedKosguIndex = new_index;
-                                selectedKosgu = *new_it;
-                                originalKosgu = *new_it;
-                                isAdding = false;
-                                isDirty = false;
-                                if (dbManager) {
-                                    payment_info =
-                                        dbManager->getPaymentInfoForKosgu(
-                                            selectedKosgu.id);
-                                    filter_changed = true;
-                                }
+                            selectedKosguIndex = i;
+                            selectedKosgu = m_filtered_kosgu_entries[i];
+                            originalKosgu = selectedKosgu;
+                            isAdding = false;
+                            isDirty = false;
+                            if (dbManager) {
+                                payment_info =
+                                    dbManager->getPaymentInfoForKosgu(
+                                        selectedKosgu.id);
                             }
                             need_to_break = true;
                         }
                     }
                     if (!need_to_break && is_selected) {
                         ImGui::SetItemDefaultFocus();
+                    }
+                    // Прокрутка завершена — строка отрисована, сбрасываем оба флага
+                    if (!need_to_break && scroll_to_item_index >= 0 && scroll_to_item_index == i) {
+                        ImGui::SetScrollHereY(0.5f);
+                        scroll_to_item_index = -1;
+                        scroll_pending = false;
                     }
 
                     if (!need_to_break) {
@@ -613,4 +651,38 @@ void KosguView::Render() {
         }
     }
     ImGui::End();
+}
+
+void KosguView::StoreSortSpecs(const ImGuiTableSortSpecs* sort_specs) {
+    m_stored_sort_specs.clear();
+    if (sort_specs && sort_specs->SpecsCount > 0) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            m_stored_sort_specs.push_back({
+                sort_specs->Specs[i].ColumnIndex,
+                sort_specs->Specs[i].SortDirection
+            });
+        }
+    }
+}
+
+void KosguView::ApplyStoredSorting() {
+    if (m_stored_sort_specs.empty()) {
+        return;
+    }
+    std::sort(m_filtered_kosgu_entries.begin(), m_filtered_kosgu_entries.end(),
+        [&](const Kosgu &a, const Kosgu &b) {
+            for (const auto& spec : m_stored_sort_specs) {
+                int delta = 0;
+                switch (spec.column_index) {
+                    case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                    case 1: delta = a.code.compare(b.code); break;
+                    case 2: delta = a.name.compare(b.name); break;
+                    default: break;
+                }
+                if (delta != 0) {
+                    return (spec.sort_direction == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
+                }
+            }
+            return false;
+        });
 }

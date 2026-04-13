@@ -5,6 +5,7 @@
 #include "imgui_stdlib.h"
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 
 RegexesView::RegexesView()
     : selectedRegexIndex(-1),
@@ -45,27 +46,28 @@ RegexesView::GetDataAsStrings() {
 void RegexesView::OnDeactivate() { SaveChanges(); }
 
 void RegexesView::SaveChanges() {
-    if (!isDirty) {
+    // Сравниваем поля редактора с оригиналом
+    bool hasChanges = (selectedRegex.id != -1) && (
+        selectedRegex.name != originalRegex.name ||
+        selectedRegex.pattern != originalRegex.pattern
+    );
+
+    if (!hasChanges) {
         return;
     }
 
-    if (dbManager) {
-        if (isAdding) {
-            dbManager->addRegex(selectedRegex);
-            isAdding = false;
-        } else if (selectedRegex.id != -1) {
-            dbManager->updateRegex(selectedRegex);
+    if (dbManager && selectedRegex.id != -1) {
+        dbManager->updateRegex(selectedRegex);
+        // Обновляем из БД
+        regexes = dbManager->getRegexes();
+        // Находим обновлённую запись
+        for (auto& r : regexes) {
+            if (r.id == selectedRegex.id) {
+                selectedRegex = r;
+                break;
+            }
         }
-
-        // Note: We don't call RefreshData() here to avoid invalidating
-        // indices during iteration. Just update selectedRegex with the new data
-        auto it =
-            std::find_if(regexes.begin(), regexes.end(), [&](const Regex &r) {
-                return r.id == selectedRegex.id;
-            });
-        if (it != regexes.end()) {
-            selectedRegex = *it;
-        }
+        originalRegex = selectedRegex;
     }
 
     isDirty = false;
@@ -88,15 +90,31 @@ void RegexesView::Render() {
         // --- Control Panel ---
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
             SaveChanges();
-            isAdding = true;
+            // Генерируем временное уникальное имя для новой записи
+            auto t = std::time(nullptr);
+            std::string temp_name = "Новый_" + std::to_string(t);
+            Regex newRegex{-1, temp_name, ""};
+            int new_id = -1;
+            if (dbManager) {
+                new_id = dbManager->addRegex(newRegex);
+                regexes = dbManager->getRegexes();
+            }
+            // Находим новую запись
             selectedRegexIndex = -1;
-            selectedRegex = Regex{-1, "", ""};
-            originalRegex = selectedRegex;
-            isDirty = true;
+            for (int i = 0; i < (int)regexes.size(); i++) {
+                if (regexes[i].id == new_id) {
+                    selectedRegexIndex = i;
+                    selectedRegex = regexes[i];
+                    originalRegex = selectedRegex;
+                    break;
+                }
+            }
+            isAdding = false;
+            isDirty = false;
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            if (!isAdding && selectedRegexIndex != -1) {
+            if (selectedRegexIndex != -1) {
                 regex_id_to_delete = regexes[selectedRegexIndex].id;
                 show_delete_popup = true;
             }

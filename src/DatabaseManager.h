@@ -33,7 +33,7 @@ public:
     bool updateSettings(const Settings& settings);
 
     std::vector<Kosgu> getKosguEntries();
-    bool addKosguEntry(const Kosgu& entry);
+    bool addKosguEntry(Kosgu& entry);
     bool updateKosguEntry(const Kosgu& entry);
     bool deleteKosguEntry(int id);
     int getKosguIdByCode(const std::string& code);

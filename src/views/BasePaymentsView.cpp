@@ -209,8 +209,16 @@ void BasePaymentsView::SortDocuments(const ImGuiTableSortSpecs* sort_specs) {
 }
 
 void BasePaymentsView::SaveChanges() {
-    if (isDirty && dbManager) {
-        if (selectedDoc.id != -1) {
+    if (dbManager) {
+        // Проверяем, есть ли несохранённый документ (id == -1)
+        if (selectedDoc.id == -1) {
+            // Новый документ ещё не сохранён - добавляем его
+            dbManager->addBasePaymentDocument(selectedDoc);
+            // Добавляем новую запись в локальные массивы
+            documents.push_back(selectedDoc);
+            m_filtered_documents.push_back(selectedDoc);
+        } else if (isDirty) {
+            // Существующий документ изменён - обновляем
             dbManager->updateBasePaymentDocument(selectedDoc);
             // Обновляем локальные массивы напрямую, чтобы не сбрасывать сортировку
             for (auto& doc : documents) {
@@ -221,10 +229,12 @@ void BasePaymentsView::SaveChanges() {
             }
         }
         isDirty = false;
-    }
-    if (isDetailDirty && dbManager && selectedDetail.id != -1) {
-        dbManager->updateBasePaymentDocumentDetail(selectedDetail);
-        isDetailDirty = false;
+
+        // Сохраняем изменения в расшифровке
+        if (isDetailDirty && selectedDetail.id != -1) {
+            dbManager->updateBasePaymentDocumentDetail(selectedDetail);
+            isDetailDirty = false;
+        }
     }
 }
 

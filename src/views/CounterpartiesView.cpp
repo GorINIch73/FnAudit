@@ -9,7 +9,8 @@
 CounterpartiesView::CounterpartiesView()
     : showEditModal(false),
       isAdding(false),
-      isDirty(false) {
+      isDirty(false),
+      scroll_to_item_index(-1) {
     Title = "Справочник 'Контрагенты'";
     memset(filterText, 0, sizeof(filterText));
 }
@@ -67,36 +68,32 @@ void CounterpartiesView::OnDeactivate() { SaveChanges(); }
 void CounterpartiesView::ForceSave() { SaveChanges(); }
 
 void CounterpartiesView::SaveChanges() {
-    if (!isDirty) {
+    // Сравниваем поля редактора с оригиналом
+    bool hasChanges = (selectedCounterparty.id != -1) && (
+        selectedCounterparty.name != originalCounterparty.name ||
+        selectedCounterparty.inn != originalCounterparty.inn ||
+        selectedCounterparty.is_contract_optional != originalCounterparty.is_contract_optional
+    );
+
+    if (!hasChanges) {
         return;
     }
 
-    if (dbManager) {
-        int saved_id = selectedCounterparty.id;
-
-        if (isAdding) {
-            dbManager->addCounterparty(selectedCounterparty);
-            isAdding = false;
-        } else if (selectedCounterparty.id != -1) {
-            dbManager->updateCounterparty(selectedCounterparty);
+    if (dbManager && selectedCounterparty.id != -1) {
+        dbManager->updateCounterparty(selectedCounterparty);
+        // Обновляем из БД и применяем сортировку
+        counterparties = dbManager->getCounterparties();
+        m_filtered_counterparties = counterparties;
+        UpdateFilteredCounterparties();
+        ApplyStoredSorting();
+        // Находим обновлённую запись
+        for (int i = 0; i < (int)m_filtered_counterparties.size(); i++) {
+            if (m_filtered_counterparties[i].id == selectedCounterparty.id) {
+                selectedCounterparty = m_filtered_counterparties[i];
+                break;
+            }
         }
-
-        // Note: We don't call RefreshData() here to avoid invalidating
-        // m_filtered_counterparties during iteration. The data will be refreshed
-        // when switching to another counterparty or when leaving the view.
-        // Just update selectedCounterparty with the new data from DB
-        auto it = std::find_if(counterparties.begin(), counterparties.end(),
-                               [&](const Counterparty &c) {
-                                   return c.id == saved_id;
-                               });
-        if (it != counterparties.end()) {
-            *it = selectedCounterparty;
-            selectedCounterparty = *it;
-        }
-        // Обновляем m_filtered_counterparties напрямую
-        for (auto& fc : m_filtered_counterparties) {
-            if (fc.id == saved_id) { fc = selectedCounterparty; break; }
-        }
+        originalCounterparty = selectedCounterparty;
     }
 
     isDirty = false;
@@ -141,6 +138,40 @@ static void SortCounterparties(std::vector<Counterparty> &counterparties,
                             ImGuiSortDirection_Ascending)
                                ? (delta < 0)
                                : (delta > 0);
+                }
+            }
+            return false;
+        });
+}
+
+void CounterpartiesView::StoreSortSpecs(const ImGuiTableSortSpecs* sort_specs) {
+    m_stored_sort_specs.clear();
+    if (sort_specs && sort_specs->SpecsCount > 0) {
+        for (int i = 0; i < sort_specs->SpecsCount; i++) {
+            m_stored_sort_specs.push_back({
+                sort_specs->Specs[i].ColumnIndex,
+                sort_specs->Specs[i].SortDirection
+            });
+        }
+    }
+}
+
+void CounterpartiesView::ApplyStoredSorting() {
+    if (m_stored_sort_specs.empty()) {
+        return;
+    }
+    std::sort(m_filtered_counterparties.begin(), m_filtered_counterparties.end(),
+        [&](const Counterparty &a, const Counterparty &b) {
+            for (const auto& spec : m_stored_sort_specs) {
+                int delta = 0;
+                switch (spec.column_index) {
+                    case 0: delta = (a.id < b.id) ? -1 : (a.id > b.id) ? 1 : 0; break;
+                    case 1: delta = a.name.compare(b.name); break;
+                    case 2: delta = a.inn.compare(b.inn); break;
+                    default: break;
+                }
+                if (delta != 0) {
+                    return (spec.sort_direction == ImGuiSortDirection_Ascending) ? (delta < 0) : (delta > 0);
                 }
             }
             return false;
@@ -194,14 +225,50 @@ void CounterpartiesView::Render() {
         // Панель управления
         if (ImGui::Button(ICON_FA_PLUS " Добавить")) {
             SaveChanges();
-            isAdding = true;
-            selectedCounterparty = Counterparty{-1, "", ""};
-            originalCounterparty = selectedCounterparty;
+            Counterparty newCounterparty{-1, "", "", false};
+            int new_id = -1;
+            if (dbManager) {
+                dbManager->addCounterparty(newCounterparty);
+                new_id = newCounterparty.id;
+                counterparties = dbManager->getCounterparties();
+                m_filtered_counterparties = counterparties;
+                UpdateFilteredCounterparties();
+                ApplyStoredSorting();
+            }
+            // Находим новую запись в отсортированном списке
+            scroll_to_item_index = -1;
+            scroll_pending = false;
+            for (int i = 0; i < (int)m_filtered_counterparties.size(); i++) {
+                if (m_filtered_counterparties[i].id == new_id) {
+                    selectedCounterparty = m_filtered_counterparties[i];
+                    originalCounterparty = selectedCounterparty;
+                    scroll_to_item_index = i;
+                    break;
+                }
+            }
+            if (selectedCounterparty.id != new_id) {
+                // Новая запись отфильтрована — добавляем вручную
+                auto new_it = std::find_if(counterparties.begin(), counterparties.end(),
+                    [&](const Counterparty &c) { return c.id == new_id; });
+                if (new_it != counterparties.end()) {
+                    m_filtered_counterparties.push_back(*new_it);
+                    ApplyStoredSorting();
+                    for (int i = 0; i < (int)m_filtered_counterparties.size(); i++) {
+                        if (m_filtered_counterparties[i].id == new_id) {
+                            selectedCounterparty = m_filtered_counterparties[i];
+                            originalCounterparty = selectedCounterparty;
+                            scroll_to_item_index = i;
+                            break;
+                        }
+                    }
+                }
+            }
+            isAdding = false;
             isDirty = false;
         }
         ImGui::SameLine();
         if (ImGui::Button(ICON_FA_TRASH " Удалить")) {
-            if (!isAdding && selectedCounterparty.id != -1) {
+            if (selectedCounterparty.id != -1) {
                 counterparty_id_to_delete = selectedCounterparty.id;
                 show_delete_popup = true;
             }
@@ -309,6 +376,7 @@ void CounterpartiesView::Render() {
 
             if (ImGuiTableSortSpecs *sort_specs = ImGui::TableGetSortSpecs()) {
                 if (sort_specs->SpecsDirty) {
+                    StoreSortSpecs(sort_specs);
                     SortCounterparties(m_filtered_counterparties, sort_specs);
                     sort_specs->SpecsDirty = false;
                 }
@@ -320,6 +388,15 @@ void CounterpartiesView::Render() {
             // Для таблиц с ImGuiListClipper нужно использовать другой подход
             const int items_count = (int)m_filtered_counterparties.size();
             const float items_height = ImGui::GetTextLineHeightWithSpacing();
+
+            // Прокрутка к новой записи: SetScrollY вызывается ОДИН раз
+            if (scroll_to_item_index >= 0 && scroll_to_item_index < items_count) {
+                if (!scroll_pending) {
+                    float row_y = scroll_to_item_index * items_height;
+                    ImGui::SetScrollY(row_y);
+                    scroll_pending = true;
+                }
+            }
 
             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
             bool need_to_break = false;
@@ -361,6 +438,12 @@ void CounterpartiesView::Render() {
                 }
                 if (!need_to_break && is_selected) {
                     ImGui::SetItemDefaultFocus();
+                }
+                // Прокрутка завершена — строка отрисована, сбрасываем оба флага
+                if (!need_to_break && scroll_to_item_index >= 0 && scroll_to_item_index == i) {
+                    ImGui::SetScrollHereY(0.5f);
+                    scroll_to_item_index = -1;
+                    scroll_pending = false;
                 }
 
                 if (!need_to_break) {

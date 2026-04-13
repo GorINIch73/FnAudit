@@ -36,6 +36,12 @@ private:
     std::vector<Payment> payments;
     std::vector<Payment> m_filtered_payments;
     void UpdateFilteredPayments();
+    struct SortSpec { int column_index; int sort_direction; };
+    std::vector<SortSpec> m_stored_sort_specs;
+    void StoreSortSpecs(const struct ImGuiTableSortSpecs* sort_specs);
+    void ApplyStoredSorting();
+    int scroll_to_item_index = -1;
+    bool scroll_pending = false;
     Payment selectedPayment;
     Payment originalPayment;
     int selectedPaymentIndex;
