@@ -5,6 +5,7 @@
 #include <iostream>
 #include <string>
 
+#include "AboutDialog.h" // Include AboutDialog
 #include "DatabaseManager.h"
 #include "ExportManager.h"
 #include "IconsFontAwesome6.h"
@@ -13,7 +14,6 @@
 #include "PdfReporter.h"
 #include "Settings.h" // Include Settings.h
 #include "UIManager.h"
-#include "AboutDialog.h" // Include AboutDialog
 
 // Функция обратного вызова для ошибок GLFW
 static void glfw_error_callback(int error, const char *description) {
@@ -117,17 +117,23 @@ int main(int, char **) {
             if (ImGui::BeginMenu(ICON_FA_FILE " Файл")) {
                 if (ImGui::MenuItem(ICON_FA_FILE_CIRCLE_PLUS
                                     " Создать новую базу")) {
+
+                    uiManager.SaveAllViews();
                     ImGuiFileDialog::Instance()->OpenDialog(
                         "ChooseDbFileDlgKey", "Выберите файл для новой базы",
                         ".db");
                 }
                 if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN
                                     " Открыть базу данных")) {
+
+                    uiManager.SaveAllViews();
                     ImGuiFileDialog::Instance()->OpenDialog(
                         "OpenDbFileDlgKey", "Выберите файл базы данных", ".db");
                 }
                 if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK
                                     " Сохранить базу как...")) {
+
+                    uiManager.SaveAllViews();
                     if (!uiManager.currentDbPath.empty()) {
                         IGFD::FileDialogConfig config;
                         config.filePathName = uiManager.currentDbPath;
@@ -147,6 +153,8 @@ int main(int, char **) {
                                      " Недавние файлы")) {
                     for (const auto &path : uiManager.recentDbPaths) {
                         if (ImGui::MenuItem(path.c_str())) {
+
+                            uiManager.SaveAllViews();
                             uiManager.LoadDatabase(path);
                         }
                     }
@@ -167,7 +175,8 @@ int main(int, char **) {
                 if (ImGui::MenuItem(ICON_FA_FILE_CONTRACT " Договоры")) {
                     uiManager.CreateView<ContractsView>();
                 }
-                if (ImGui::MenuItem(ICON_FA_FILE_LINES " Документы Основания")) {
+                if (ImGui::MenuItem(ICON_FA_FILE_LINES
+                                    " Документы Основания")) {
                     uiManager.CreateView<BasePaymentsView>();
                 }
                 ImGui::EndMenu();
@@ -176,14 +185,16 @@ int main(int, char **) {
                 if (ImGui::MenuItem(ICON_FA_DATABASE " SQL Запрос")) {
                     uiManager.CreateView<SqlQueryView>();
                 }
-                if (ImGui::MenuItem(ICON_FA_SCALE_BALANCED " Сверка: Банк ↔ ДО")) {
+                if (ImGui::MenuItem(ICON_FA_SCALE_BALANCED
+                                    " Сверка: Банк ↔ ДО")) {
                     uiManager.CreateView<ReconciliationView>();
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_EXPORT " Экспорт в PDF")) {
                     ImGuiFileDialog::Instance()->OpenDialog(
                         "SavePdfFileDlgKey", "Сохранить отчет в PDF", ".pdf");
                 }
-                if (ImGui::MenuItem(ICON_FA_FILE_CONTRACT " Договоры для проверки (PDF)")) {
+                if (ImGui::MenuItem(ICON_FA_FILE_CONTRACT
+                                    " Договоры для проверки (PDF)")) {
                     uiManager.ExportContractsForCheckingPdf();
                 }
                 ImGui::EndMenu();
@@ -196,8 +207,8 @@ int main(int, char **) {
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_IMPORT " Импорт ЖО4 из TSV")) {
                     ImGuiFileDialog::Instance()->OpenDialog(
-                        "ImportJO4FileDlgKey", "Выберите TSV файл ЖО4 для импорта",
-                        ".tsv,.csv");
+                        "ImportJO4FileDlgKey",
+                        "Выберите TSV файл ЖО4 для импорта", ".tsv,.csv");
                 }
                 if (ImGui::MenuItem(ICON_FA_FILE_SIGNATURE
                                     " Экспорт Импорт ИКЗ")) {

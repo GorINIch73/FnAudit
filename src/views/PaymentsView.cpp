@@ -927,9 +927,7 @@ void PaymentsView::Render() {
                                         dbManager->getContractIdByNumberDate(
                                             extracted_number, extracted_date);
                                 } else {
-                                    existing_entity_id =
-                                        dbManager->getBasePaymentDocumentIdByNumberDate(
-                                            extracted_number, extracted_date);
+                                    existing_entity_id = -1;
                                 }
 
                             } else {
@@ -1010,39 +1008,36 @@ void PaymentsView::Render() {
                 ImGui::Separator();
 
                 ImGui::RadioButton("Договор", &entity_to_create, 0);
-                ImGui::SameLine();
-                ImGui::RadioButton("Документ", &entity_to_create, 1);
                 ImGui::Separator();
 
-                ImGui::Text("Номер: %s", extracted_number.c_str());
-                ImGui::Text("Дата:  %s", extracted_date.c_str());
+                ImGui::Text("Номер и дата договора (можно редактировать):");
+                ImGui::SetNextItemWidth(200);
+                CustomWidgets::InputText("##extracted_number", &extracted_number);
+                ImGui::SetNextItemWidth(120);
+                CustomWidgets::InputText("##extracted_date", &extracted_date);
+                
+                // При ручном изменении проверяем существование договора
+                if (dbManager && !extracted_number.empty() && !extracted_date.empty() &&
+                    extracted_number != "Не найдено" && extracted_number != "Ошибка Regex") {
+                    existing_entity_id = dbManager->getContractIdByNumberDate(
+                        extracted_number, extracted_date);
+                }
 
                 if (existing_entity_id != -1) {
                     ImGui::TextColored(
                         ImVec4(1.0f, 1.0f, 0.0f, 1.0f),
-                        "Подсказка: Такой %s уже существует.",
-                        (entity_to_create == 0 ? "договор" : "документ"));
+                        "Подсказка: Такой договор уже существует.");
                 }
 
                 if (ImGui::Button("Создать") && !extracted_number.empty() &&
                     !extracted_date.empty() &&
                     extracted_number != "Не найдено" &&
                     extracted_number != "Ошибка Regex") {
-                    if (dbManager) {
-                        int new_id = -1;
-                        if (entity_to_create == 0) {
-                            Contract new_contract = {
-                                -1, extracted_number, extracted_date,
-                                selectedPayment.counterparty_id, 0.0};
-                            new_id = dbManager->addContract(new_contract);
-                        } else {
-                            BasePaymentDocument new_doc;
-                            new_doc.number = extracted_number;
-                            new_doc.date = extracted_date;
-                            new_doc.contract_id = -1;
-                            new_doc.document_name = "Накладная";
-                            new_id = dbManager->addBasePaymentDocument(new_doc);
-                        }
+                    if (dbManager && entity_to_create == 0) {
+                        Contract new_contract = {
+                            -1, extracted_number, extracted_date,
+                            selectedPayment.counterparty_id, 0.0};
+                        dbManager->addContract(new_contract);
                     }
 
                     show_create_from_desc_popup = false;
